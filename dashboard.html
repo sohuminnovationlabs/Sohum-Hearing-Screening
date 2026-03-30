@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Sohum Admin Dashboard</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { primary: '#202B5D' } } }
+    }
+  </script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { margin:0; background:#f1f5f9; display:flex; justify-content:center; min-height:100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    #root { width:100%; max-width:520px; background:#f1f5f9; min-height:100vh; }
+    ::-webkit-scrollbar { width:0; }
+    .fade-in { animation: fi 0.25s ease; }
+    @keyframes fi { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width:36px; height:36px; border:3px solid #dbeafe; border-top-color:#202B5D; border-radius:50%; animation:spin 0.8s linear infinite; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { useState, useEffect, createElement: h } = React;
+const { createRoot } = ReactDOM;
+
+// ── CONFIG ─────────────────────────────────────────────────────────────────────
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
+const DASHBOARD_VERSION = '3.0-live';
+
+// ── CREDENTIALS ────────────────────────────────────────────────────────────────
+const USERS = [
+  { username:'admin',  password:'sil2026',    name:'Sohum Admin',           role:'admin', ngo:null },
+  { username:'vaani',  password:'vaani2026',  name:'VAANI Foundation',       role:'ngo',   ngo:"VAANI Deaf Childrens' Foundation" },
+  { username:'tata',   password:'tata2026',   name:'TATA Trust',             role:'ngo',   ngo:'TATA Trust' },
+];
+
+// ── DATA ENGINE ────────────────────────────────────────────────────────────────
+const VALID_RECS = ['No Action Required','Repeat Screening','Refer for Diagnostic BERA','Refer - Follow-up required','Rescreen in 1 month','Follow Up Required','Refer to audiologist','Pass - No follow-up needed'];
+const RF_LIST = ['NICU > 5 days','Family history of hearing loss','Craniofacial anomalies','In utero infections','Hyperbilirubinemia','Syndromes associated with hearing loss'];
+
+const cleanRec = r => {
+  if (!r) return null;
+  for (const v of VALID_RECS) if (r.toLowerCase().includes(v.toLowerCase())) return v;
+  return null;
+};
+
+// rawRows is the full array of arrays from getAll (header row already removed by caller)
+const parseRows = (rawRows, ngoFilter) => rawRows
+  .filter(r => r[2] && (!ngoFilter || r[3] === ngoFilter))
+  .map(r => ({
+    ts: new Date(r[0]), opName: r[1]||'', opId: r[2]||'', ngo: r[3]||'',
+    hospital: r[4]||'', device: r[5]||'', babyId: String(r[8]||''),
+    gender: r[11]||'', gestAge: Number(r[12])||0, riskFactors: r[13]||'',
+    testType: r[17]||'',
+    leftEar: [r[21],r[22],r[23],r[24]], rightEar: [r[25],r[26],r[27],r[28]],
+    oaeTestType: r[29]||'', oaeLeft: r[31]||'', oaeRight: r[32]||'',
+    rec: r[45]||'', cleanRec: cleanRec(r[45])
+  }));
+
+const classifyAABR = row => {
+  const lP = row.leftEar.some(v=>v==='PASS'), rP = row.rightEar.some(v=>v==='PASS');
+  const lR = row.leftEar.some(v=>v==='REFER'), rR = row.rightEar.some(v=>v==='REFER');
+  if (lP && rP) return 'PASS';
+  if (lR && rR) return 'Bilateral Refer';
+  if (lR) return 'Left Ear Refer';
+  if (rR) return 'Right Ear Refer';
+  return 'Inconclusive';
+};
+
+const classifyOAE = row => {
+  if (row.oaeLeft==='PASS'||row.oaeRight==='PASS') return 'PASS';
+  if (row.oaeLeft==='REFER'||row.oaeRight==='REFER') return 'REFER';
+  return 'Inconclusive';
+};
+
+const pct = (n,d) => d>0 ? Math.round((n/d)*100) : 0;
+const fmtDate = d => (!d||isNaN(d)) ? 'N/A' : d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+
+const calcStats = rows => {
+  const aabr = rows.filter(r=>r.testType==='AABR');
+  const oae  = rows.filter(r=>r.testType==='OAE');
+  const aabrR = aabr.map(classifyAABR);
+  const oaeR  = oae.map(classifyOAE);
+
+  const rfCounts={}, recCounts={};
+  rows.forEach(r => {
+    RF_LIST.forEach(rf => { if(r.riskFactors.includes(rf)) rfCounts[rf]=(rfCounts[rf]||0)+1; });
+    if(r.cleanRec) recCounts[r.cleanRec]=(recCounts[r.cleanRec]||0)+1;
+  });
+
+  const dates = rows.map(r=>r.ts).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
+
+  const hospMap={};
+  rows.forEach(r=>{ if(!r.hospital) return; if(!hospMap[r.hospital]) hospMap[r.hospital]={count:0,rows:[]}; hospMap[r.hospital].count++; hospMap[r.hospital].rows.push(r); });
+  const ngoMap={};
+  rows.forEach(r=>{ if(!r.ngo) return; if(!ngoMap[r.ngo]) ngoMap[r.ngo]={count:0,rows:[]}; ngoMap[r.ngo].count++; ngoMap[r.ngo].rows.push(r); });
+  const deviceMap={};
+  rows.forEach(r=>{ if(!r.device) return; if(!deviceMap[r.device]) deviceMap[r.device]={count:0,rows:[]}; deviceMap[r.device].count++; deviceMap[r.device].rows.push(r); });
+  const workerMap={};
+  rows.forEach(r=>{ if(!r.opId) return; if(!workerMap[r.opId]) workerMap[r.opId]={name:r.opName||r.opId,count:0,rows:[]}; workerMap[r.opId].count++; workerMap[r.opId].rows.push(r); });
+
+  const aabrPass  = aabrR.filter(r=>r==='PASS').length;
+  const aabrRefer = aabrR.filter(r=>r!=='PASS'&&r!=='Inconclusive').length;
+  const bilat     = aabrR.filter(r=>r==='Bilateral Refer').length;
+  const leftOnly  = aabrR.filter(r=>r==='Left Ear Refer').length;
+  const rightOnly = aabrR.filter(r=>r==='Right Ear Refer').length;
+  const oaePass   = oaeR.filter(r=>r==='PASS').length;
+  const oaeRefer  = oaeR.filter(r=>r==='REFER').length;
+  const preterm   = rows.filter(r=>r.gestAge>0&&r.gestAge<37).length;
+  const term      = rows.filter(r=>r.gestAge>=37).length;
+  const dpoae     = oae.filter(r=>r.oaeTestType==='DPOAE').length;
+  const teoae     = oae.filter(r=>r.oaeTestType==='TEOAE').length;
+
+  return {
+    total:rows.length, uniqueBabies:new Set(rows.map(r=>r.babyId)).size,
+    firstDate:dates[0]||null, lastDate:dates[dates.length-1]||null,
+    aabrTotal:aabr.length, aabrPass, aabrRefer, bilat, leftOnly, rightOnly,
+    oaeTotal:oae.length, oaePass, oaeRefer, dpoae, teoae,
+    rfCounts, recCounts, preterm, term,
+    workerMap, hospMap, deviceMap, ngoMap,
+    uniqueHospitals:Object.keys(hospMap).length,
+    uniqueWorkers:Object.keys(workerMap).length,
+  };
+};
+
+// ── DESIGN TOKENS ──────────────────────────────────────────────────────────────
+const C = {
+  primary:'#202B5D', primaryLight:'#2d3d80', blue100:'#dbeafe', blue700:'#1d4ed8',
+  green50:'#f0fdf4', green100:'#dcfce7', green600:'#16a34a', green700:'#15803d',
+  orange50:'#fff7ed', orange100:'#ffedd5', orange500:'#f97316', orange600:'#ea580c',
+  red50:'#fef2f2', red600:'#dc2626', red700:'#b91c1c',
+  yellow50:'#fefce8', yellow600:'#ca8a04',
+  slate50:'#f8fafc', slate100:'#f1f5f9', slate200:'#e2e8f0',
+  slate400:'#94a3b8', slate500:'#64748b', slate600:'#475569', slate700:'#334155', slate800:'#1e293b',
+};
+
+// ── BASE COMPONENTS ────────────────────────────────────────────────────────────
+const Card = ({children, style={}, onClick}) => h('div',{
+  onClick, style:{background:'#fff',borderRadius:14,border:`1px solid ${C.slate200}`,
+    boxShadow:'0 1px 3px rgba(0,0,0,0.06)',padding:16,
+    cursor:onClick?'pointer':'default', ...style}
+}, children);
+
+const SectionLabel = ({children}) => h('div',{style:{
+  fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',
+  color:C.slate400,marginBottom:10
+}}, children);
+
+const BarRow = ({label,value,total,color,suffix}) => {
+  const p = pct(value,total);
+  return h('div',{style:{marginBottom:12}},
+    h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}},
+      h('span',{style:{fontSize:13,color:C.slate600}}, label),
+      h('span',{style:{fontSize:13,fontWeight:600,color:C.slate800}}, suffix||`${value} (${p}%)`)
+    ),
+    h('div',{style:{background:C.slate200,borderRadius:999,height:7}},
+      h('div',{style:{background:color,borderRadius:999,height:7,width:`${p}%`,transition:'width 0.5s ease'}})
+    )
+  );
+};
+
+const Chip = ({label,bg,fg}) => h('span',{style:{
+  display:'inline-flex',alignItems:'center',padding:'3px 10px',borderRadius:999,
+  fontSize:11,fontWeight:600,background:bg,color:fg,marginRight:5,marginBottom:5
+}}, label);
+
+const StatBox = ({value,label}) => h('div',{style:{
+  flex:1,background:'#fff',borderRadius:14,border:`1px solid ${C.slate200}`,
+  padding:'14px 8px',textAlign:'center',boxShadow:'0 1px 3px rgba(0,0,0,0.05)'
+}},
+  h('div',{style:{fontSize:26,fontWeight:700,color:C.primary}}, String(value)),
+  h('div',{style:{fontSize:11,color:C.slate400,marginTop:3,lineHeight:'1.3'}}, label)
+);
+
+const BackBtn = ({onClick}) => h('button',{onClick,style:{
+  display:'flex',alignItems:'center',gap:6,background:'none',border:'none',
+  color:C.slate500,fontSize:13,fontWeight:500,cursor:'pointer',padding:'6px 0',marginBottom:8
+}},
+  h('svg',{xmlns:'http://www.w3.org/2000/svg',width:18,height:18,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},
+    h('path',{d:'m15 18-6-6 6-6'})
+  ),
+  'Back'
+);
+
+const Divider = () => h('div',{style:{borderTop:`1px solid ${C.slate200}`,margin:'12px 0'}});
+
+// ── LOADING SCREEN ─────────────────────────────────────────────────────────────
+const LoadingScreen = () =>
+  h('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:C.slate100,gap:20}},
+    h('div',{className:'spinner'}),
+    h('div',{style:{fontSize:14,color:C.slate500,fontWeight:500}}, 'Loading screening data...'),
+    h('div',{style:{fontSize:12,color:C.slate400}}, 'Connecting to live data source')
+  );
+
+// ── ERROR SCREEN ───────────────────────────────────────────────────────────────
+const ErrorScreen = ({message, onRetry}) =>
+  h('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:C.slate100,padding:24,gap:16}},
+    h('div',{style:{width:52,height:52,borderRadius:'50%',background:C.red50,display:'flex',alignItems:'center',justifyContent:'center',fontSize:24}}, '!'),
+    h('div',{style:{fontSize:16,fontWeight:600,color:C.slate800,textAlign:'center'}}, 'Could not load data'),
+    h('div',{style:{fontSize:13,color:C.slate500,textAlign:'center',maxWidth:300,lineHeight:'1.5'}}, message),
+    h('button',{
+      onClick:onRetry,
+      style:{background:C.primary,color:'#fff',border:'none',borderRadius:12,padding:'12px 28px',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:8}
+    }, 'Retry')
+  );
+
+// ── LOGIN SCREEN ───────────────────────────────────────────────────────────────
+const LoginScreen = ({onLogin, dataTimestamp}) => {
+  const [form, setForm] = useState({u:'',p:''});
+  const [err, setErr] = useState('');
+
+  const attempt = () => {
+    const user = USERS.find(x => x.username===form.u && x.password===form.p);
+    if (user) onLogin(user);
+    else setErr('Invalid username or password.');
+  };
+
+  return h('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column',background:C.slate100}},
+    h('div',{style:{background:C.primary,color:'#fff',padding:'56px 24px 32px',borderBottomLeftRadius:28,borderBottomRightRadius:28,boxShadow:'0 4px 20px rgba(32,43,93,0.25)'}},
+      h('div',{style:{fontSize:10,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'#93c5fd',marginBottom:8}}, 'Sohum Innovation Labs'),
+      h('h1',{style:{fontSize:24,fontWeight:700,margin:0}}, 'Admin Dashboard'),
+      h('p',{style:{fontSize:13,color:'#bfdbfe',margin:'6px 0 0'}}, 'Sign in to view screening analytics')
+    ),
+    h('div',{style:{padding:'24px 16px'}},
+      h(Card,{},
+        h('div',{style:{display:'flex',flexDirection:'column',gap:14}},
+          h('div',{},
+            h('label',{style:{fontSize:13,fontWeight:500,color:C.slate700,display:'block',marginBottom:6}}, 'Username'),
+            h('input',{
+              type:'text', value:form.u, autoCapitalize:'none', autoCorrect:'off',
+              onChange:e=>{ setForm({...form,u:e.target.value}); setErr(''); },
+              onKeyDown:e=>{ if(e.key==='Enter') attempt(); },
+              placeholder:'Enter username',
+              style:{width:'100%',background:C.slate100,border:'none',borderRadius:12,
+                padding:'12px 14px',fontSize:14,color:C.slate800,outline:'none',boxSizing:'border-box'}
+            })
+          ),
+          h('div',{},
+            h('label',{style:{fontSize:13,fontWeight:500,color:C.slate700,display:'block',marginBottom:6}}, 'Password'),
+            h('input',{
+              type:'password', value:form.p,
+              onChange:e=>{ setForm({...form,p:e.target.value}); setErr(''); },
+              onKeyDown:e=>{ if(e.key==='Enter') attempt(); },
+              placeholder:'Enter password',
+              style:{width:'100%',background:C.slate100,border:'none',borderRadius:12,
+                padding:'12px 14px',fontSize:14,color:C.slate800,outline:'none',boxSizing:'border-box'}
+            })
+          ),
+          err && h('div',{style:{fontSize:13,color:C.red600,textAlign:'center'}}, err),
+          h('button',{
+            onClick:attempt,
+            style:{width:'100%',background:C.primary,color:'#fff',border:'none',borderRadius:12,
+              padding:'14px',fontSize:15,fontWeight:600,cursor:'pointer',marginTop:4}
+          }, 'Sign In')
+        )
+      ),
+      dataTimestamp && h('div',{style:{marginTop:12,textAlign:'center',fontSize:11,color:C.slate400}},
+        `Data loaded at ${dataTimestamp}`
+      )
+    ),
+    h('div',{style:{position:'fixed',bottom:8,left:8,background:'rgba(0,0,0,0.4)',color:'#fff',fontSize:10,padding:'3px 10px',borderRadius:999,fontFamily:'monospace'}},
+      `Dashboard v${DASHBOARD_VERSION}`
+    )
+  );
+};
+
+// ── OVERVIEW SCREEN ────────────────────────────────────────────────────────────
+const OverviewScreen = ({user, rows, onDrill, onLogout, dataTimestamp}) => {
+  const s = calcStats(rows);
+
+  const recColor = rec => {
+    if(!rec) return C.slate400;
+    if(rec.includes('No Action')||rec.includes('Pass - No')) return C.green600;
+    if(rec.includes('BERA')||rec.includes('audiologist')) return C.red600;
+    return C.orange500;
+  };
+
+  return h('div',{style:{minHeight:'100vh',paddingBottom:40}},
+    h('div',{style:{background:C.primary,color:'#fff',padding:'56px 24px 28px',borderBottomLeftRadius:28,borderBottomRightRadius:28,boxShadow:'0 4px 20px rgba(32,43,93,0.25)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}},
+      h('div',{},
+        h('div',{style:{fontSize:10,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'#93c5fd',marginBottom:6}}, user.role==='admin'?'Sohum Innovation Labs':user.ngo),
+        h('h1',{style:{fontSize:22,fontWeight:700,margin:0}}, 'Dashboard'),
+        h('p',{style:{fontSize:13,color:'#bfdbfe',margin:'4px 0 0'}}, `Welcome, ${user.name}`)
+      ),
+      h('div',{style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:8}},
+        h('div',{style:{width:38,height:38,borderRadius:'50%',background:'rgba(255,255,255,0.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700}},
+          user.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase()
+        ),
+        h('button',{onClick:onLogout,style:{background:'none',border:'none',color:'#93c5fd',fontSize:12,cursor:'pointer',padding:0}}, 'Logout')
+      )
+    ),
+
+    h('div',{style:{padding:'16px 14px'}},
+      h('div',{style:{display:'flex',gap:10,marginBottom:12}},
+        h(StatBox,{value:s.total, label:'Total Screenings'}),
+        h(StatBox,{value:s.uniqueBabies, label:'Unique Babies'}),
+        h(StatBox,{value:s.uniqueHospitals, label:'Hospitals'})
+      ),
+
+      h(Card,{style:{marginBottom:12}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
+          h('div',{},
+            h('div',{style:{fontSize:11,color:C.slate400}}, 'First Screening'),
+            h('div',{style:{fontSize:13,fontWeight:600,color:C.slate800}}, fmtDate(s.firstDate))
+          ),
+          h('div',{style:{fontSize:18,color:C.slate300}}, '→'),
+          h('div',{style:{textAlign:'right'}},
+            h('div',{style:{fontSize:11,color:C.slate400}}, 'Latest Screening'),
+            h('div',{style:{fontSize:13,fontWeight:600,color:C.slate800}}, fmtDate(s.lastDate))
+          )
+        )
+      ),
+
+      h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, `Test Type Distribution  ·  ${s.total} total`),
+        h(BarRow,{label:'AABR',value:s.aabrTotal,total:s.total,color:C.primary}),
+        h(BarRow,{label:'OAE',value:s.oaeTotal,total:s.total,color:'#3b82f6'})
+      ),
+
+      s.aabrTotal > 0 && h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, `AABR Outcomes  ·  ${s.aabrTotal} screenings`),
+        h(BarRow,{label:'Pass',value:s.aabrPass,total:s.aabrTotal,color:C.green600}),
+        h(BarRow,{label:'Refer (any ear)',value:s.aabrRefer,total:s.aabrTotal,color:C.orange600}),
+        h(Divider),
+        h('div',{style:{fontSize:12,color:C.slate500,marginBottom:8}}, 'Refer breakdown by ear'),
+        h('div',{style:{display:'flex',flexWrap:'wrap'}},
+          h(Chip,{label:`Bilateral: ${s.bilat}`,bg:C.red50,fg:C.red700}),
+          h(Chip,{label:`Left ear only: ${s.leftOnly}`,bg:C.orange50,fg:C.orange600}),
+          h(Chip,{label:`Right ear only: ${s.rightOnly}`,bg:C.yellow50,fg:C.yellow600})
+        )
+      ),
+
+      s.oaeTotal > 0 && h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, `OAE Outcomes  ·  ${s.oaeTotal} screenings`),
+        h(BarRow,{label:'Pass',value:s.oaePass,total:s.oaeTotal,color:C.green600}),
+        h(BarRow,{label:'Refer',value:s.oaeRefer,total:s.oaeTotal,color:C.orange600}),
+        h(Divider),
+        h('div',{style:{display:'flex',flexWrap:'wrap'}},
+          h(Chip,{label:`DPOAE: ${s.dpoae}`,bg:C.blue100,fg:C.blue700}),
+          h(Chip,{label:`TEOAE: ${s.teoae}`,bg:C.green100,fg:C.green700})
+        )
+      ),
+
+      h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, 'Gestational Age Profile'),
+        h('div',{style:{display:'flex',gap:10}},
+          h('div',{style:{flex:1,background:C.orange50,borderRadius:12,padding:'12px 8px',textAlign:'center'}},
+            h('div',{style:{fontSize:22,fontWeight:700,color:C.orange600}}, s.preterm),
+            h('div',{style:{fontSize:11,color:C.orange500,marginTop:2}}, 'Preterm (<37 wks)'),
+            h('div',{style:{fontSize:11,color:C.slate400}}, `${pct(s.preterm,s.total)}% of total`)
+          ),
+          h('div',{style:{flex:1,background:C.green50,borderRadius:12,padding:'12px 8px',textAlign:'center'}},
+            h('div',{style:{fontSize:22,fontWeight:700,color:C.green600}}, s.term),
+            h('div',{style:{fontSize:11,color:C.green700,marginTop:2}}, 'Term (≥37 wks)'),
+            h('div',{style:{fontSize:11,color:C.slate400}}, `${pct(s.term,s.total)}% of total`)
+          )
+        )
+      ),
+
+      Object.keys(s.rfCounts).length>0 && h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, 'Risk Factor Distribution'),
+        Object.entries(s.rfCounts).sort((a,b)=>b[1]-a[1]).map(([rf,count]) =>
+          h(BarRow,{key:rf,label:rf,value:count,total:s.total,color:'#d97706'})
+        )
+      ),
+
+      Object.keys(s.recCounts).length>0 && h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, 'Outcome / Recommendation Breakdown'),
+        Object.entries(s.recCounts).sort((a,b)=>b[1]-a[1]).map(([rec,count]) =>
+          h(BarRow,{key:rec,label:rec,value:count,total:s.total,color:recColor(rec)})
+        )
+      ),
+
+      h('div',{style:{fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:C.slate400,marginBottom:10,marginTop:4,paddingLeft:2}}, 'Drill Down'),
+      [
+        user.role==='admin' && {icon:'🤝',label:'By NGO / CSR Partner',sub:`${Object.keys(s.ngoMap).length} partners`,type:'ngo'},
+        user.role==='admin' && {icon:'🏥',label:'By Hospital',sub:`${s.uniqueHospitals} locations`,type:'hospital'},
+        user.role==='admin' && {icon:'📱',label:'By Device',sub:`${Object.keys(s.deviceMap).length} devices`,type:'device'},
+        {icon:'👤',label:'By Healthcare Worker',sub:`${s.uniqueWorkers} operators`,type:'worker'},
+      ].filter(Boolean).map(item =>
+        h(Card,{key:item.type, style:{marginBottom:10,cursor:'pointer'}, onClick:()=>onDrill(item.type)},
+          h('div',{style:{display:'flex',alignItems:'center',gap:14}},
+            h('div',{style:{width:44,height:44,borderRadius:12,background:'#eef2ff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}, item.icon),
+            h('div',{style:{flex:1}},
+              h('div',{style:{fontSize:14,fontWeight:600,color:C.slate800}}, item.label),
+              h('div',{style:{fontSize:12,color:C.slate400,marginTop:2}}, item.sub)
+            ),
+            h('svg',{xmlns:'http://www.w3.org/2000/svg',width:16,height:16,viewBox:'0 0 24 24',fill:'none',stroke:C.slate300,strokeWidth:2},
+              h('path',{d:'m9 18 6-6-6-6'})
+            )
+          )
+        )
+      ),
+
+      dataTimestamp && h('div',{style:{marginTop:16,textAlign:'center',fontSize:11,color:C.slate400}},
+        `Data loaded at ${dataTimestamp}`
+      )
+    )
+  );
+};
+
+// ── DRILL LIST SCREEN ──────────────────────────────────────────────────────────
+const DrillListScreen = ({user, type, rows, onSelect, onBack}) => {
+  const labels = {hospital:'Hospital',device:'Device',ngo:'NGO / CSR Partner',worker:'Healthcare Worker'};
+  const entityMap = {};
+  rows.forEach(r => {
+    const key = type==='hospital'?r.hospital : type==='device'?r.device : type==='ngo'?r.ngo : r.opId;
+    if(!key) return;
+    if(!entityMap[key]) entityMap[key]={label:key,displayName:'',count:0,rows:[]};
+    if(type==='worker' && !entityMap[key].displayName) entityMap[key].displayName=r.opName||r.opId;
+    entityMap[key].count++;
+    entityMap[key].rows.push(r);
+  });
+
+  const sorted = Object.entries(entityMap).sort((a,b)=>b[1].count-a[1].count);
+
+  return h('div',{style:{minHeight:'100vh',paddingBottom:40}},
+    h('div',{style:{background:C.primary,color:'#fff',padding:'56px 24px 28px',borderBottomLeftRadius:28,borderBottomRightRadius:28,boxShadow:'0 4px 20px rgba(32,43,93,0.25)'}},
+      h('div',{style:{fontSize:10,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'#93c5fd',marginBottom:6}}, 'Drill Down'),
+      h('h1',{style:{fontSize:22,fontWeight:700,margin:0}}, `By ${labels[type]}`)
+    ),
+    h('div',{style:{padding:'16px 14px'}},
+      h(BackBtn,{onClick:onBack}),
+      sorted.map(([key,info]) => {
+        const s = calcStats(info.rows);
+        const totalRefer = s.aabrRefer + s.oaeRefer;
+        const totalTests = s.aabrTotal + s.oaeTotal;
+        const referPct = pct(totalRefer, totalTests);
+        return h(Card,{key, style:{marginBottom:10,cursor:'pointer'}, onClick:()=>onSelect(type,key,info.rows)},
+          h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}},
+            h('div',{style:{flex:1,marginRight:12}},
+              h('div',{style:{fontSize:14,fontWeight:600,color:C.slate800}},
+                type==='worker' ? (info.displayName||key) : key
+              ),
+              type==='worker' && h('div',{style:{fontSize:11,color:C.slate400,marginTop:2}}, `ID: ${key}`),
+              type==='worker' && info.rows[0]&&info.rows[0].ngo && h('div',{style:{fontSize:11,color:C.slate400}}, info.rows[0].ngo)
+            ),
+            h('div',{style:{textAlign:'right'}},
+              h('div',{style:{fontSize:22,fontWeight:700,color:C.primary}}, info.count),
+              h('div',{style:{fontSize:11,color:C.slate400}}, 'screenings'),
+              referPct>0 && h('span',{style:{display:'inline-block',marginTop:4,padding:'2px 8px',borderRadius:999,fontSize:11,fontWeight:600,background:C.red50,color:C.red700}}, `${referPct}% refer`)
+            )
+          ),
+          h('div',{style:{display:'flex',flexWrap:'wrap',marginTop:10}},
+            s.aabrTotal>0 && h(Chip,{label:`AABR: ${s.aabrTotal}`,bg:'#eef2ff',fg:C.blue700}),
+            s.oaeTotal>0  && h(Chip,{label:`OAE: ${s.oaeTotal}`,bg:C.green50,fg:C.green700}),
+            s.preterm>0   && h(Chip,{label:`Preterm: ${s.preterm}`,bg:C.orange50,fg:C.orange600})
+          )
+        );
+      })
+    )
+  );
+};
+
+// ── ENTITY DETAIL SCREEN ───────────────────────────────────────────────────────
+const EntityDetailScreen = ({type, entityKey, rows, onBack}) => {
+  const s = calcStats(rows);
+  const titles = {hospital:'Hospital Stats',device:'Device Stats',ngo:'NGO Stats',worker:'Worker Stats'};
+  const subtitle = type==='worker' ? (rows[0]&&rows[0].opName||entityKey) : entityKey;
+
+  const recColor = rec => {
+    if(!rec) return C.slate400;
+    if(rec.includes('No Action')||rec.includes('Pass - No')) return C.green600;
+    if(rec.includes('BERA')||rec.includes('audiologist')) return C.red600;
+    return C.orange500;
+  };
+
+  return h('div',{style:{minHeight:'100vh',paddingBottom:40}},
+    h('div',{style:{background:C.primary,color:'#fff',padding:'56px 24px 28px',borderBottomLeftRadius:28,borderBottomRightRadius:28,boxShadow:'0 4px 20px rgba(32,43,93,0.25)'}},
+      h('div',{style:{fontSize:10,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'#93c5fd',marginBottom:6}}, titles[type]),
+      h('h1',{style:{fontSize:22,fontWeight:700,margin:0}}, subtitle),
+      type==='worker' && h('p',{style:{fontSize:12,color:'#bfdbfe',margin:'4px 0 0'}}, `ID: ${entityKey}${rows[0]&&rows[0].ngo?' · '+rows[0].ngo:''}`)
+    ),
+    h('div',{style:{padding:'16px 14px'}},
+      h(BackBtn,{onClick:onBack}),
+
+      h('div',{style:{display:'flex',gap:10,marginBottom:12}},
+        h(StatBox,{value:s.total,label:'Screenings'}),
+        h(StatBox,{value:s.uniqueBabies,label:'Unique Babies'}),
+        h(StatBox,{value:type==='worker'?s.uniqueHospitals:s.uniqueWorkers, label:type==='worker'?'Hospitals':'Workers'})
+      ),
+
+      h(Card,{style:{marginBottom:12}},
+        h('div',{style:{display:'flex',justifyContent:'space-between'}},
+          h('div',{},h('div',{style:{fontSize:11,color:C.slate400}},'First'),h('div',{style:{fontSize:13,fontWeight:600}},fmtDate(s.firstDate))),
+          h('div',{style:{color:C.slate300}},'→'),
+          h('div',{style:{textAlign:'right'}},h('div',{style:{fontSize:11,color:C.slate400}},'Latest'),h('div',{style:{fontSize:13,fontWeight:600}},fmtDate(s.lastDate)))
+        )
+      ),
+
+      s.aabrTotal>0 && h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, `AABR Results  ·  ${s.aabrTotal} screenings`),
+        h(BarRow,{label:'Pass',value:s.aabrPass,total:s.aabrTotal,color:C.green600}),
+        h(BarRow,{label:'Refer (any ear)',value:s.aabrRefer,total:s.aabrTotal,color:C.orange600}),
+        h(Divider),
+        h('div',{style:{fontSize:12,color:C.slate500,marginBottom:8}}, 'By ear'),
+        h('div',{style:{display:'flex',flexWrap:'wrap'}},
+          h(Chip,{label:`Bilateral: ${s.bilat}`,bg:C.red50,fg:C.red700}),
+          h(Chip,{label:`Left only: ${s.leftOnly}`,bg:C.orange50,fg:C.orange600}),
+          h(Chip,{label:`Right only: ${s.rightOnly}`,bg:C.yellow50,fg:C.yellow600})
+        )
+      ),
+
+      s.oaeTotal>0 && h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, `OAE Results  ·  ${s.oaeTotal} screenings`),
+        h(BarRow,{label:'Pass',value:s.oaePass,total:s.oaeTotal,color:C.green600}),
+        h(BarRow,{label:'Refer',value:s.oaeRefer,total:s.oaeTotal,color:C.orange600}),
+        h(Divider),
+        h('div',{style:{display:'flex',flexWrap:'wrap'}},
+          s.dpoae>0 && h(Chip,{label:`DPOAE: ${s.dpoae}`,bg:C.blue100,fg:C.blue700}),
+          s.teoae>0 && h(Chip,{label:`TEOAE: ${s.teoae}`,bg:C.green100,fg:C.green700})
+        )
+      ),
+
+      h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, 'Gestational Age Profile'),
+        h('div',{style:{display:'flex',gap:10}},
+          h('div',{style:{flex:1,background:C.orange50,borderRadius:12,padding:'12px 8px',textAlign:'center'}},
+            h('div',{style:{fontSize:22,fontWeight:700,color:C.orange600}},s.preterm),
+            h('div',{style:{fontSize:11,color:C.orange500,marginTop:2}},'Preterm (<37w)'),
+            h('div',{style:{fontSize:11,color:C.slate400}},`${pct(s.preterm,s.total)}%`)
+          ),
+          h('div',{style:{flex:1,background:C.green50,borderRadius:12,padding:'12px 8px',textAlign:'center'}},
+            h('div',{style:{fontSize:22,fontWeight:700,color:C.green600}},s.term),
+            h('div',{style:{fontSize:11,color:C.green700,marginTop:2}},'Term (≥37w)'),
+            h('div',{style:{fontSize:11,color:C.slate400}},`${pct(s.term,s.total)}%`)
+          )
+        )
+      ),
+
+      Object.keys(s.rfCounts).length>0 && h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, 'Risk Factors'),
+        Object.entries(s.rfCounts).sort((a,b)=>b[1]-a[1]).map(([rf,count]) =>
+          h(BarRow,{key:rf,label:rf,value:count,total:s.total,color:'#d97706'})
+        )
+      ),
+
+      Object.keys(s.recCounts).length>0 && h(Card,{style:{marginBottom:12}},
+        h(SectionLabel,{}, 'Outcome Breakdown'),
+        Object.entries(s.recCounts).sort((a,b)=>b[1]-a[1]).map(([rec,count]) =>
+          h(BarRow,{key:rec,label:rec,value:count,total:s.total,color:recColor(rec)})
+        )
+      ),
+
+      type==='worker' && (() => {
+        const hospSet = [...new Set(rows.map(r=>r.hospital).filter(Boolean))];
+        return hospSet.length>0 && h(Card,{style:{marginBottom:12}},
+          h(SectionLabel,{}, 'Hospitals Visited'),
+          h('div',{style:{display:'flex',flexWrap:'wrap'}},
+            hospSet.map(hh => h(Chip,{key:hh,label:hh,bg:C.slate100,fg:C.slate600}))
+          )
+        );
+      })()
+    )
+  );
+};
+
+// ── APP ────────────────────────────────────────────────────────────────────────
+const App = () => {
+  const [loadState, setLoadState] = useState('loading'); // 'loading' | 'error' | 'ready'
+  const [errorMsg, setErrorMsg]   = useState('');
+  const [rawRows, setRawRows]     = useState([]);
+  const [dataTimestamp, setDataTimestamp] = useState('');
+  const [user, setUser]           = useState(null);
+  const [screen, setScreen]       = useState('login');
+  const [drillType, setDrillType] = useState(null);
+  const [entityKey, setEntityKey] = useState(null);
+  const [entityRows, setEntityRows] = useState([]);
+
+  const fetchData = () => {
+    setLoadState('loading');
+    setErrorMsg('');
+    const url = `${SCRIPT_URL}?action=getAll`;
+    fetch(url)
+      .then(res => {
+        if (!res.ok) throw new Error(`Server responded with status ${res.status}`);
+        return res.json();
+      })
+      .then(json => {
+        if (json.status !== 'success') throw new Error(json.message || 'Unexpected response from data source');
+        const rows = Array.isArray(json.data) ? json.data.slice(1) : []; // remove header row
+        setRawRows(rows);
+        const now = new Date();
+        setDataTimestamp(now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}));
+        setLoadState('ready');
+      })
+      .catch(err => {
+        setErrorMsg(`${err.message}. Please check your connection and try again.`);
+        setLoadState('error');
+      });
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  if (loadState === 'loading') return h(LoadingScreen);
+  if (loadState === 'error')   return h(ErrorScreen, {message: errorMsg, onRetry: fetchData});
+
+  const rows = user ? parseRows(rawRows, user.ngo) : [];
+
+  if (!user)
+    return h(LoginScreen, {
+      dataTimestamp,
+      onLogin: u => { setUser(u); setScreen('overview'); }
+    });
+
+  if (screen === 'overview')
+    return h(OverviewScreen, {
+      user, rows, dataTimestamp,
+      onLogout: () => { setUser(null); setScreen('login'); },
+      onDrill: type => { setDrillType(type); setScreen('drill'); }
+    });
+
+  if (screen === 'drill')
+    return h(DrillListScreen, {
+      user, type: drillType, rows,
+      onBack: () => setScreen('overview'),
+      onSelect: (type, key, erows) => { setDrillType(type); setEntityKey(key); setEntityRows(erows); setScreen('detail'); }
+    });
+
+  if (screen === 'detail')
+    return h(EntityDetailScreen, {
+      type: drillType, entityKey, rows: entityRows,
+      onBack: () => setScreen('drill')
+    });
+
+  return null;
+};
+
+createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
