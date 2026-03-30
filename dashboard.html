@@ -28,7 +28,7 @@ const { createRoot } = ReactDOM;
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 const SCRIPT_URL      = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
 const CREDS_SHEET_ID  = '1w7cKakdDSpAfzNiqHYzjM4qiY_7j14eIBWR4lQlkqDk';
-const DASHBOARD_VERSION = 'v5.0';
+const DASHBOARD_VERSION = '5.1';
 
 const FALLBACK_USERS = [
   { username:'admin', password:'sil2026', name:'Sohum Admin', role:'admin', ngo:null },
@@ -212,10 +212,10 @@ const Card = ({children, style={}, onClick}) => h('div',{
     boxShadow:'0 1px 3px rgba(0,0,0,0.06)',padding:16,cursor:onClick?'pointer':'default',...style}
 }, children);
 
-const SectionLabel = ({children, helper}) => h('div',{style:{marginBottom:10}},
-  h('div',{style:{fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:C.slate400}}, children),
-  helper && h('div',{style:{fontSize:11,color:C.slate500,marginTop:3,lineHeight:'1.4'}}, helper)
-);
+const SectionLabel = ({children}) => h('div',{style:{
+  fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',
+  color:C.slate400,marginBottom:10
+}}, children);
 
 const BarRow = ({label,value,total,color,suffix}) => {
   const p = pct(value,total);
@@ -254,13 +254,10 @@ const BackBtn = ({onClick}) => h('button',{onClick,style:{
 
 const Divider = () => h('div',{style:{borderTop:`1px solid ${C.slate200}`,margin:'12px 0'}});
 
-const InfoRow = ({label,value,helper}) => h('div',{style:{marginBottom:10}},
-  h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}},
-    h('div',{style:{flex:1}},
-      h('div',{style:{fontSize:13,color:C.slate600}}, label),
-      helper && h('div',{style:{fontSize:11,color:C.slate400,marginTop:1,lineHeight:'1.4'}}, helper)
-    ),
-    h('div',{style:{fontSize:13,fontWeight:600,color:C.slate800,marginLeft:12,textAlign:'right'}}, value)
+const InfoRow = ({label,value}) => h('div',{style:{marginBottom:10}},
+  h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
+    h('div',{style:{fontSize:13,color:C.slate600}}, label),
+    h('div',{style:{fontSize:13,fontWeight:600,color:C.slate800,marginLeft:12}}, value)
   )
 );
 
