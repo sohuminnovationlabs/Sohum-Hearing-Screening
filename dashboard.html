@@ -28,7 +28,7 @@ const { createRoot } = ReactDOM;
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 const SCRIPT_URL      = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
 const CREDS_SHEET_ID  = '1w7cKakdDSpAfzNiqHYzjM4qiY_7j14eIBWR4lQlkqDk';
-const DASHBOARD_VERSION = '5.1';
+const DASHBOARD_VERSION = '5.2';
 
 const FALLBACK_USERS = [
   { username:'admin', password:'sil2026', name:'Sohum Admin', role:'admin', ngo:null },
@@ -384,10 +384,7 @@ const OverviewScreen = ({user,rows,onDrill,onLogout,dataTimestamp,dateFrom,dateT
       ),
 
       s.aabrTotal > 0 && h(Card,{style:{marginBottom:12}},
-        h(SectionLabel,{},
-          `AABR Outcomes  ·  ${s.aabrTotal} screenings`,
-          'AABR (Automated Auditory Brainstem Response) tests the neural hearing pathway. Each screening may test one or both ears across multiple intensity levels.'
-        ),
+        h(SectionLabel,{}, `AABR Outcomes  ·  ${s.aabrTotal} screenings`),
         h(BarRow,{label:'Pass (bilateral)',    value:s.aabrPass,    total:s.aabrTotal,color:C.green600}),
         h(BarRow,{label:'Pass (single ear)',   value:s.aabrUniPass, total:s.aabrTotal,color:'#4ade80',
           suffix:`${s.aabrUniPass} — only one ear was tested`}),
@@ -403,10 +400,7 @@ const OverviewScreen = ({user,rows,onDrill,onLogout,dataTimestamp,dateFrom,dateT
       ),
 
       s.oaeTotal > 0 && h(Card,{style:{marginBottom:12}},
-        h(SectionLabel,{},
-          `OAE Outcomes  ·  ${s.oaeTotal} screenings${s.dpoae>0?'  ·  DPOAE: '+s.dpoae:''}${s.teoae>0?'  ·  TEOAE: '+s.teoae:''}`,
-          'OAE (Otoacoustic Emissions) tests outer hair cell function in the cochlea. Each screening covers one or both ears.'
-        ),
+        h(SectionLabel,{}, `OAE Outcomes  ·  ${s.oaeTotal} screenings${s.dpoae>0?'  ·  DPOAE: '+s.dpoae:''}${s.teoae>0?'  ·  TEOAE: '+s.teoae:''}`),
         h(BarRow,{label:'Pass (bilateral)',  value:s.oaePass,    total:s.oaeTotal,color:C.green600}),
         h(BarRow,{label:'Pass (single ear)', value:s.oaeUniPass, total:s.oaeTotal,color:'#4ade80',
           suffix:`${s.oaeUniPass} — only one ear was tested`}),
@@ -430,10 +424,7 @@ const OverviewScreen = ({user,rows,onDrill,onLogout,dataTimestamp,dateFrom,dateT
       ),
 
       Object.keys(s.rfCounts).length > 0 && h(Card,{style:{marginBottom:12}},
-        h(SectionLabel,{},
-          'Risk Factor Distribution',
-          'Percentage of screenings where each risk factor was recorded. A single screening may have multiple risk factors, so bars do not sum to 100%.'
-        ),
+        h(SectionLabel,{}, 'Risk Factor Distribution'),
         (() => {
           const rfTotal = Object.values(s.rfCounts).reduce((a,b)=>a+b,0);
           return Object.entries(s.rfCounts).sort((a,b)=>b[1]-a[1]).map(([rf,count]) =>
@@ -582,10 +573,7 @@ const EntityDetailScreen = ({type,entityKey,rows,onBack}) => {
       ),
 
       s.aabrTotal > 0 && h(Card,{style:{marginBottom:12}},
-        h(SectionLabel,{},
-          `AABR Results  ·  ${s.aabrTotal} screenings`,
-          'Outcome is determined by the lowest intensity level tested per ear. REDO results are excluded from pass/refer classification.'
-        ),
+        h(SectionLabel,{}, `AABR Results  ·  ${s.aabrTotal} screenings`),
         h(BarRow,{label:'Pass (bilateral)',  value:s.aabrPass,    total:s.aabrTotal,color:C.green600}),
         h(BarRow,{label:'Pass (single ear)', value:s.aabrUniPass, total:s.aabrTotal,color:'#4ade80'}),
         h(BarRow,{label:'Refer (any ear)',   value:s.aabrRefer,   total:s.aabrTotal,color:C.orange600}),
@@ -600,10 +588,7 @@ const EntityDetailScreen = ({type,entityKey,rows,onBack}) => {
       ),
 
       s.oaeTotal > 0 && h(Card,{style:{marginBottom:12}},
-        h(SectionLabel,{},
-          `OAE Results  ·  ${s.oaeTotal} screenings${s.dpoae>0?'  ·  DPOAE: '+s.dpoae:''}${s.teoae>0?'  ·  TEOAE: '+s.teoae:''}`,
-          'OAE tests outer hair cell function. DPOAE and TEOAE are two different signal protocols; both yield a PASS or REFER per ear.'
-        ),
+        h(SectionLabel,{}, `OAE Results  ·  ${s.oaeTotal} screenings${s.dpoae>0?'  ·  DPOAE: '+s.dpoae:''}${s.teoae>0?'  ·  TEOAE: '+s.teoae:''}`),
         h(BarRow,{label:'Pass (bilateral)',  value:s.oaePass,   total:s.oaeTotal,color:C.green600}),
         h(BarRow,{label:'Pass (single ear)', value:s.oaeUniPass,total:s.oaeTotal,color:'#4ade80'}),
         h(BarRow,{label:'Refer',             value:s.oaeRefer,  total:s.oaeTotal,color:C.orange600})
@@ -626,10 +611,7 @@ const EntityDetailScreen = ({type,entityKey,rows,onBack}) => {
       ),
 
       Object.keys(s.rfCounts).length > 0 && h(Card,{style:{marginBottom:12}},
-        h(SectionLabel,{},
-          'Risk Factors',
-          'Percentage of risk factor occurrences relative to all risk factor records. A single screening may carry more than one risk factor.'
-        ),
+        h(SectionLabel,{}, 'Risk Factors'),
         (() => {
           const rfTotal = Object.values(s.rfCounts).reduce((a,b)=>a+b,0);
           return Object.entries(s.rfCounts).sort((a,b)=>b[1]-a[1]).map(([rf,count]) =>
