@@ -31,7 +31,7 @@ const { createRoot } = ReactDOM;
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
-const DASHBOARD_VERSION = '3.1.5';
+const DASHBOARD_VERSION = '3.1.6';
 
 // ── CREDENTIALS ────────────────────────────────────────────────────────────────
 const USERS = [
@@ -496,15 +496,14 @@ const DrillListScreen = ({user, type, rows, onSelect, onBack}) => {
             h('div',{style:{textAlign:'right'}},
               h('div',{style:{fontSize:22,fontWeight:700,color:C.primary}}, info.count),
               h('div',{style:{fontSize:11,color:C.slate400}}, 'screenings'),
-              referPct>0 && h('span',{style:{display:'inline-block',marginTop:4,padding:'2px 8px',borderRadius:999,fontSize:11,fontWeight:600,background:C.red50,color:C.red700}}, `${referPct}% refer`)
+              (type==='ngo'||type==='hospital') && referPct>0 && h('span',{style:{display:'inline-block',marginTop:4,padding:'2px 8px',borderRadius:999,fontSize:11,fontWeight:600,background:C.red50,color:C.red700}}, `${referPct}% refer`)
             )
           ),
           h('div',{style:{display:'flex',flexWrap:'wrap',marginTop:10}},
             (type==='worker'||type==='device')
               ? aabrRedo>0 && h(Chip,{label:`REDO: ${redoPct}%`,bg:C.yellow50,fg:C.yellow600})
               : h(Chip,{label:`Refer: ${referPct}%`,bg:C.red50,fg:C.red700}),
-            s.preterm>0 && h(Chip,{label:`Preterm: ${pct(s.preterm,s.total)}%`,bg:C.orange50,fg:C.orange600})
-          
+            (type==='ngo'||type==='hospital') && s.preterm>0 && h(Chip,{label:`Preterm: ${pct(s.preterm,s.total)}%`,bg:C.orange50,fg:C.orange600})
           )
         );
       })
