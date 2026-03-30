@@ -551,12 +551,12 @@ const EntityDetailScreen = ({type,entityKey,rows,onBack}) => {
       h(Card,{style:{marginBottom:12}},
         h(SectionLabel,{}, 'Screening Efficiency'),
         h(InfoRow,{
-          label:'Avg time per AABR unit',
+          label:'Avg time per AABR test (per dB per ear)',
           value: fmtMins(s.avgAabrTimePerUnit),
           helper:'Total AABR session time divided by the number of dB-ear slots recorded. One slot = one ear tested at one intensity level.'
         }),
         h(InfoRow,{
-          label:'Avg OAE screening time',
+          label:'Avg OAE screening time (per protocol per ear)',
           value: fmtMins(s.avgOaeTime),
           helper:'End-to-end time from when the OAE test was started to when the result was submitted.'
         }),
