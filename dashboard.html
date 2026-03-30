@@ -31,7 +31,7 @@ const { createRoot } = ReactDOM;
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
-const DASHBOARD_VERSION = '3.0-live';
+const DASHBOARD_VERSION = '3.1';
 
 // ── CREDENTIALS ────────────────────────────────────────────────────────────────
 const USERS = [
@@ -81,6 +81,9 @@ const classifyOAE = row => {
 
 const pct = (n,d) => d>0 ? Math.round((n/d)*100) : 0;
 const fmtDate = d => (!d||isNaN(d)) ? 'N/A' : d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+const toInputDate = d => { const p = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
+const monthStart = () => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; };
+const todayEnd = () => { const d = new Date(); d.setHours(23,59,59,999); return d; };
 
 const calcStats = rows => {
   const aabr = rows.filter(r=>r.testType==='AABR');
@@ -264,14 +267,64 @@ const LoginScreen = ({onLogin, dataTimestamp}) => {
         `Data loaded at ${dataTimestamp}`
       )
     ),
-    h('div',{style:{position:'fixed',bottom:8,left:8,background:'rgba(0,0,0,0.4)',color:'#fff',fontSize:10,padding:'3px 10px',borderRadius:999,fontFamily:'monospace'}},
-      `Dashboard v${DASHBOARD_VERSION}`
+    h('div',{style:{position:'fixed',bottom:12,left:'50%',transform:'translateX(-50%)',background:'rgba(32,43,93,0.15)',color:C.slate500,fontSize:10,padding:'3px 12px',borderRadius:999,fontFamily:'monospace',whiteSpace:'nowrap',pointerEvents:'none'}},
+      `Sohum Dashboard · v${DASHBOARD_VERSION}`
+    )
+  );
+};
+
+// ── DATE RANGE CARD ────────────────────────────────────────────────────────────
+const PRESETS = [
+  { label: 'This month', getRange: () => ({ from: monthStart(), to: todayEnd() }) },
+  { label: 'Last 30 days', getRange: () => { const to = todayEnd(); const from = new Date(to); from.setDate(from.getDate()-29); from.setHours(0,0,0,0); return { from, to }; } },
+  { label: 'All time', getRange: () => ({ from: new Date('2000-01-01'), to: todayEnd() }) },
+];
+
+const DateRangeCard = ({dateFrom, dateTo, setDateFrom, setDateTo}) => {
+  const activePreset = PRESETS.findIndex(p => {
+    const r = p.getRange();
+    return toInputDate(r.from) === toInputDate(dateFrom) && toInputDate(r.to) === toInputDate(dateTo);
+  });
+  return h(Card, {style:{marginBottom:12}},
+    h(SectionLabel, {}, 'Date Range'),
+    h('div', {style:{display:'flex',gap:6,marginBottom:12}},
+      PRESETS.map((p, i) =>
+        h('button', {
+          key: p.label,
+          onClick: () => { const r = p.getRange(); setDateFrom(r.from); setDateTo(r.to); },
+          style: {
+            flex:1, padding:'6px 0', borderRadius:8, border:'none', cursor:'pointer',
+            fontSize:11, fontWeight:600,
+            background: activePreset===i ? C.primary : C.slate100,
+            color: activePreset===i ? '#fff' : C.slate600,
+          }
+        }, p.label)
+      )
+    ),
+    h('div', {style:{display:'flex',gap:8,alignItems:'center'}},
+      h('div', {style:{flex:1}},
+        h('label', {style:{fontSize:11,color:C.slate400,display:'block',marginBottom:4}}, 'From'),
+        h('input', {
+          type:'date', value:toInputDate(dateFrom),
+          onChange: e => { const d = new Date(e.target.value); d.setHours(0,0,0,0); setDateFrom(d); },
+          style:{width:'100%',background:C.slate100,border:'none',borderRadius:8,padding:'8px 10px',fontSize:13,color:C.slate800,outline:'none',boxSizing:'border-box'}
+        })
+      ),
+      h('div', {style:{color:C.slate300,marginTop:16}}, '→'),
+      h('div', {style:{flex:1}},
+        h('label', {style:{fontSize:11,color:C.slate400,display:'block',marginBottom:4}}, 'To'),
+        h('input', {
+          type:'date', value:toInputDate(dateTo),
+          onChange: e => { const d = new Date(e.target.value); d.setHours(23,59,59,999); setDateTo(d); },
+          style:{width:'100%',background:C.slate100,border:'none',borderRadius:8,padding:'8px 10px',fontSize:13,color:C.slate800,outline:'none',boxSizing:'border-box'}
+        })
+      )
     )
   );
 };
 
 // ── OVERVIEW SCREEN ────────────────────────────────────────────────────────────
-const OverviewScreen = ({user, rows, onDrill, onLogout, dataTimestamp}) => {
+const OverviewScreen = ({user, rows, onDrill, onLogout, dataTimestamp, dateFrom, dateTo, setDateFrom, setDateTo}) => {
   const s = calcStats(rows);
 
   const recColor = rec => {
@@ -297,6 +350,7 @@ const OverviewScreen = ({user, rows, onDrill, onLogout, dataTimestamp}) => {
     ),
 
     h('div',{style:{padding:'16px 14px'}},
+      h(DateRangeCard, {dateFrom, dateTo, setDateFrom, setDateTo}),
       h('div',{style:{display:'flex',gap:10,marginBottom:12}},
         h(StatBox,{value:s.total, label:'Total Screenings'}),
         h(StatBox,{value:s.uniqueBabies, label:'Unique Babies'}),
@@ -454,6 +508,9 @@ const DrillListScreen = ({user, type, rows, onSelect, onBack}) => {
           )
         );
       })
+    ),
+    h('div',{style:{position:'fixed',bottom:12,left:'50%',transform:'translateX(-50%)',background:'rgba(32,43,93,0.15)',color:C.slate500,fontSize:10,padding:'3px 12px',borderRadius:999,fontFamily:'monospace',whiteSpace:'nowrap',pointerEvents:'none'}},
+      `Sohum Dashboard · v${DASHBOARD_VERSION}`
     )
   );
 };
@@ -557,6 +614,9 @@ const EntityDetailScreen = ({type, entityKey, rows, onBack}) => {
           )
         );
       })()
+    ),
+    h('div',{style:{position:'fixed',bottom:12,left:'50%',transform:'translateX(-50%)',background:'rgba(32,43,93,0.15)',color:C.slate500,fontSize:10,padding:'3px 12px',borderRadius:999,fontFamily:'monospace',whiteSpace:'nowrap',pointerEvents:'none'}},
+      `Sohum Dashboard · v${DASHBOARD_VERSION}`
     )
   );
 };
@@ -572,6 +632,8 @@ const App = () => {
   const [drillType, setDrillType] = useState(null);
   const [entityKey, setEntityKey] = useState(null);
   const [entityRows, setEntityRows] = useState([]);
+  const [dateFrom, setDateFrom] = useState(monthStart());
+  const [dateTo, setDateTo]     = useState(todayEnd());
 
   const fetchData = () => {
     setLoadState('loading');
@@ -601,7 +663,8 @@ const App = () => {
   if (loadState === 'loading') return h(LoadingScreen);
   if (loadState === 'error')   return h(ErrorScreen, {message: errorMsg, onRetry: fetchData});
 
-  const rows = user ? parseRows(rawRows, user.ngo) : [];
+  const allRows = user ? parseRows(rawRows, user.ngo) : [];
+  const rows = allRows.filter(r => r.ts >= dateFrom && r.ts <= dateTo);
 
   if (!user)
     return h(LoginScreen, {
@@ -612,6 +675,7 @@ const App = () => {
   if (screen === 'overview')
     return h(OverviewScreen, {
       user, rows, dataTimestamp,
+      dateFrom, dateTo, setDateFrom, setDateTo,
       onLogout: () => { setUser(null); setScreen('login'); },
       onDrill: type => { setDrillType(type); setScreen('drill'); }
     });
