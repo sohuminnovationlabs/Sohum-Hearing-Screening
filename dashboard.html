@@ -28,7 +28,7 @@ const { createRoot } = ReactDOM;
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 const SCRIPT_URL      = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
 const CREDS_SHEET_ID  = '1w7cKakdDSpAfzNiqHYzjM4qiY_7j14eIBWR4lQlkqDk';
-const DASHBOARD_VERSION = '5.3';
+const DASHBOARD_VERSION = '5.4';
 
 const FALLBACK_USERS = [
   { username:'admin', password:'sil2026', name:'Sohum Admin', role:'admin', ngo:null },
@@ -445,8 +445,8 @@ const OverviewScreen = ({user,rows,onDrill,onLogout,dataTimestamp,dateFrom,dateT
       h('div',{style:{fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:C.slate400,marginBottom:10,marginTop:4,paddingLeft:2}}, 'Drill Down'),
       [
         user.role==='admin' && {icon:'🤝',label:'By NGO / CSR Partner',sub:`${Object.keys(s.ngoMap).length} partners`,  type:'ngo'},
-        user.role==='admin' && {icon:'🏥',label:'By Hospital',          sub:`${s.uniqueHospitals} locations`,           type:'hospital'},
-        user.role==='admin' && {icon:'📱',label:'By Device',            sub:`${Object.keys(s.deviceMap).length} devices`,type:'device'},
+        {icon:'🏥',label:'By Hospital',sub:`${s.uniqueHospitals} locations`,type:'hospital'},
+        {icon:'📱',label:'By Device',  sub:`${Object.keys(s.deviceMap).length} devices`,type:'device'},
         {icon:'👤',label:'By Healthcare Worker',sub:`${s.uniqueWorkers} operators`,type:'worker'},
       ].filter(Boolean).map(item =>
         h(Card,{key:item.type,style:{marginBottom:10,cursor:'pointer'},onClick:()=>onDrill(item.type)},
