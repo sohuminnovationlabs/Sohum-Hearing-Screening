@@ -31,7 +31,7 @@ const { createRoot } = ReactDOM;
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
-const DASHBOARD_VERSION = '3.1.7';
+const DASHBOARD_VERSION = '3.1.8';
 
 // ── CREDENTIALS ────────────────────────────────────────────────────────────────
 const USERS = [
@@ -326,8 +326,9 @@ const OverviewScreen = ({user, rows, onDrill, onLogout, dataTimestamp, dateFrom,
   const recColor = rec => {
     if(!rec) return C.slate400;
     if(rec.includes('No Action')||rec.includes('Pass - No')) return C.green600;
-    if(rec.includes('BERA')||rec.includes('audiologist')) return C.red600;
-    return C.orange500;
+    if(rec.includes('BERA')||rec.includes('audiologist')||rec.includes('Refer')) return C.red600;
+    if(rec.includes('Rescreen')||rec.includes('Repeat')||rec.includes('Follow Up')) return C.yellow600;
+    return C.slate400;
   };
 
   return h('div',{style:{minHeight:'100vh',paddingBottom:40}},
@@ -518,8 +519,9 @@ const EntityDetailScreen = ({type, entityKey, rows, onBack}) => {
   const recColor = rec => {
     if(!rec) return C.slate400;
     if(rec.includes('No Action')||rec.includes('Pass - No')) return C.green600;
-    if(rec.includes('BERA')||rec.includes('audiologist')) return C.red600;
-    return C.orange500;
+    if(rec.includes('BERA')||rec.includes('audiologist')||rec.includes('Refer')) return C.red600;
+    if(rec.includes('Rescreen')||rec.includes('Repeat')||rec.includes('Follow Up')) return C.yellow600;
+    return C.slate400;
   };
 
   return h('div',{style:{minHeight:'100vh',paddingBottom:40}},
@@ -600,6 +602,28 @@ const EntityDetailScreen = ({type, entityKey, rows, onBack}) => {
           h(SectionLabel,{}, 'Hospitals Visited'),
           h('div',{style:{display:'flex',flexWrap:'wrap'}},
             hospSet.map(hh => h(Chip,{key:hh,label:hh,bg:C.slate100,fg:C.slate600}))
+          )
+        );
+      })(),
+
+      type==='device' && (() => {
+        const workerTally = {};
+        rows.forEach(r => {
+          if(!r.opId) return;
+          if(!workerTally[r.opId]) workerTally[r.opId] = {name: r.opName||r.opId, count: 0};
+          workerTally[r.opId].count++;
+        });
+        const ranked = Object.entries(workerTally).sort((a,b) => b[1].count - a[1].count);
+        return ranked.length>0 && h(Card,{style:{marginBottom:12}},
+          h(SectionLabel,{}, 'Healthcare Workers Using This Device'),
+          ranked.map(([opId, info]) =>
+            h('div',{key:opId, style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}},
+              h('div',{},
+                h('div',{style:{fontSize:13,fontWeight:600,color:C.slate800}}, info.name),
+                h('div',{style:{fontSize:11,color:C.slate400}}, `ID: ${opId}`)
+              ),
+              h('div',{style:{fontSize:13,fontWeight:600,color:C.primary}}, `${info.count} screenings`)
+            )
           )
         );
       })()
