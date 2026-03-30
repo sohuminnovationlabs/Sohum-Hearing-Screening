@@ -31,7 +31,7 @@ const { createRoot } = ReactDOM;
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
-const DASHBOARD_VERSION = '3.1.1';
+const DASHBOARD_VERSION = '3.1.4';
 
 // ── CREDENTIALS ────────────────────────────────────────────────────────────────
 const USERS = [
@@ -280,23 +280,19 @@ const PRESETS = [
   { label: 'All time', getRange: () => ({ from: new Date('2000-01-01'), to: todayEnd() }) },
 ];
 
-const DateRangeCard = ({dateFrom, dateTo, setDateFrom, setDateTo}) => {
-  const activePreset = PRESETS.findIndex(p => {
-    const r = p.getRange();
-    return toInputDate(r.from) === toInputDate(dateFrom) && toInputDate(r.to) === toInputDate(dateTo);
-  });
+const DateRangeCard = ({dateFrom, dateTo, setDateFrom, setDateTo, activePreset, setActivePreset}) => {
   return h(Card, {style:{marginBottom:12}},
     h(SectionLabel, {}, 'Date Range'),
     h('div', {style:{display:'flex',gap:6,marginBottom:12}},
       PRESETS.map((p, i) =>
         h('button', {
           key: p.label,
-          onClick: () => { const r = p.getRange(); setDateFrom(r.from); setDateTo(r.to); },
+          onClick: () => { const r = p.getRange(); setDateFrom(r.from); setDateTo(r.to); setActivePreset(p.label); },
           style: {
             flex:1, padding:'6px 0', borderRadius:8, border:'none', cursor:'pointer',
             fontSize:11, fontWeight:600,
-            background: activePreset===i ? C.primary : C.slate100,
-            color: activePreset===i ? '#fff' : C.slate600,
+            background: activePreset===p.label ? C.primary : C.slate100,
+            color: activePreset===p.label ? '#fff' : C.slate600,
           }
         }, p.label)
       )
@@ -306,7 +302,7 @@ const DateRangeCard = ({dateFrom, dateTo, setDateFrom, setDateTo}) => {
         h('label', {style:{fontSize:11,color:C.slate400,display:'block',marginBottom:4}}, 'From'),
         h('input', {
           type:'date', value:toInputDate(dateFrom),
-          onChange: e => { const d = new Date(e.target.value); d.setHours(0,0,0,0); setDateFrom(d); },
+          onChange: e => { const d = new Date(e.target.value); d.setHours(0,0,0,0); setDateFrom(d); setActivePreset(null); },
           style:{width:'100%',background:C.slate100,border:'none',borderRadius:8,padding:'8px 10px',fontSize:13,color:C.slate800,outline:'none',boxSizing:'border-box'}
         })
       ),
@@ -314,8 +310,8 @@ const DateRangeCard = ({dateFrom, dateTo, setDateFrom, setDateTo}) => {
       h('div', {style:{flex:1}},
         h('label', {style:{fontSize:11,color:C.slate400,display:'block',marginBottom:4}}, 'To'),
         h('input', {
-          type:'date', value:toInputDate(dateTo),
-          onChange: e => { const d = new Date(e.target.value); d.setHours(23,59,59,999); setDateTo(d); },
+          type:'date', value:toInputDate(dateTo), max:toInputDate(new Date()),
+          onChange: e => { const d = new Date(e.target.value); d.setHours(23,59,59,999); setDateTo(d); setActivePreset(null); },
           style:{width:'100%',background:C.slate100,border:'none',borderRadius:8,padding:'8px 10px',fontSize:13,color:C.slate800,outline:'none',boxSizing:'border-box'}
         })
       )
@@ -324,7 +320,7 @@ const DateRangeCard = ({dateFrom, dateTo, setDateFrom, setDateTo}) => {
 };
 
 // ── OVERVIEW SCREEN ────────────────────────────────────────────────────────────
-const OverviewScreen = ({user, rows, onDrill, onLogout, dataTimestamp, dateFrom, dateTo, setDateFrom, setDateTo}) => {
+const OverviewScreen = ({user, rows, onDrill, onLogout, dataTimestamp, dateFrom, dateTo, setDateFrom, setDateTo, activePreset, setActivePreset}) => {
   const s = calcStats(rows);
 
   const recColor = rec => {
@@ -350,7 +346,7 @@ const OverviewScreen = ({user, rows, onDrill, onLogout, dataTimestamp, dateFrom,
     ),
 
     h('div',{style:{padding:'16px 14px'}},
-      h(DateRangeCard, {dateFrom, dateTo, setDateFrom, setDateTo}),
+      h(DateRangeCard, {dateFrom, dateTo, setDateFrom, setDateTo, activePreset, setActivePreset}),
       h('div',{style:{display:'flex',gap:10,marginBottom:12}},
         h(StatBox,{value:s.total, label:'Total Screenings'}),
         h(StatBox,{value:s.uniqueBabies, label:'Unique Babies'}),
@@ -502,9 +498,8 @@ const DrillListScreen = ({user, type, rows, onSelect, onBack}) => {
             )
           ),
           h('div',{style:{display:'flex',flexWrap:'wrap',marginTop:10}},
-            s.aabrTotal>0 && h(Chip,{label:`AABR: ${s.aabrTotal}`,bg:'#eef2ff',fg:C.blue700}),
-            s.oaeTotal>0  && h(Chip,{label:`OAE: ${s.oaeTotal}`,bg:C.green50,fg:C.green700}),
-            s.preterm>0   && h(Chip,{label:`Preterm: ${s.preterm}`,bg:C.orange50,fg:C.orange600})
+            h(Chip,{label:`Refer: ${referPct}%`,bg:C.red50,fg:C.red700}),
+            s.preterm>0 && h(Chip,{label:`Preterm: ${pct(s.preterm,s.total)}%`,bg:C.orange50,fg:C.orange600})
           )
         );
       })
@@ -632,8 +627,9 @@ const App = () => {
   const [drillType, setDrillType] = useState(null);
   const [entityKey, setEntityKey] = useState(null);
   const [entityRows, setEntityRows] = useState([]);
-  const [dateFrom, setDateFrom] = useState(monthStart());
-  const [dateTo, setDateTo]     = useState(todayEnd());
+  const [dateFrom, setDateFrom]         = useState(monthStart());
+  const [dateTo, setDateTo]             = useState(todayEnd());
+  const [activePreset, setActivePreset] = useState('This month');
 
   const fetchData = () => {
     setLoadState('loading');
@@ -678,7 +674,7 @@ const App = () => {
     }) :
     screen === 'overview' ? h(OverviewScreen, {
       user, rows, dataTimestamp,
-      dateFrom, dateTo, setDateFrom, setDateTo,
+      dateFrom, dateTo, setDateFrom, setDateTo, activePreset, setActivePreset,
       onLogout: () => { setUser(null); setScreen('login'); },
       onDrill: type => { setDrillType(type); setScreen('drill'); }
     }) :
