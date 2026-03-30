@@ -504,7 +504,7 @@ const DrillListScreen = ({user, type, rows, onSelect, onBack}) => {
               ? aabrRedo>0 && h(Chip,{label:`REDO: ${redoPct}%`,bg:C.yellow50,fg:C.yellow600})
               : h(Chip,{label:`Refer: ${referPct}%`,bg:C.red50,fg:C.red700}),
             s.preterm>0 && h(Chip,{label:`Preterm: ${pct(s.preterm,s.total)}%`,bg:C.orange50,fg:C.orange600})
-          )
+          
           )
         );
       })
