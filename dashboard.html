@@ -28,7 +28,7 @@ const { createRoot } = ReactDOM;
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 const SCRIPT_URL      = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
 const CREDS_SHEET_ID  = '1w7cKakdDSpAfzNiqHYzjM4qiY_7j14eIBWR4lQlkqDk';
-const DASHBOARD_VERSION = '5.2';
+const DASHBOARD_VERSION = '5.3';
 
 const FALLBACK_USERS = [
   { username:'admin', password:'sil2026', name:'Sohum Admin', role:'admin', ngo:null },
@@ -283,8 +283,12 @@ const LoginScreen = ({onLogin, dataTimestamp, credsFallback}) => {
   const [err,  setErr]  = useState('');
   const attempt = () => { if (!onLogin(form.u, form.p)) setErr('Invalid username or password.'); };
   return h('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column',background:C.slate100}},
-    h('div',{style:{background:C.primary,color:'#fff',padding:'56px 24px 32px',borderBottomLeftRadius:28,borderBottomRightRadius:28,boxShadow:'0 4px 20px rgba(32,43,93,0.25)'}},
-      h('div',{style:{fontSize:10,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'#93c5fd',marginBottom:8}}, 'Sohum Innovation Labs'),
+    h('div',{style:{background:C.primary,color:'#fff',padding:'48px 24px 32px',borderBottomLeftRadius:28,borderBottomRightRadius:28,boxShadow:'0 4px 20px rgba(32,43,93,0.25)',display:'flex',flexDirection:'column',alignItems:'center',textAlign:'center'}},
+      h('img',{src:'https://raw.githubusercontent.com/sohuminnovationlabs/Sohum-Hearing-Screening/main/sohum_logo.png',
+        alt:'Sohum Innovation Labs',
+        style:{height:64,marginBottom:16,filter:'brightness(0) invert(1)',opacity:0.9},
+        onError:e=>{e.target.style.display='none';}
+      }),
       h('h1',{style:{fontSize:24,fontWeight:700,margin:0}}, 'Admin Dashboard'),
       h('p',{style:{fontSize:13,color:'#bfdbfe',margin:'6px 0 0'}}, 'Sign in to view screening analytics')
     ),
@@ -386,8 +390,7 @@ const OverviewScreen = ({user,rows,onDrill,onLogout,dataTimestamp,dateFrom,dateT
       s.aabrTotal > 0 && h(Card,{style:{marginBottom:12}},
         h(SectionLabel,{}, `AABR Outcomes  ·  ${s.aabrTotal} screenings`),
         h(BarRow,{label:'Pass (bilateral)',    value:s.aabrPass,    total:s.aabrTotal,color:C.green600}),
-        h(BarRow,{label:'Pass (single ear)',   value:s.aabrUniPass, total:s.aabrTotal,color:'#4ade80',
-          suffix:`${s.aabrUniPass} — only one ear was tested`}),
+        h(BarRow,{label:'Pass (single ear)', value:s.aabrUniPass, total:s.aabrTotal,color:'#4ade80'}),
         h(BarRow,{label:'Refer (any ear)',     value:s.aabrRefer,   total:s.aabrTotal,color:C.orange600}),
         s.aabrInconc > 0 && h(BarRow,{label:'Inconclusive', value:s.aabrInconc, total:s.aabrTotal,color:C.slate300}),
         h(Divider),
@@ -402,8 +405,7 @@ const OverviewScreen = ({user,rows,onDrill,onLogout,dataTimestamp,dateFrom,dateT
       s.oaeTotal > 0 && h(Card,{style:{marginBottom:12}},
         h(SectionLabel,{}, `OAE Outcomes  ·  ${s.oaeTotal} screenings${s.dpoae>0?'  ·  DPOAE: '+s.dpoae:''}${s.teoae>0?'  ·  TEOAE: '+s.teoae:''}`),
         h(BarRow,{label:'Pass (bilateral)',  value:s.oaePass,    total:s.oaeTotal,color:C.green600}),
-        h(BarRow,{label:'Pass (single ear)', value:s.oaeUniPass, total:s.oaeTotal,color:'#4ade80',
-          suffix:`${s.oaeUniPass} — only one ear was tested`}),
+       h(BarRow,{label:'Pass (single ear)', value:s.oaeUniPass, total:s.oaeTotal,color:'#4ade80'}),
         h(BarRow,{label:'Refer',             value:s.oaeRefer,   total:s.oaeTotal,color:C.orange600})
       ),
 
@@ -566,9 +568,8 @@ const EntityDetailScreen = ({type,entityKey,rows,onBack}) => {
         }),
         (type==='worker'||type==='device') && h(Divider),
         (type==='worker'||type==='device') && h(InfoRow,{
-          label:'Protocol overrides',
-          value: `${s.protocolOverrides}${s.overridesPer100 !== null ? '  ('+s.overridesPer100+' per 100)' : s.total < 100 ? '  ('+s.total+'/100 screenings)' : ''}`,
-          helper:'Number of screenings where the healthcare worker tested only one ear instead of both. A high override count may indicate a training gap.'
+          label:'Protocol overrides (single ear only)',
+          value: String(s.protocolOverrides)
         })
       ),
 
