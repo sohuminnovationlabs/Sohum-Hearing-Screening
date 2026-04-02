@@ -1436,7 +1436,8 @@ const BabyInfoBanner = ({ record }) => {
     return g || '-';
   };
 
-React.createElement('div', {
+  return React.createElement(React.Fragment, {},
+    React.createElement('div', {
       onClick: () => setShowModal(true),
       className: 'mx-6 mt-3 mb-1 bg-primary/10 border border-primary/30 rounded-xl px-4 py-2 flex items-center justify-between cursor-pointer active:bg-primary/20 transition-colors'
     },
