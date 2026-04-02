@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.3.1';
+const APP_VERSION = 'v7.3.2';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -170,8 +170,8 @@ const translations = {
     screenNewBaby: "Screen New Baby", confirmBabyIdentity: "Confirm Baby Identity",
     screeningSameBaby: "Screening the same baby:", pleaseConfirmDob: "Please confirm Date of Birth:",
     dobMismatch: "Date of birth does not match. Please verify.", profile: "Profile & Statistics",
-    screeningStatistics: "Screening Statistics", today: "Today", thisWeek: "This Week",
-    thisMonth: "This Month", last30Days: "Last 30 Days", allTime: "All Time",
+    screeningStatistics: "Screening Statistics", today: "Today", thisWeek: "Last 7 Days",
+    thisMonth: "This Calendar Month", last30Days: "Last 30 Days", allTime: "All Time",
     performance: "Performance", dailyAvg: "Daily Avg (Month)", bestDay: "Best Day",
     testBreakdown: "Test Breakdown (This Month)", loading: "Loading...", required: "Required",
     onlyLetters: "Only letters, spaces, hyphens and periods allowed", cannotBeFuture: "Cannot be in future",
@@ -223,8 +223,8 @@ const translations = {
     screenNewBaby: "नए शिशु की जांच करें", confirmBabyIdentity: "शिशु की पहचान की पुष्टि करें",
     screeningSameBaby: "उसी शिशु की जांच:", pleaseConfirmDob: "कृपया जन्म तिथि की पुष्टि करें:",
     dobMismatch: "जन्म तिथि मेल नहीं खाती। कृपया सत्यापित करें।", profile: "प्रोफ़ाइल और आंकड़े",
-    screeningStatistics: "जांच आंकड़े", today: "आज", thisWeek: "इस सप्ताह",
-    thisMonth: "इस महीने", last30Days: "पिछले 30 दिन", allTime: "कुल",
+    screeningStatistics: "जांच आंकड़े", today: "आज", thisWeek: "पिछले 7 दिन",
+    thisMonth: "इस कैलेंडर माह", last30Days: "पिछले 30 दिन", allTime: "कुल",
     performance: "प्रदर्शन", dailyAvg: "दैनिक औसत (महीना)", bestDay: "सर्वश्रेष्ठ दिन",
     testBreakdown: "परीक्षण विवरण (इस महीने)", loading: "लोड हो रहा है...", required: "आवश्यक",
     onlyLetters: "केवल अक्षर, स्थान, हाइफ़न और अवधि की अनुमति है", cannotBeFuture: "भविष्य में नहीं हो सकता",
@@ -277,8 +277,8 @@ const translations = {
     screenNewBaby: "ಹೊಸ ಮಗುವನ್ನು ಪರೀಕ್ಷಿಸಿ", confirmBabyIdentity: "ಮಗುವಿನ ಗುರುತನ್ನು ದೃಢೀಕರಿಸಿ",
     screeningSameBaby: "ಅದೇ ಮಗುವನ್ನು ಪರೀಕ್ಷಿಸಲಾಗುತ್ತಿದೆ:", pleaseConfirmDob: "ದಯವಿಟ್ಟು ಹುಟ್ಟಿದ ದಿನಾಂಕವನ್ನು ದೃಢೀಕರಿಸಿ:",
     dobMismatch: "ಹುಟ್ಟಿದ ದಿನಾಂಕ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ। ದಯವಿಟ್ಟು ಪರಿಶೀಲಿಸಿ।", profile: "ಪ್ರೊಫೈಲ್ ಮತ್ತು ಅಂಕಿಅಂಶಗಳು",
-    screeningStatistics: "ಪರೀಕ್ಷಾ ಅಂಕಿಅಂಶಗಳು", today: "ಇಂದು", thisWeek: "ಈ ವಾರ",
-    thisMonth: "ಈ ತಿಂಗಳು", last30Days: "ಕಳೆದ 30 ದಿನಗಳು", allTime: "ಒಟ್ಟು",
+    screeningStatistics: "ಪರೀಕ್ಷಾ ಅಂಕಿಅಂಶಗಳು", today: "ಇಂದು",thisWeek: "ಕಳೆದ 7 ದಿನಗಳು",
+    thisMonth: "ಈ ಕ್ಯಾಲೆಂಡರ್ ತಿಂಗಳು", last30Days: "ಕಳೆದ 30 ದಿನಗಳು", allTime: "ಒಟ್ಟು",
     performance: "ಕಾರ್ಯಕ್ಷಮತೆ", dailyAvg: "ದೈನಂದಿನ ಸರಾಸರಿ (ತಿಂಗಳು)", bestDay: "ಅತ್ಯುತ್ತಮ ದಿನ",
     testBreakdown: "ಪರೀಕ್ಷಾ ವಿವರ (ಈ ತಿಂಗಳು)", loading: "ಲೋಡ್ ಆಗುತ್ತಿದೆ...", required: "ಅಗತ್ಯವಿದೆ",
     onlyLetters: "ಕೇವಲ ಅಕ್ಷರಗಳು, ಸ್ಥಳಗಳು, ಹೈಫನ್‌ಗಳು ಮತ್ತು ಅವಧಿಗಳು ಅನುಮತಿಸಲಾಗಿದೆ", cannotBeFuture: "ಭವಿಷ್ಯದಲ್ಲಿ ಇರಲು ಸಾಧ್ಯವಿಲ್ಲ",
