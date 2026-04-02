@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.4.1';
+const APP_VERSION = 'v7.4.2';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -1018,8 +1018,9 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     const prevDb = DB_LEVELS[idx - 1];
     const prevAttempts = getEar(side)[prevDb];
     const prevMax = MAX_ATTEMPTS[prevDb];
-    const prevHasPass = prevAttempts.some(a => a.result === 'PASS');
-    return prevHasPass || prevAttempts.filter(a => a.result).length >= prevMax;
+    const confirmedAttempts = prevAttempts.filter(a => isAttemptComplete(a));
+    const prevHasConfirmedPass = confirmedAttempts.some(a => a.result === 'PASS');
+    return prevHasConfirmedPass || confirmedAttempts.length >= prevMax;
   };
 
   const isAttemptComplete = (attempt) =>
@@ -1063,15 +1064,19 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     const ear = { ...getEar(side) };
     const attempts = [...ear[db]];
     attempts[idx] = { ...attempts[idx], [field]: value };
-    if (field === 'result' && value === '' ) {
-      const hadResult = ear[db][idx].result !== '';
-      if (hadResult) {
-        const nextIdx = DB_LEVELS.indexOf(db) + 1;
-        if (nextIdx < DB_LEVELS.length) {
-          const nextDb = DB_LEVELS[nextIdx];
-          if (ear[nextDb].length > 0 && ear[nextDb].every(a => !isAttemptComplete(a))) {
-            ear[nextDb] = [];
-          }
+    if (field === 'result' || field === '_confirmed') {
+      const nextIdx = DB_LEVELS.indexOf(db) + 1;
+      if (nextIdx < DB_LEVELS.length) {
+        const nextDb = DB_LEVELS[nextIdx];
+        const updatedAttempts = attempts;
+        const confirmedCount = updatedAttempts.filter(a => isAttemptComplete({...a, ...(idx === updatedAttempts.indexOf(a) ? {[field]: value} : {})})).length;
+        const hasConfirmedPass = updatedAttempts.some((a, i) => {
+          const updated = i === idx ? {...a, [field]: value} : a;
+          return isAttemptComplete(updated) && updated.result === 'PASS';
+        });
+        const shouldLock = !hasConfirmedPass && confirmedCount < MAX_ATTEMPTS[db];
+        if (shouldLock && ear[nextDb] && ear[nextDb].length > 0 && ear[nextDb].every(a => !isAttemptComplete(a))) {
+          ear[nextDb] = [];
         }
       }
     }
@@ -1090,7 +1095,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
       });
       if (parts.length > 0) result.push(`${prefix}: ${parts.join('|')}`);
     });
-    return result.join('; ');
+    return result.join(' --//-- ');
   };
 
   const formatResultCol = (side, db) => {
