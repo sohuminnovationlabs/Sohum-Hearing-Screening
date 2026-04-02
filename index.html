@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.3.3';
+const APP_VERSION = 'v7.4';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -41,6 +41,19 @@ const DEVICE_TEST_ID_LABEL = 'Unique ID';
 // Mode 1: Current naming convention - <UniqueID><Ear><AttemptNumber> e.g. 90vnjhjyuR01
 // Mode 2: New naming convention - <UniqueID>_<dB>dB_<Ear>_<AttemptNumber> e.g. 90vnjhjyu_35dB_R_01
 const PHOTO_STORAGE_MODE = 1;
+
+// 🔒 AABR PROTOCOL LOCK
+// 1 = strict: each level must be exhausted before the next unlocks
+// 0 = free: all levels accessible from the start, attempt limits still apply
+const AABR_PROTOCOL_LOCK = 1;
+
+// 🎯 AABR MAX ATTEMPTS PER INTENSITY LEVEL
+// Adjust these numbers to change how many attempts are allowed at each level
+// e.g. change MAX_ATTEMPTS_35 to 2 if you want only 2 attempts at 35dB
+const MAX_ATTEMPTS_35 = 3;  // attempts allowed at 35 dB
+const MAX_ATTEMPTS_50 = 2;  // attempts allowed at 50 dB
+const MAX_ATTEMPTS_70 = 1;  // attempts allowed at 70 dB
+const MAX_ATTEMPTS_90 = 1;  // attempts allowed at 90 dB
 
 // 📷 PHOTO QUALITY SETTINGS - Adjust these as needed
 const PHOTO_MAX_WIDTH = 1920;   // Max width in pixels
@@ -979,69 +992,330 @@ const TestSelectionScreen = ({ user, onBack, onSelectAABR, onSelectOAE, onProfil
   );
 };
 
-// AABR Entry Screen (keeping v2 logic with RadioGroup buttons)
+// AABR Entry Screen - multi-attempt with per-attempt impedance
 const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClick }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('left');
-  const [impedance, setImpedance] = useState({ vtxGnd: initialData.impedanceVtxGnd || '', gndRef: initialData.impedanceGndRef || '', refVtx: initialData.impedanceRefVtx || '' });
-  const [leftResults, setLeftResults] = useState({ result35dB: initialData.leftResult35dB || '', result50dB: initialData.leftResult50dB || '', result70dB: initialData.leftResult70dB || '', result90dB: initialData.leftResult90dB || '' });
-  const [rightResults, setRightResults] = useState({ result35dB: initialData.rightResult35dB || '', result50dB: initialData.rightResult50dB || '', result70dB: initialData.rightResult70dB || '', result90dB: initialData.rightResult90dB || '' });
+  const [showProtocol, setShowProtocol] = useState(false);
   const [errors, setErrors] = useState({});
+
+  const DB_LEVELS = ['35dB', '50dB', '70dB', '90dB'];
+  const MAX_ATTEMPTS = { '35dB': MAX_ATTEMPTS_35, '50dB': MAX_ATTEMPTS_50, '70dB': MAX_ATTEMPTS_70, '90dB': MAX_ATTEMPTS_90 };
+
+  const makeEmptyAttempt = () => ({ vtx: '', gnd: '', ref: '', result: '' });
+  const makeEmptyEar = () => ({ '35dB': [makeEmptyAttempt()], '50dB': [], '70dB': [], '90dB': [] });
+
+  const [leftEar, setLeftEar] = useState(makeEmptyEar());
+  const [rightEar, setRightEar] = useState(makeEmptyEar());
+
+  const getEar = (side) => side === 'left' ? leftEar : rightEar;
+  const setEar = (side, val) => side === 'left' ? setLeftEar(val) : setRightEar(val);
+
+  const isLevelUnlocked = (side, db) => {
+    if (!AABR_PROTOCOL_LOCK) return true;
+    const idx = DB_LEVELS.indexOf(db);
+    if (idx === 0) return true;
+    const prevDb = DB_LEVELS[idx - 1];
+    const prevAttempts = getEar(side)[prevDb];
+    const prevMax = MAX_ATTEMPTS[prevDb];
+    const prevHasPass = prevAttempts.some(a => a.result === 'PASS');
+    return prevHasPass || prevAttempts.filter(a => a.result).length >= prevMax;
+  };
+
+  const isAttemptComplete = (attempt) =>
+    attempt.vtx !== '' && attempt.gnd !== '' && attempt.ref !== '' && attempt.result !== '';
+
+  const canAddAttempt = (side, db) => {
+    const ear = getEar(side);
+    const attempts = ear[db];
+    if (attempts.length >= MAX_ATTEMPTS[db]) return false;
+    if (attempts.length === 0) return false;
+    const last = attempts[attempts.length - 1];
+    if (!isAttemptComplete(last)) return false;
+    if (last.result === 'PASS') return false;
+    return true;
+  };
+
+  const handleAddAttempt = (side, db) => {
+    if (!canAddAttempt(side, db)) return;
+    const ear = { ...getEar(side) };
+    ear[db] = [...ear[db], makeEmptyAttempt()];
+    setEar(side, ear);
+    const nextIdx = DB_LEVELS.indexOf(db) + 1;
+    if (nextIdx < DB_LEVELS.length) {
+      const nextDb = DB_LEVELS[nextIdx];
+      if (isLevelUnlocked(side, nextDb) && ear[nextDb].length === 0) {
+        ear[nextDb] = [makeEmptyAttempt()];
+        setEar(side, { ...ear });
+      }
+    }
+  };
+
+  const handleUnlockLevel = (side, db) => {
+    const ear = { ...getEar(side) };
+    if (ear[db].length === 0) {
+      ear[db] = [makeEmptyAttempt()];
+      setEar(side, ear);
+    }
+  };
+
+  const handleSetAttempt = (side, db, idx, field, value) => {
+    const ear = { ...getEar(side) };
+    const attempts = [...ear[db]];
+    attempts[idx] = { ...attempts[idx], [field]: value };
+    if (field === 'result' && value === '' ) {
+      const hadResult = ear[db][idx].result !== '';
+      if (hadResult) {
+        const nextIdx = DB_LEVELS.indexOf(db) + 1;
+        if (nextIdx < DB_LEVELS.length) {
+          const nextDb = DB_LEVELS[nextIdx];
+          if (ear[nextDb].length > 0 && ear[nextDb].every(a => !isAttemptComplete(a))) {
+            ear[nextDb] = [];
+          }
+        }
+      }
+    }
+    ear[db] = attempts;
+    setEar(side, ear);
+  };
+
+  const formatImpedanceCol = (side, field) => {
+    const ear = getEar(side);
+    const parts = [];
+    DB_LEVELS.forEach(db => {
+      const vals = ear[db].filter(a => a[field] !== '').map(a => a[field]);
+      if (vals.length > 0) parts.push(`${db}:${vals.join(',')}`);
+    });
+    return parts.join('|');
+  };
+
+  const formatResultCol = (side, db) => {
+    const attempts = getEar(side)[db].filter(a => a.result !== '');
+    if (attempts.length === 0) return '';
+    if (attempts.length === 1) return attempts[0].result;
+    return '[' + attempts.map(a => a.result).join(',') + ']';
+  };
+
+  const earHasAnyResult = (side) =>
+    DB_LEVELS.some(db => getEar(side)[db].some(a => a.result !== ''));
+
   const validate = () => {
     const newErrors = {};
-    if (!impedance.vtxGnd || !impedance.gndRef || !impedance.refVtx) newErrors.impedance = t('allImpedanceRequired');
-    const hasLeftResult = Object.values(leftResults).some(v => v);
-    const hasRightResult = Object.values(rightResults).some(v => v);
-    if (!hasLeftResult && !hasRightResult) newErrors.results = t('atLeastOneEar');
+    const hasLeft = earHasAnyResult('left');
+    const hasRight = earHasAnyResult('right');
+    if (!hasLeft && !hasRight) { newErrors.general = t('atLeastOneEar'); setErrors(newErrors); return false; }
+    ['left', 'right'].forEach(side => {
+      DB_LEVELS.forEach(db => {
+        getEar(side)[db].forEach((attempt, idx) => {
+          const hasImp = attempt.vtx !== '' || attempt.gnd !== '' || attempt.ref !== '';
+          const hasRes = attempt.result !== '';
+          if (hasImp && !hasRes) newErrors[`${side}_${db}_${idx}`] = 'Result required for this attempt';
+          if (hasRes && (!attempt.vtx || !attempt.gnd || !attempt.ref)) newErrors[`${side}_${db}_${idx}_imp`] = 'All impedance values required';
+        });
+      });
+    });
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
   const handleNext = () => {
-    if (validate()) {
-      const hasLeftResult = Object.values(leftResults).some(v => v);
-      const hasRightResult = Object.values(rightResults).some(v => v);
-      let overrideNote = '';
-      if (hasLeftResult && !hasRightResult) {
-        if (!confirm('Only LEFT ear has been tested. Test the other ear or override this message.\n\nClick OK to override, Cancel to go back.')) return;
-        if (!confirm('Are you sure you want to override? If you proceed, the record will state that you chose to test only one ear.\n\nClick OK to confirm, Cancel to go back.')) return;
-        overrideNote = ' [Test was overridden - healthcare worker chose to test only LEFT ear]';
-      } else if (!hasLeftResult && hasRightResult) {
-        if (!confirm('Only RIGHT ear has been tested. Test the other ear or override this message.\n\nClick OK to override, Cancel to go back.')) return;
-        if (!confirm('Are you sure you want to override? If you proceed, the record will state that you chose to test only one ear.\n\nClick OK to confirm, Cancel to go back.')) return;
-        overrideNote = ' [Test was overridden - healthcare worker chose to test only RIGHT ear]';
-      }
-      onNext({ testType: 'AABR', impedanceVtxGnd: impedance.vtxGnd, impedanceGndRef: impedance.gndRef, impedanceRefVtx: impedance.refVtx, leftResult35dB: leftResults.result35dB, leftResult50dB: leftResults.result50dB, leftResult70dB: leftResults.result70dB, leftResult90dB: leftResults.result90dB, rightResult35dB: rightResults.result35dB, rightResult50dB: rightResults.result50dB, rightResult70dB: rightResults.result70dB, rightResult90dB: rightResults.result90dB, aabrOverrideNote: overrideNote });
+    if (!validate()) return;
+    const hasLeft = earHasAnyResult('left');
+    const hasRight = earHasAnyResult('right');
+    let overrideNote = '';
+    if (hasLeft && !hasRight) {
+      if (!confirm('Only LEFT ear has been tested. Tap OK to override.')) return;
+      if (!confirm('Are you sure? The record will note only LEFT ear was tested.')) return;
+      overrideNote = ' [Test was overridden - healthcare worker chose to test only LEFT ear]';
+    } else if (!hasLeft && hasRight) {
+      if (!confirm('Only RIGHT ear has been tested. Tap OK to override.')) return;
+      if (!confirm('Are you sure? The record will note only RIGHT ear was tested.')) return;
+      overrideNote = ' [Test was overridden - healthcare worker chose to test only RIGHT ear]';
     }
+    onNext({
+      testType: 'AABR',
+      impedanceVtxGnd: formatImpedanceCol('left', 'vtx') || formatImpedanceCol('right', 'vtx'),
+      impedanceGndRef: formatImpedanceCol('left', 'gnd') || formatImpedanceCol('right', 'gnd'),
+      impedanceRefVtx: formatImpedanceCol('left', 'ref') || formatImpedanceCol('right', 'ref'),
+      leftResult35dB: formatResultCol('left', '35dB'),
+      leftResult50dB: formatResultCol('left', '50dB'),
+      leftResult70dB: formatResultCol('left', '70dB'),
+      leftResult90dB: formatResultCol('left', '90dB'),
+      rightResult35dB: formatResultCol('right', '35dB'),
+      rightResult50dB: formatResultCol('right', '50dB'),
+      rightResult70dB: formatResultCol('right', '70dB'),
+      rightResult90dB: formatResultCol('right', '90dB'),
+      aabrOverrideNote: overrideNote
+    });
   };
+
+  const renderAttemptBlock = (side, db, attempt, idx) => {
+    const isLast = idx === getEar(side)[db].length - 1;
+    const complete = isAttemptComplete(attempt);
+    const errKey = `${side}_${db}_${idx}`;
+    return React.createElement('div', { key: idx, className: 'space-y-2' },
+      React.createElement('div', { className: 'text-xs font-medium text-gray-500 mb-1' }, `Test ${idx + 1}`),
+      !complete && React.createElement('div', { className: 'grid grid-cols-3 gap-2 mb-2' },
+        ['vtx', 'gnd', 'ref'].map(field =>
+          React.createElement('input', {
+            key: field,
+            type: 'number', step: '0.1',
+            placeholder: field === 'vtx' ? 'V-G' : field === 'gnd' ? 'G-R' : 'R-V',
+            value: attempt[field],
+            onChange: (e) => handleSetAttempt(side, db, idx, field, e.target.value),
+            className: `w-full bg-secondary border-none rounded-xl px-3 py-2.5 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 ${errors[`${errKey}_imp`] ? 'ring-2 ring-red-400' : ''}`
+          })
+        )
+      ),
+      complete && React.createElement('div', { className: 'text-xs text-gray-400 mb-1' },
+        `V-G: ${attempt.vtx}  G-R: ${attempt.gnd}  R-V: ${attempt.ref}`
+      ),
+      !complete && React.createElement('div', { className: 'grid grid-cols-3 gap-2' },
+        [
+          { label: 'PASS', value: 'PASS', bg: attempt.result === 'PASS' ? '#16a34a' : '#dcfce7', color: attempt.result === 'PASS' ? 'white' : '#166534', border: attempt.result === 'PASS' ? '2px solid #15803d' : '1px solid #86efac' },
+          { label: 'REFER', value: 'REFER', bg: attempt.result === 'REFER' ? '#dc2626' : '#fee2e2', color: attempt.result === 'REFER' ? 'white' : '#991b1b', border: attempt.result === 'REFER' ? '2px solid #b91c1c' : '1px solid #fca5a5' },
+          { label: 'REDO', value: 'REDO', bg: attempt.result === 'REDO' ? '#ea580c' : '#ffedd5', color: attempt.result === 'REDO' ? 'white' : '#9a3412', border: attempt.result === 'REDO' ? '2px solid #c2410c' : '1px solid #fdba74' }
+        ].map(btn =>
+          React.createElement('button', {
+            key: btn.value,
+            onClick: () => handleSetAttempt(side, db, idx, 'result', attempt.result === btn.value ? '' : btn.value),
+            style: {
+              background: btn.bg,
+              color: btn.color,
+              border: btn.border,
+              borderRadius: '12px',
+              padding: '8px 4px',
+              fontSize: '12px',
+              fontWeight: '500',
+              transform: attempt.result === btn.value ? 'scale(1.04)' : 'scale(1)',
+              transition: 'all 0.15s ease',
+              cursor: 'pointer'
+            }
+          }, btn.label)
+        )
+      ),
+      complete && React.createElement('div', { className: 'flex items-center gap-2' },
+        React.createElement('span', {
+          style: {
+            background: attempt.result === 'PASS' ? '#dcfce7' : attempt.result === 'REFER' ? '#fee2e2' : '#ffedd5',
+            color: attempt.result === 'PASS' ? '#166534' : attempt.result === 'REFER' ? '#991b1b' : '#9a3412',
+            border: `1px solid ${attempt.result === 'PASS' ? '#86efac' : attempt.result === 'REFER' ? '#fca5a5' : '#fdba74'}`,
+            borderRadius: '8px', padding: '4px 12px', fontSize: '12px', fontWeight: '500'
+          }
+        }, attempt.result)
+      ),
+      errors[errKey] && React.createElement('p', { className: 'text-xs text-red-500' }, errors[errKey]),
+      errors[`${errKey}_imp`] && React.createElement('p', { className: 'text-xs text-red-500' }, errors[`${errKey}_imp`])
+    );
+  };
+
+  const renderLevelBlock = (side, db) => {
+    const ear = getEar(side);
+    const attempts = ear[db];
+    const unlocked = isLevelUnlocked(side, db);
+    const maxReached = attempts.length >= MAX_ATTEMPTS[db] && attempts.every(a => isAttemptComplete(a));
+    const hasPass = attempts.some(a => a.result === 'PASS');
+    const isActive = attempts.length > 0;
+
+    if (!isActive) {
+      return React.createElement('div', { key: db,
+        onClick: () => unlocked && handleUnlockLevel(side, db),
+        className: `rounded-xl p-3 text-center text-sm transition-all ${unlocked ? 'bg-primary/5 border border-dashed border-primary/40 cursor-pointer hover:bg-primary/10 text-primary font-medium' : 'bg-gray-50 border border-dashed border-gray-200 text-gray-300 cursor-not-allowed'}`
+      }, unlocked ? `Tap to start ${db}` : `${db} — locked`);
+    }
+
+    const activeAttemptIdx = attempts.findIndex(a => !isAttemptComplete(a));
+    const completedAttempts = attempts.filter(a => isAttemptComplete(a));
+
+    return React.createElement('div', { key: db, className: 'rounded-xl border border-gray-200 overflow-hidden' },
+      React.createElement('div', { className: 'flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200' },
+        React.createElement('span', { className: 'text-sm font-semibold text-gray-700' }, db),
+        hasPass
+          ? React.createElement('span', { style: { background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '8px', padding: '2px 10px', fontSize: '11px', fontWeight: '500' } }, 'PASS')
+          : maxReached
+            ? React.createElement('span', { className: 'text-xs text-gray-400' }, `${attempts.length}/${MAX_ATTEMPTS[db]} done`)
+            : React.createElement('span', { className: 'text-xs text-gray-400' }, `${completedAttempts.length}/${MAX_ATTEMPTS[db]} attempts`)
+      ),
+      React.createElement('div', { className: 'p-3 space-y-3' },
+        completedAttempts.length > 0 && React.createElement('div', { className: 'space-y-1' },
+          completedAttempts.map((a, i) =>
+            React.createElement('div', { key: i, className: 'flex items-center justify-between text-xs text-gray-500 py-1 border-b border-gray-100' },
+              React.createElement('span', {}, `Test ${i + 1}: V-G ${a.vtx} · G-R ${a.gnd} · R-V ${a.ref}`),
+              React.createElement('span', {
+                style: {
+                  background: a.result === 'PASS' ? '#dcfce7' : a.result === 'REFER' ? '#fee2e2' : '#ffedd5',
+                  color: a.result === 'PASS' ? '#166534' : a.result === 'REFER' ? '#991b1b' : '#9a3412',
+                  borderRadius: '6px', padding: '1px 8px', fontWeight: '500'
+                }
+              }, a.result)
+            )
+          )
+        ),
+        activeAttemptIdx >= 0 && renderAttemptBlock(side, db, attempts[activeAttemptIdx], activeAttemptIdx),
+        !hasPass && !maxReached && activeAttemptIdx === -1 && canAddAttempt(side, db) &&
+          React.createElement('button', {
+            onClick: () => handleAddAttempt(side, db),
+            className: 'w-full py-2 text-sm font-medium text-primary border border-dashed border-primary/40 rounded-xl hover:bg-primary/5 transition-colors'
+          }, `+ Add attempt ${attempts.length + 1}`)
+      )
+    );
+  };
+
+  const renderEar = (side) =>
+    React.createElement('div', { className: 'space-y-3 pt-3' },
+      DB_LEVELS.map(db => renderLevelBlock(side, db))
+    );
+
+  const tabStyle = (side) => ({
+    flex: 1, padding: '10px 8px',
+    fontSize: '13px', fontWeight: '500',
+    cursor: 'pointer', border: 'none', outline: 'none',
+    borderRadius: activeTab === side ? '12px 12px 0 0' : '12px 12px 0 0',
+    background: activeTab === side ? '#202B5D' : '#e8ebf5',
+    color: activeTab === side ? 'white' : '#6b7280',
+    transition: 'all 0.2s ease',
+    borderBottom: activeTab === side ? '3px solid #202B5D' : '3px solid transparent'
+  });
+
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: t('aabrTest'), subtitle: t('enterResults'), onBack, user, onProfileClick }),
     React.createElement(BabyInfoBanner, { record: initialData }),
-    React.createElement(Container, {},
-      React.createElement(Card, {},
-        React.createElement('div', { className: 'space-y-4' },
-          React.createElement('div', {},
-            React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1 mb-2 block' }, t('impedanceValues')),
-            React.createElement('div', { className: 'grid grid-cols-3 gap-2' },
-              React.createElement(Input, { placeholder: 'VTX-GND', type: 'number', step: '0.1', value: impedance.vtxGnd, onChange: (e) => setImpedance({ ...impedance, vtxGnd: e.target.value }) }),
-              React.createElement(Input, { placeholder: 'GND-REF', type: 'number', step: '0.1', value: impedance.gndRef, onChange: (e) => setImpedance({ ...impedance, gndRef: e.target.value }) }),
-              React.createElement(Input, { placeholder: 'REF-VTX', type: 'number', step: '0.1', value: impedance.refVtx, onChange: (e) => setImpedance({ ...impedance, refVtx: e.target.value }) })
-            ),
-            errors.impedance && React.createElement('span', { className: 'text-xs text-red-500 ml-1 mt-1 block' }, errors.impedance)
-          ),
-          React.createElement('div', { className: 'flex gap-2 border-b border-gray-200' },
-            React.createElement('button', { onClick: () => setActiveTab('left'), className: `flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'left' ? 'text-primary border-b-2 border-primary' : 'text-gray-500'}` }, t('leftEar')),
-            React.createElement('button', { onClick: () => setActiveTab('right'), className: `flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'right' ? 'text-primary border-b-2 border-primary' : 'text-gray-500'}` }, t('rightEar'))
-          ),
-          activeTab === 'left' && React.createElement('div', { className: 'space-y-3' },
-            ['35dB', '50dB', '70dB', '90dB'].map(db => React.createElement(RadioGroup, { key: db, label: db, value: leftResults[`result${db}`], onChange: (v) => setLeftResults({ ...leftResults, [`result${db}`]: v }), options: [{ label: t('pass'), value: 'PASS' }, { label: t('refer'), value: 'REFER' }, { label: t('redo'), value: 'REDO' }] }))
-          ),
-          activeTab === 'right' && React.createElement('div', { className: 'space-y-3' },
-            ['35dB', '50dB', '70dB', '90dB'].map(db => React.createElement(RadioGroup, { key: db, label: db, value: rightResults[`result${db}`], onChange: (v) => setRightResults({ ...rightResults, [`result${db}`]: v }), options: [{ label: t('pass'), value: 'PASS' }, { label: t('refer'), value: 'REFER' }, { label: t('redo'), value: 'REDO' }] }))
-          ),
-          errors.results && React.createElement('div', { className: 'text-sm text-red-500 text-center' }, errors.results)
-        )
+
+    showProtocol && React.createElement('div', {
+      className: 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4',
+      onClick: () => setShowProtocol(false)
+    },
+      React.createElement('div', { className: 'bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl', onClick: e => e.stopPropagation() },
+        React.createElement('h3', { className: 'text-base font-semibold text-gray-800 mb-3' }, 'AABR Screening Protocol'),
+        React.createElement('div', { className: 'space-y-2 text-sm text-gray-600' },
+          React.createElement('p', {}, '1. Begin with 35 dB. Enter impedance values and select the result.'),
+          React.createElement('p', {}, '2. If the result is REDO or REFER, repeat at 35 dB up to ' + MAX_ATTEMPTS_35 + ' times total.'),
+          React.createElement('p', {}, '3. If 35 dB is exhausted without a PASS, move to 50 dB (up to ' + MAX_ATTEMPTS_50 + ' attempts).'),
+          React.createElement('p', {}, '4. Then 70 dB (' + MAX_ATTEMPTS_70 + ' attempt), then 90 dB (' + MAX_ATTEMPTS_90 + ' attempt).'),
+          React.createElement('p', {}, '5. A PASS at any level means the baby has passed - you may optionally continue to higher levels.'),
+          React.createElement('p', {}, '6. Test both Left and Right ears independently following the same protocol.')
+        ),
+        React.createElement('button', { onClick: () => setShowProtocol(false), className: 'w-full mt-4 py-3 bg-primary text-white rounded-xl font-medium' }, 'Got it')
       )
     ),
+
+    React.createElement('div', { className: 'px-6 pt-4' },
+      React.createElement('div', { className: 'flex items-center justify-between mb-1' },
+        React.createElement('div', { style: { display: 'flex', flex: 1, gap: '4px' } },
+          React.createElement('button', { onClick: () => setActiveTab('left'), style: tabStyle('left') }, t('leftEar')),
+          React.createElement('button', { onClick: () => setActiveTab('right'), style: tabStyle('right') }, t('rightEar'))
+        ),
+        React.createElement('button', {
+          onClick: () => setShowProtocol(true),
+          style: { marginLeft: '8px', width: '28px', height: '28px', borderRadius: '50%', background: '#e8ebf5', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#6b7280', flexShrink: 0 }
+        }, '?')
+      ),
+      React.createElement('div', { style: { background: 'white', border: '1px solid #e5e7eb', borderRadius: '0 0 16px 16px', padding: '16px' } },
+        activeTab === 'left' ? renderEar('left') : renderEar('right')
+      ),
+      errors.general && React.createElement('p', { className: 'text-sm text-red-500 text-center mt-2' }, errors.general)
+    ),
+
     React.createElement(StickyBottom, {}, React.createElement(Button, { onClick: handleNext }, t('next'))),
     React.createElement(VersionWatermark)
   );
