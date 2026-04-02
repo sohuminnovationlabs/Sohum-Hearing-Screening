@@ -31,7 +31,16 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.2';
+const APP_VERSION = 'v7.3';
+
+// 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
+const DEVICE_TEST_ID_LABEL = 'Unique ID';
+
+
+// 📁 PHOTO STORAGE MODE
+// Mode 1: Current naming convention - <UniqueID><Ear><AttemptNumber> e.g. 90vnjhjyuR01
+// Mode 2: New naming convention - <UniqueID>_<dB>dB_<Ear>_<AttemptNumber> e.g. 90vnjhjyu_35dB_R_01
+const PHOTO_STORAGE_MODE = 1;
 
 // 📷 PHOTO QUALITY SETTINGS - Adjust these as needed
 const PHOTO_MAX_WIDTH = 1920;   // Max width in pixels
@@ -168,7 +177,8 @@ const translations = {
     onlyLetters: "Only letters, spaces, hyphens and periods allowed", cannotBeFuture: "Cannot be in future",
     enter10Digit: "Enter 10-digit number", allImpedanceRequired: "All impedance values required",
     atLeastOneEar: "At least one ear must be tested", resultRequired: "Result required",
-    snrRequired: "At least one SNR value required",
+    snrRequired: "At least one SNR value required", uniqueId: "Unique ID", enterUniqueId: "Enter device unique ID",
+    babyDetails: "Baby Details",
     takePhoto: "Take Photo of Device Screen",
     photoInstructions: "Take a clear photo of the Sohum device screen showing the result",
     photoTaken: "Photo captured successfully",
@@ -220,7 +230,9 @@ const translations = {
     onlyLetters: "केवल अक्षर, स्थान, हाइफ़न और अवधि की अनुमति है", cannotBeFuture: "भविष्य में नहीं हो सकता",
     enter10Digit: "10-अंकों का नंबर दर्ज करें", allImpedanceRequired: "सभी प्रतिबाधा मान आवश्यक हैं",
     atLeastOneEar: "कम से कम एक कान का परीक्षण किया जाना चाहिए", resultRequired: "परिणाम आवश्यक",
-    snrRequired: "कम से कम एक SNR मान आवश्यक",
+    snrRequired: "कम से कम एक SNR मान आवश्यक", uniqueId: "यूनिक आईडी",
+    enterUniqueId: "डिवाइस यूनिक आईडी दर्ज करें",
+    babyDetails: "शिशु विवरण",
     takePhoto: "डिवाइस स्क्रीन की फोटो लें",
     photoInstructions: "Sohum डिवाइस स्क्रीन की स्पष्ट फोटो लें जिसमें परिणाम दिखे",
     photoTaken: "फोटो सफलतापूर्वक ली गई",
@@ -272,7 +284,9 @@ const translations = {
     onlyLetters: "ಕೇವಲ ಅಕ್ಷರಗಳು, ಸ್ಥಳಗಳು, ಹೈಫನ್‌ಗಳು ಮತ್ತು ಅವಧಿಗಳು ಅನುಮತಿಸಲಾಗಿದೆ", cannotBeFuture: "ಭವಿಷ್ಯದಲ್ಲಿ ಇರಲು ಸಾಧ್ಯವಿಲ್ಲ",
     enter10Digit: "10-ಅಂಕಿಯ ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ", allImpedanceRequired: "ಎಲ್ಲಾ ಪ್ರತಿರೋಧ ಮೌಲ್ಯಗಳು ಅಗತ್ಯವಿದೆ",
     atLeastOneEar: "ಕನಿಷ್ಠ ಒಂದು ಕಿವಿಯನ್ನು ಪರೀಕ್ಷಿಸಬೇಕು", resultRequired: "ಫಲಿತಾಂಶ ಅಗತ್ಯವಿದೆ",
-    snrRequired: "ಕನಿಷ್ಠ ಒಂದು SNR ಮೌಲ್ಯ ಅಗತ್ಯವಿದೆ",
+    snrRequired: "ಕನಿಷ್ಠ ಒಂದು SNR ಮೌಲ್ಯ ಅಗತ್ಯವಿದೆ", uniqueId: "ಯುನಿಕ್ ಐಡಿ",
+    enterUniqueId: "ಸಾಧನದ ಯುನಿಕ್ ಐಡಿ ನಮೂದಿಸಿ",
+    babyDetails: "ಮಗುವಿನ ವಿವರಗಳು",
     takePhoto: "ಸಾಧನದ ಪರದೆಯ ಫೋಟೋ ತೆಗೆಯಿರಿ",
     photoInstructions: "ಫಲಿತಾಂಶ ತೋರಿಸುವ Sohum ಸಾಧನದ ಪರದೆಯ ಸ್ಪಷ್ಟ ಫೋಟೋ ತೆಗೆಯಿರಿ",
     photoTaken: "ಫೋಟೋ ಯಶಸ್ವಿಯಾಗಿ ತೆಗೆಯಲಾಗಿದೆ",
@@ -792,25 +806,32 @@ const MenuScreen = ({ user, onRegisterBaby, onProfileClick }) => {
 // Baby Registration Screen
 const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, onProfileClick }) => {
   const { t, lang } = useTranslation();
-  const [form, setForm] = useState({ babyId: initialData.babyId || generateBabyId(), babyName: initialData.babyName || '', dateOfBirth: initialData.dateOfBirth || '', gender: initialData.gender || '', gestationalAge: initialData.gestationalAge || '', parentName: initialData.parentName || '', parentPhone: initialData.parentPhone || '', parentEmail: initialData.parentEmail || '', riskFactors: initialData.riskFactors || [] });
+  const [form, setForm] = useState({
+    babyId: initialData.babyId || generateBabyId(),
+    babyName: initialData.babyName || '',
+    deviceTestId: initialData.deviceTestId || '',
+    dateOfBirth: initialData.dateOfBirth || '', gender: initialData.gender || '', gestationalAge: initialData.gestationalAge || '', parentName: initialData.parentName || '', parentPhone: initialData.parentPhone || '', parentEmail: initialData.parentEmail || '', riskFactors: initialData.riskFactors || [] });
   const [errors, setErrors] = useState({});
   const [showRiskModal, setShowRiskModal] = useState(false);
   const handleClear = () => {
-    setForm({ babyId: generateBabyId(), babyName: '', dateOfBirth: '', gender: '', gestationalAge: '', parentName: '', parentPhone: '', parentEmail: '', riskFactors: [] });
+    setForm({ babyId: generateBabyId(), babyName: '', deviceTestId: '', dateOfBirth: '', gender: '', gestationalAge: '', parentName: '', parentPhone: '', parentEmail: '', riskFactors: [] });
     setErrors({});
     onClear(); // Also clear parent state
   };
-  const validate = () => {
+const validate = () => {
     const newErrors = {};
     if (!form.babyName.trim()) newErrors.babyName = t('required');
+    if (!form.deviceTestId || !form.deviceTestId.trim()) newErrors.deviceTestId = t('required');
     if (form.babyName && !/^[a-zA-Z\s.\-]+$/.test(form.babyName)) newErrors.babyName = t('onlyLetters');
     if (!form.dateOfBirth) newErrors.dateOfBirth = t('required');
     if (!form.gender) newErrors.gender = t('required');
     if (!form.gestationalAge) newErrors.gestationalAge = t('required');
     if (!form.parentName.trim()) newErrors.parentName = t('required');
     if (!form.parentPhone.trim() || !/^\d{10}$/.test(form.parentPhone)) newErrors.parentPhone = t('enter10Digit');
-    const dob = new Date(form.dateOfBirth);
-    if (dob > new Date()) newErrors.dateOfBirth = t('cannotBeFuture');
+    if (form.dateOfBirth) {
+      const dob = new Date(form.dateOfBirth);
+      if (dob > new Date()) newErrors.dateOfBirth = t('cannotBeFuture');
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -852,6 +873,23 @@ React.createElement('div', {},
     className: `w-full py-3 px-4 bg-secondary rounded-xl border-2 ${errors.babyName ? 'border-red-500' : 'border-transparent'} focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors placeholder-gray-400`
   }),
   errors.babyName && React.createElement('span', { className: 'text-xs text-red-500 ml-1 mt-1 block' }, errors.babyName)
+),
+React.createElement('div', {},
+  React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1 mb-2 block' },
+    t('uniqueId'),
+    React.createElement('span', { className: 'text-red-500' }, ' *')
+  ),
+  React.createElement('input', {
+    type: 'text',
+    value: form.deviceTestId || '',
+    onChange: (e) => setForm({ ...form, deviceTestId: e.target.value }),
+    placeholder: t('enterUniqueId'),
+    autoCapitalize: 'none',
+    autoCorrect: 'off',
+    spellCheck: false,
+    className: `w-full py-3 px-4 bg-secondary rounded-xl border-2 ${errors.deviceTestId ? 'border-red-500' : 'border-transparent'} focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors placeholder-gray-400`
+  }),
+  errors.deviceTestId && React.createElement('span', { className: 'text-xs text-red-500 ml-1 mt-1 block' }, errors.deviceTestId)
 ),
           React.createElement(Input, { label: t('dateOfBirth'), required: true, type: 'date', value: form.dateOfBirth, max: new Date().toISOString().split('T')[0], onChange: (e) => setForm({ ...form, dateOfBirth: e.target.value }), error: errors.dateOfBirth }),          
 		  React.createElement(RadioGroup, { label: t('gender'), value: form.gender, onChange: (v) => setForm({ ...form, gender: v }), options: [{ label: t('male'), value: 'Male' }, { label: t('female'), value: 'Female' }, { label: t('other'), value: 'Other' }], error: errors.gender }),
@@ -977,6 +1015,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
   };
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: t('aabrTest'), subtitle: t('enterResults'), onBack, user, onProfileClick }),
+    React.createElement(BabyInfoBanner, { record: initialData }),
     React.createElement(Container, {},
       React.createElement(Card, {},
         React.createElement('div', { className: 'space-y-4' },
@@ -1046,7 +1085,7 @@ const OAEProtocolScreen = ({ user, oaeType, onBack, onNext, onProfileClick }) =>
   );
 };
 // DPOAE Entry Screen (keeping v2 logic with override)
-const DPOAEEntryScreen = ({ user, protocol, onBack, onNext, onProfileClick }) => {
+const DPOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfileClick }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('left');
   const frequencies = protocol === '1-6 kHz' ? ['1.5k', '2k', '3k', '4k', '6k'] : protocol === '2-4 kHz' ? ['2k', '3k', '4k'] : ['2k', '3k', '4k', '5k', '6k'];
@@ -1109,6 +1148,7 @@ if (rightResult === 'PASS' && rightSnrValues.length > 0) {
   };
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: `DPOAE - ${protocol}`, onBack, user, onProfileClick }),
+    React.createElement(BabyInfoBanner, { record }),
     React.createElement(Container, {},
       React.createElement(Card, {},
         React.createElement('div', { className: 'space-y-4' },
@@ -1158,7 +1198,7 @@ activeTab === 'right' && React.createElement('div', { className: 'space-y-4' },
 };
 
 // TEOAE Entry Screen (same structure as DPOAE)
-const TEOAEEntryScreen = ({ user, protocol, onBack, onNext, onProfileClick }) => {
+const TEOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfileClick }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('left');
   const frequencies = ['1.5k', '2k', '3k', '4k', '6k'];
@@ -1221,6 +1261,7 @@ if (rightResult === 'PASS' && rightSnrValues.length > 0) {
 };
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: `TEOAE - ${protocol}`, onBack, user, onProfileClick }),
+    React.createElement(BabyInfoBanner, { record }),
     React.createElement(Container, {},
       React.createElement(Card, {},
         React.createElement('div', { className: 'space-y-4' },
@@ -1378,6 +1419,99 @@ const PhotoCaptureModal = ({ screeningId, onPhotoReady, onSkip }) => {
     )
   );
 };
+// Baby Info Banner
+const BabyInfoBanner = ({ record }) => {
+  const { t } = useTranslation();
+  const [showModal, setShowModal] = useState(false);
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const genderLabel = (g) => {
+    if (g === 'Male') return 'M';
+    if (g === 'Female') return 'F';
+    return g || '-';
+  };
+
+  return React.createElement(React.Fragment, {},
+    React.createElement('div', {
+      onClick: () => setShowModal(true),
+      className: 'mx-6 mt-3 mb-1 bg-primary/10 border border-primary/30 rounded-xl px-4 py-2 flex items-center justify-between cursor-pointer active:bg-primary/20 transition-colors'
+    },
+      React.createElement('div', { className: 'flex items-center gap-2 min-w-0' },
+        React.createElement('span', { className: 'text-primary text-sm font-mono font-semibold truncate' },
+          record.deviceTestId || '-'
+        )
+      ),
+      React.createElement('div', { className: 'flex items-center gap-2 min-w-0' },
+        React.createElement('span', { className: 'text-gray-700 text-sm font-medium truncate' },
+          record.babyName || '-'
+        ),
+        React.createElement('span', { className: 'text-primary/50 text-xs flex-shrink-0' }, '▾')
+      )
+    ),
+
+    showModal && React.createElement('div', {
+      className: 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4',
+      onClick: () => setShowModal(false)
+    },
+      React.createElement('div', {
+        className: 'bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl',
+        onClick: (e) => e.stopPropagation()
+      },
+        React.createElement('h2', { className: 'text-lg font-semibold text-gray-800 mb-4' }, t('babyDetails')),
+        React.createElement('div', { className: 'space-y-3' },
+          React.createElement('div', { className: 'flex justify-between py-2 border-b border-gray-100' },
+            React.createElement('span', { className: 'text-sm text-gray-500' }, t('uniqueId')),
+            React.createElement('span', { className: 'text-sm font-medium text-gray-800 font-mono' }, record.deviceTestId || '-')
+          ),
+          React.createElement('div', { className: 'flex justify-between py-2 border-b border-gray-100' },
+            React.createElement('span', { className: 'text-sm text-gray-500' }, t('babyName')),
+            React.createElement('span', { className: 'text-sm font-medium text-gray-800' }, record.babyName || '-')
+          ),
+          React.createElement('div', { className: 'flex justify-between py-2 border-b border-gray-100' },
+            React.createElement('span', { className: 'text-sm text-gray-500' }, t('dateOfBirth')),
+            React.createElement('span', { className: 'text-sm font-medium text-gray-800' }, formatDate(record.dateOfBirth))
+          ),
+          React.createElement('div', { className: 'flex justify-between py-2 border-b border-gray-100' },
+            React.createElement('span', { className: 'text-sm text-gray-500' }, t('gender')),
+            React.createElement('span', { className: 'text-sm font-medium text-gray-800' }, genderLabel(record.gender))
+          ),
+          React.createElement('div', { className: 'flex justify-between py-2 border-b border-gray-100' },
+            React.createElement('span', { className: 'text-sm text-gray-500' }, t('gestationalAge')),
+            React.createElement('span', { className: 'text-sm font-medium text-gray-800' }, record.gestationalAge ? `${record.gestationalAge} weeks` : '-')
+          ),
+          React.createElement('div', { className: 'flex justify-between py-2 border-b border-gray-100' },
+            React.createElement('span', { className: 'text-sm text-gray-500' }, t('parentName')),
+            React.createElement('span', { className: 'text-sm font-medium text-gray-800' }, record.parentName || '-')
+          ),
+          React.createElement('div', { className: 'flex justify-between py-2 border-b border-gray-100' },
+            React.createElement('span', { className: 'text-sm text-gray-500' }, t('phoneNumber')),
+            React.createElement('span', { className: 'text-sm font-medium text-gray-800' }, record.parentPhone || '-')
+          ),
+          record.parentEmail && React.createElement('div', { className: 'flex justify-between py-2 border-b border-gray-100' },
+            React.createElement('span', { className: 'text-sm text-gray-500' }, t('email')),
+            React.createElement('span', { className: 'text-sm font-medium text-gray-800' }, record.parentEmail)
+          ),
+          record.riskFactors && record.riskFactors.length > 0 && React.createElement('div', { className: 'py-2' },
+            React.createElement('span', { className: 'text-sm text-gray-500 block mb-1' }, t('riskFactors')),
+            React.createElement('span', { className: 'text-sm font-medium text-gray-800' },
+              Array.isArray(record.riskFactors) ? record.riskFactors.join(', ') : record.riskFactors
+            )
+          )
+        ),
+        React.createElement('button', {
+          onClick: () => setShowModal(false),
+          className: 'w-full mt-4 py-3 px-4 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors'
+        }, t('close'))
+      )
+    )
+  );
+};
+
 // Recommendation Screen
 const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick }) => {
   const { t } = useTranslation();
@@ -1405,6 +1539,7 @@ const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick }
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: t('recommendation'), onBack, user, onProfileClick }),
+    React.createElement(BabyInfoBanner, { record }),
     React.createElement(Container, {},
       React.createElement(Card, {},
         React.createElement('div', { className: 'space-y-4' },
@@ -1590,7 +1725,7 @@ const App = () => {
   }, []);
   const merge = (data) => setRecord({ ...record, ...data });
   const clearBabyData = () => {
-    const { babyId, babyName, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, ...rest } = record;
+    const { babyId, babyName, deviceTestId, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, ...rest } = record;
     setRecord({ ...rest, babyId: generateBabyId() });
     setStep(STEP.BABY);
   };
@@ -1626,7 +1761,7 @@ const App = () => {
     step === STEP.AABR && React.createElement(AABREntryScreen, { user, initialData: record, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.REC); }, onProfileClick: () => setShowProfile(true) }),
     step === STEP.OAE_TYPE && React.createElement(OAETypeScreen, { user, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.OAE_PROTOCOL); }, onProfileClick: () => setShowProfile(true) }),
     step === STEP.OAE_PROTOCOL && React.createElement(OAEProtocolScreen, { user, oaeType: record.oaeTestType, onBack: () => setStep(STEP.OAE_TYPE), onNext: d => { merge(d); setStep(STEP.OAE); }, onProfileClick: () => setShowProfile(true) }),
-    step === STEP.OAE && (record.oaeTestType === 'DPOAE' ? React.createElement(DPOAEEntryScreen, { user, protocol: record.oaeProtocol, onBack: () => setStep(STEP.OAE_PROTOCOL), onNext: d => { merge(d); setStep(STEP.REC); }, onProfileClick: () => setShowProfile(true) }) : React.createElement(TEOAEEntryScreen, { user, protocol: record.oaeProtocol, onBack: () => setStep(STEP.OAE_PROTOCOL), onNext: d => { merge(d); setStep(STEP.REC); }, onProfileClick: () => setShowProfile(true) })),
+    step === STEP.OAE && (record.oaeTestType === 'DPOAE' ? React.createElement(DPOAEEntryScreen, { user, record, protocol: record.oaeProtocol, onBack: () => setStep(STEP.OAE_PROTOCOL), onNext: d => { merge(d); setStep(STEP.REC); }, onProfileClick: () => setShowProfile(true) }) : React.createElement(TEOAEEntryScreen, { user, record, protocol: record.oaeProtocol, onBack: () => setStep(STEP.OAE_PROTOCOL), onNext: d => { merge(d); setStep(STEP.REC); }, onProfileClick: () => setShowProfile(true) })),
     step === STEP.REC && React.createElement(RecommendationScreen, { user, record, onBack: () => setStep(record.testType === 'AABR' ? STEP.AABR : STEP.OAE), onSubmit: handleSubmit, onProfileClick: () => setShowProfile(true) }),
     step === STEP.SUCCESS && React.createElement(SuccessScreen, { user, record, onSameBaby: () => { const sessionAndBabyData = { hwName: record.hwName, hwId: record.hwId, ngo: record.ngo, hospitalName: record.hospitalName, deviceSerial: record.deviceSerial, sessionDate: record.sessionDate, babyId: record.babyId, babyName: record.babyName, dateOfBirth: record.dateOfBirth, gender: record.gender, gestationalAge: record.gestationalAge, parentName: record.parentName, parentPhone: record.parentPhone, parentEmail: record.parentEmail, riskFactors: record.riskFactors, screeningId: generateScreeningId() }; setRecord(sessionAndBabyData); setStep(STEP.TEST_SELECT); }, onNewBaby: () => { const sessionData = { hwName: record.hwName, hwId: record.hwId, ngo: record.ngo, hospitalName: record.hospitalName, deviceSerial: record.deviceSerial, sessionDate: record.sessionDate, babyId: generateBabyId() }; setRecord(sessionData); setStep(STEP.BABY); }, onProfileClick: () => setShowProfile(true) }),
 showProfile && user && React.createElement(EnhancedProfileModal, { user, onClose: () => setShowProfile(false) })
