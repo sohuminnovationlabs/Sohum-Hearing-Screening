@@ -898,6 +898,7 @@ const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, on
   const [unlockedFields, setUnlockedFields] = useState({});
   const unlockField = (field) => setUnlockedFields(prev => ({ ...prev, [field]: true }));
   const isLocked = (field) => prefilled && !unlockedFields[field];
+  console.log('prefilled:', prefilled, 'deviceTestId in form:', form.deviceTestId);
   const [form, setForm] = useState({
     babyId: initialData.babyId || generateBabyId(),
     babyName: initialData.babyName || (TEST_MODE ? TEST_DATA.babyName : ''),
