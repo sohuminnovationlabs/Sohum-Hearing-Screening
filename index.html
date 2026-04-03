@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.5.2';
+const APP_VERSION = 'v7.5.3';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -1019,6 +1019,21 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     }
     return `${uid}${earCode}${attemptNum}.jpg`;
   };
+  
+  const collectPendingPhotos = () => {
+    const uploads = [];
+    ['left', 'right'].forEach(side => {
+      const ear = getEar(side);
+      DB_LEVELS.forEach(db => {
+        ear[db].forEach((attempt, idx) => {
+          if (attempt.photo && isAttemptComplete(attempt)) {
+            uploads.push({ base64: attempt.photo, filename: getFilename(side, db, idx) });
+          }
+        });
+      });
+    });
+    return uploads;
+  };
 
   const getEar = (side) => side === 'left' ? leftEar : rightEar;
   const setEar = (side, val) => side === 'left' ? setLeftEar(val) : setRightEar(val);
@@ -1387,20 +1402,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     borderBottom: activeTab === side ? '3px solid #202B5D' : '3px solid transparent'
   });
 
-  const collectPendingPhotos = () => {
-    const uploads = [];
-    ['left', 'right'].forEach(side => {
-      const ear = getEar(side);
-      DB_LEVELS.forEach(db => {
-        ear[db].forEach((attempt, idx) => {
-          if (attempt.photo && isAttemptComplete(attempt)) {
-            uploads.push({ base64: attempt.photo, filename: getFilename(side, db, idx) });
-          }
-        });
-      });
-    });
-    return uploads;
-  };
+  
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: t('aabrTest'), subtitle: t('enterResults'), onBack, user, onProfileClick }),
