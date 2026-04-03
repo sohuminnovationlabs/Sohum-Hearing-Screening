@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.5.4';
+const APP_VERSION = 'v7.5.5';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -56,10 +56,10 @@ const MAX_ATTEMPTS_70 = 1;  // attempts allowed at 70 dB
 const MAX_ATTEMPTS_90 = 1;  // attempts allowed at 90 dB
 
 // 📷 PHOTO QUALITY SETTINGS - Adjust these as needed
-const PHOTO_MAX_WIDTH = 1920;   // Max width in pixels
-const PHOTO_MAX_HEIGHT = 1440;   // Max height in pixels
-const PHOTO_QUALITY = 0.75;     // JPEG quality (0.0 to 1.0)
-const PHOTO_GRAYSCALE = true;   // true = grayscale (better for text), false = colour
+const PHOTO_MAX_WIDTH = 1920;       // Max width in pixels
+const PHOTO_MAX_HEIGHT = 1440;      // Max height in pixels
+const PHOTO_TARGET_SIZE_KB = 200;   // Target max file size in KB - only compresses if exceeded
+const PHOTO_GRAYSCALE = true;       // true = grayscale (better for text), false = colour
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
 const MASTER_SHEET_ID = '16evdSZDgIx7DkP3X7rxzkT8p8YtXsLykdIPXeIXhxxM';
@@ -2048,15 +2048,19 @@ const compressPhoto = (file) => {
         const canvas = document.createElement('canvas');
         let w = img.width;
         let h = img.height;
+
+        // Only resize if dimensions exceed the cap
         if (w > PHOTO_MAX_WIDTH || h > PHOTO_MAX_HEIGHT) {
           const ratio = Math.min(PHOTO_MAX_WIDTH / w, PHOTO_MAX_HEIGHT / h);
           w = Math.round(w * ratio);
           h = Math.round(h * ratio);
         }
+
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         ctx.drawImage(img, 0, 0, w, h);
+
         if (PHOTO_GRAYSCALE) {
           const imageData = ctx.getImageData(0, 0, w, h);
           const pixels = imageData.data;
@@ -2068,7 +2072,22 @@ const compressPhoto = (file) => {
           }
           ctx.putImageData(imageData, 0, 0);
         }
-        const base64 = canvas.toDataURL('image/jpeg', PHOTO_QUALITY).split(',')[1];
+
+        // First pass at high quality
+        let quality = 0.92;
+        let base64 = canvas.toDataURL('image/jpeg', quality).split(',')[1];
+        const sizeKB = Math.round(base64.length * 0.75 / 1024);
+
+        // Only compress further if size exceeds target
+        if (sizeKB > PHOTO_TARGET_SIZE_KB) {
+          // Calculate quality needed to hit target size in one shot
+          quality = Math.max(0.4, Math.min(0.92, quality * (PHOTO_TARGET_SIZE_KB / sizeKB)));
+          base64 = canvas.toDataURL('image/jpeg', quality).split(',')[1];
+          console.log(`Photo compressed: ${sizeKB}KB → ~${Math.round(base64.length * 0.75 / 1024)}KB at quality ${quality.toFixed(2)}`);
+        } else {
+          console.log(`Photo kept at original quality: ${sizeKB}KB`);
+        }
+
         resolve({ base64, canvas });
       };
       img.src = e.target.result;
