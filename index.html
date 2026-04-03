@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.5';
+const APP_VERSION = 'v7.5.1';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -2053,7 +2053,7 @@ const compressPhoto = (file) => {
         }
         canvas.width = w;
         canvas.height = h;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         ctx.drawImage(img, 0, 0, w, h);
         if (PHOTO_GRAYSCALE) {
           const imageData = ctx.getImageData(0, 0, w, h);
@@ -2076,7 +2076,7 @@ const compressPhoto = (file) => {
 };
 
 const isImageBlurry = (canvas) => {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const { width, height } = canvas;
   const imageData = ctx.getImageData(0, 0, width, height);
   const pixels = imageData.data;
