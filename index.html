@@ -30,8 +30,25 @@
 import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
+
+// 🧪 TEST MODE - Set to true to pre-fill baby registration form for faster testing
+// Set back to false before pushing to production
+const TEST_MODE = true;
+const TEST_DATA = {
+  babyName: 'Test Baby',
+  deviceTestId: '26siltestuid',
+  dateOfBirth: '2025-05-22',
+  gender: 'Male',
+  gestationalAge: '38',
+  parentName: 'Test Parent',
+  parentPhone: '9876543210',
+  parentEmail: 'test@test.com',
+  riskFactors: []
+};
+
+
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.5.5';
+const APP_VERSION = 'v7.5.6';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -821,9 +838,9 @@ const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, on
   const { t, lang } = useTranslation();
   const [form, setForm] = useState({
     babyId: initialData.babyId || generateBabyId(),
-    babyName: initialData.babyName || '',
-    deviceTestId: initialData.deviceTestId || '',
-    dateOfBirth: initialData.dateOfBirth || '', gender: initialData.gender || '', gestationalAge: initialData.gestationalAge || '', parentName: initialData.parentName || '', parentPhone: initialData.parentPhone || '', parentEmail: initialData.parentEmail || '', riskFactors: initialData.riskFactors || [] });
+    babyName: initialData.babyName || (TEST_MODE ? TEST_DATA.babyName : ''),
+    deviceTestId: initialData.deviceTestId || (TEST_MODE ? TEST_DATA.deviceTestId : ''),
+    dateOfBirth: initialData.dateOfBirth || (TEST_MODE ? TEST_DATA.dateOfBirth : ''), gender: initialData.gender || (TEST_MODE ? TEST_DATA.gender : ''),
   const [errors, setErrors] = useState({});
   const [showRiskModal, setShowRiskModal] = useState(false);
   const handleClear = () => {
