@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.6.5';
+const APP_VERSION = 'v8.0';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -2442,9 +2442,15 @@ const searchBabyRecords = async (searchBy, query) => {
     // Map row columns back to record fields
     const formatDOB = (val) => {
       if (!val) return '';
+      // If already in YYYY-MM-DD format, return as-is
+      if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
       const d = new Date(val);
       if (isNaN(d.getTime())) return '';
-      return d.toISOString().split('T')[0];
+      // Use local date parts to avoid UTC timezone shift
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
     };
     return {
       babyId: row[9] || '',
