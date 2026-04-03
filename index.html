@@ -840,7 +840,7 @@ const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, on
     babyId: initialData.babyId || generateBabyId(),
     babyName: initialData.babyName || (TEST_MODE ? TEST_DATA.babyName : ''),
     deviceTestId: initialData.deviceTestId || (TEST_MODE ? TEST_DATA.deviceTestId : ''),
-    dateOfBirth: initialData.dateOfBirth || (TEST_MODE ? TEST_DATA.dateOfBirth : ''), gender: initialData.gender || (TEST_MODE ? TEST_DATA.gender : ''),
+    dateOfBirth: initialData.dateOfBirth || (TEST_MODE ? TEST_DATA.dateOfBirth : ''), gender: initialData.gender || (TEST_MODE ? TEST_DATA.gender : ''), gestationalAge: initialData.gestationalAge || (TEST_MODE ? TEST_DATA.gestationalAge : ''), parentName: initialData.parentName || (TEST_MODE ? TEST_DATA.parentName : ''), parentPhone: initialData.parentPhone || (TEST_MODE ? TEST_DATA.parentPhone : ''), parentEmail: initialData.parentEmail || (TEST_MODE ? TEST_DATA.parentEmail : ''), riskFactors: initialData.riskFactors || (TEST_MODE ? TEST_DATA.riskFactors : []) });
   const [errors, setErrors] = useState({});
   const [showRiskModal, setShowRiskModal] = useState(false);
   const handleClear = () => {
