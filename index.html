@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.5.3';
+const APP_VERSION = 'v7.5.4';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -2191,7 +2191,9 @@ const App = () => {
     fetchAllLogData().then(data => setLogData(data));
   };
   const handleSubmit = async (data) => {
-    const { photoBase64, _pendingPhotos, _deviceTestId, ...rest } = data;
+    const { photoBase64, ...rest } = data;
+    const _pendingPhotos = record._pendingPhotos;
+    const _deviceTestId = record._deviceTestId;
     console.log('handleSubmit: _pendingPhotos=', _pendingPhotos, '_deviceTestId=', _deviceTestId);
     const final = { ...record, ...rest };
     const ok = await saveToSheets(final);
