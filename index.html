@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.6.3';
+const APP_VERSION = 'v7.6.4';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -898,13 +898,14 @@ const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, on
   const [unlockedFields, setUnlockedFields] = useState({});
   const unlockField = (field) => setUnlockedFields(prev => ({ ...prev, [field]: true }));
   const isLocked = (field) => prefilled && !unlockedFields[field];
-  console.log('prefilled:', prefilled, 'deviceTestId in form:', form.deviceTestId);
+ 
   const [form, setForm] = useState({
     babyId: initialData.babyId || generateBabyId(),
     babyName: initialData.babyName || (TEST_MODE ? TEST_DATA.babyName : ''),
     deviceTestId: initialData.deviceTestId || (TEST_MODE ? TEST_DATA.deviceTestId : ''),
     dateOfBirth: initialData.dateOfBirth || (TEST_MODE ? TEST_DATA.dateOfBirth : ''), gender: initialData.gender || (TEST_MODE ? TEST_DATA.gender : ''), gestationalAge: initialData.gestationalAge || (TEST_MODE ? TEST_DATA.gestationalAge : ''), parentName: initialData.parentName || (TEST_MODE ? TEST_DATA.parentName : ''), parentPhone: initialData.parentPhone || (TEST_MODE ? TEST_DATA.parentPhone : ''), parentEmail: initialData.parentEmail || (TEST_MODE ? TEST_DATA.parentEmail : ''), riskFactors: initialData.riskFactors || (TEST_MODE ? TEST_DATA.riskFactors : []) });
   const [errors, setErrors] = useState({});
+  console.log('prefilled:', prefilled, 'deviceTestId in initialData:', initialData.deviceTestId, 'TEST_MODE:', TEST_MODE);
   const [showRiskModal, setShowRiskModal] = useState(false);
   const handleClear = () => {
     setForm({ babyId: generateBabyId(), babyName: '', deviceTestId: '', dateOfBirth: '', gender: '', gestationalAge: '', parentName: '', parentPhone: '', parentEmail: '', riskFactors: [] });
