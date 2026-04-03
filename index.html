@@ -33,7 +33,7 @@ import { createRoot } from 'react-dom/client';
 
 // 🧪 TEST MODE - Set to true to pre-fill baby registration form for faster testing
 // Set back to false before pushing to production
-const TEST_MODE = true;
+const TEST_MODE = false;
 const TEST_DATA = {
   babyName: 'Test Baby',
   deviceTestId: '26siltestuid',
@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.6.1';
+const APP_VERSION = 'v7.6.2';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -2436,10 +2436,16 @@ const searchBabyRecords = async (searchBy, query) => {
     const row = matches[0];
 
     // Map row columns back to record fields
+    const formatDOB = (val) => {
+      if (!val) return '';
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return '';
+      return d.toISOString().split('T')[0];
+    };
     return {
       babyId: row[9] || '',
       babyName: row[10] || '',
-      dateOfBirth: row[11] || '',
+      dateOfBirth: formatDOB(row[11]),
       gender: row[12] || '',
       gestationalAge: row[13] || '',
       parentName: row[15] || '',
