@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v7.4.2';
+const APP_VERSION = 'v7.5';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -1002,11 +1002,23 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
   const DB_LEVELS = ['35dB', '50dB', '70dB', '90dB'];
   const MAX_ATTEMPTS = { '35dB': MAX_ATTEMPTS_35, '50dB': MAX_ATTEMPTS_50, '70dB': MAX_ATTEMPTS_70, '90dB': MAX_ATTEMPTS_90 };
 
-  const makeEmptyAttempt = () => ({ vtx: '', gnd: '', ref: '', result: '' });
+  const makeEmptyAttempt = () => ({ vtx: '', gnd: '', ref: '', result: '', _confirmed: false, photo: null, photoCleared: false });
   const makeEmptyEar = () => ({ '35dB': [makeEmptyAttempt()], '50dB': [], '70dB': [], '90dB': [] });
-
+  
   const [leftEar, setLeftEar] = useState(makeEmptyEar());
   const [rightEar, setRightEar] = useState(makeEmptyEar());
+  const [activePhotoTarget, setActivePhotoTarget] = useState(null); // { side, db, idx }
+  const [pendingResultChange, setPendingResultChange] = useState(null); // { side, db, idx, newValue }
+
+  const getFilename = (side, db, idx) => {
+    const uid = initialData.deviceTestId || 'unknown';
+    const earCode = side === 'left' ? 'L' : 'R';
+    const attemptNum = String(idx + 1).padStart(2, '0');
+    if (PHOTO_STORAGE_MODE === 2) {
+      return `${uid}_${db}_${earCode}_${attemptNum}.jpg`;
+    }
+    return `${uid}${earCode}${attemptNum}.jpg`;
+  };
 
   const getEar = (side) => side === 'left' ? leftEar : rightEar;
   const setEar = (side, val) => side === 'left' ? setLeftEar(val) : setRightEar(val);
@@ -1023,8 +1035,11 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     return prevHasConfirmedPass || confirmedAttempts.length >= prevMax;
   };
 
-  const isAttemptComplete = (attempt) =>
-    attempt.vtx !== '' && attempt.gnd !== '' && attempt.ref !== '' && attempt.result !== '' && attempt._confirmed === true;
+  const isAttemptComplete = (attempt) => {
+    if (!attempt.vtx || !attempt.gnd || !attempt.ref || !attempt.result || !attempt._confirmed) return false;
+    if (attempt.result === 'REFER' || attempt.result === 'REDO') return attempt.photo !== null;
+    return true;
+  };
 
   const canAddAttempt = (side, db) => {
     const ear = getEar(side);
@@ -1060,20 +1075,31 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     }
   };
 
-  const handleSetAttempt = (side, db, idx, field, value) => {
+ const handleSetAttempt = (side, db, idx, field, value) => {
     const ear = { ...getEar(side) };
     const attempts = [...ear[db]];
-    attempts[idx] = { ...attempts[idx], [field]: value };
+    const currentAttempt = attempts[idx];
+
+    // If changing result and a photo is already taken, require confirmation first
+    if (field === 'result' && currentAttempt.photo !== null && value !== currentAttempt.result) {
+      setPendingResultChange({ side, db, idx, newValue: value });
+      return;
+    }
+
+    // If clearing result (toggling off), clear photo too
+    if (field === 'result' && value === currentAttempt.result) {
+      attempts[idx] = { ...currentAttempt, result: '', photo: null, photoCleared: false, _confirmed: false };
+    } else {
+      attempts[idx] = { ...currentAttempt, [field]: value };
+    }
+
     if (field === 'result' || field === '_confirmed') {
       const nextIdx = DB_LEVELS.indexOf(db) + 1;
       if (nextIdx < DB_LEVELS.length) {
         const nextDb = DB_LEVELS[nextIdx];
         const updatedAttempts = attempts;
-        const confirmedCount = updatedAttempts.filter(a => isAttemptComplete({...a, ...(idx === updatedAttempts.indexOf(a) ? {[field]: value} : {})})).length;
-        const hasConfirmedPass = updatedAttempts.some((a, i) => {
-          const updated = i === idx ? {...a, [field]: value} : a;
-          return isAttemptComplete(updated) && updated.result === 'PASS';
-        });
+        const confirmedCount = updatedAttempts.filter(a => isAttemptComplete(a)).length;
+        const hasConfirmedPass = updatedAttempts.some(a => isAttemptComplete(a) && a.result === 'PASS');
         const shouldLock = !hasConfirmedPass && confirmedCount < MAX_ATTEMPTS[db];
         if (shouldLock && ear[nextDb] && ear[nextDb].length > 0 && ear[nextDb].every(a => !isAttemptComplete(a))) {
           ear[nextDb] = [];
@@ -1082,6 +1108,26 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     }
     ear[db] = attempts;
     setEar(side, ear);
+  };
+
+  const handlePhotoReady = (side, db, idx, base64) => {
+    const ear = { ...getEar(side) };
+    const attempts = [...ear[db]];
+    attempts[idx] = { ...attempts[idx], photo: base64, photoCleared: false };
+    ear[db] = attempts;
+    setEar(side, ear);
+    setActivePhotoTarget(null);
+  };
+
+  const confirmResultChange = () => {
+    if (!pendingResultChange) return;
+    const { side, db, idx, newValue } = pendingResultChange;
+    const ear = { ...getEar(side) };
+    const attempts = [...ear[db]];
+    attempts[idx] = { ...attempts[idx], result: newValue, photo: null, photoCleared: true, _confirmed: false };
+    ear[db] = attempts;
+    setEar(side, ear);
+    setPendingResultChange(null);
   };
 
   const formatImpedanceCol = (field) => {
@@ -1120,6 +1166,12 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
           const hasRes = attempt.result !== '';
           if (hasImp && !hasRes) newErrors[`${side}_${db}_${idx}`] = 'Result required for this attempt';
           if (hasRes && (!attempt.vtx || !attempt.gnd || !attempt.ref)) newErrors[`${side}_${db}_${idx}_imp`] = 'All impedance values required';
+          if (hasRes && (attempt.result === 'REFER' || attempt.result === 'REDO') && !attempt.photo && !attempt._confirmed) {
+            newErrors[`${side}_${db}_${idx}_photo`] = 'Photo required before confirming this result';
+          }
+          if (attempt._confirmed && (attempt.result === 'REFER' || attempt.result === 'REDO') && !attempt.photo) {
+            newErrors[`${side}_${db}_${idx}_photo`] = 'Photo required for REFER/REDO attempt';
+          }
         });
       });
     });
@@ -1141,8 +1193,12 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
       if (!confirm('Are you sure? The record will note only RIGHT ear was tested.')) return;
       overrideNote = ' [Test was overridden - healthcare worker chose to test only RIGHT ear]';
     }
+    const pendingPhotos = collectPendingPhotos();
+    const deviceTestId = initialData.deviceTestId || 'unknown';
     onNext({
       testType: 'AABR',
+      _pendingPhotos: pendingPhotos,
+      _deviceTestId: deviceTestId,
       impedanceVtxGnd: formatImpedanceCol('vtx'),
       impedanceGndRef: formatImpedanceCol('gnd'),
       impedanceRefVtx: formatImpedanceCol('ref'),
@@ -1161,9 +1217,14 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
   const renderAttemptBlock = (side, db, attempt, idx) => {
     const complete = isAttemptComplete(attempt);
     const allImpFilled = attempt.vtx !== '' && attempt.gnd !== '' && attempt.ref !== '';
+    const needsPhoto = (attempt.result === 'REFER' || attempt.result === 'REDO');
+    const photoReady = attempt.photo !== null;
+    const canConfirm = allImpFilled && attempt.result && (!needsPhoto || photoReady);
     const errKey = `${side}_${db}_${idx}`;
+
     return React.createElement('div', { key: idx, className: 'space-y-2' },
       React.createElement('div', { className: 'text-xs font-medium text-gray-500 mb-1' }, `Test ${idx + 1}`),
+
       complete
         ? React.createElement('div', { className: 'text-xs text-gray-400 mb-1' },
             `V-G: ${attempt.vtx}kΩ, G-R: ${attempt.gnd}kΩ, R-V: ${attempt.ref}kΩ`
@@ -1180,6 +1241,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
               })
             )
           ),
+
       complete
         ? React.createElement('div', { className: 'flex items-center gap-2' },
             React.createElement('span', {
@@ -1189,7 +1251,10 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
                 border: `1px solid ${attempt.result === 'PASS' ? '#86efac' : attempt.result === 'REFER' ? '#fca5a5' : '#fdba74'}`,
                 borderRadius: '8px', padding: '4px 12px', fontSize: '12px', fontWeight: '500'
               }
-            }, attempt.result)
+            }, attempt.result),
+            attempt.photo && React.createElement('span', {
+              style: { fontSize: '11px', color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', padding: '2px 8px' }
+            }, '📷 Photo saved')
           )
         : React.createElement('div', { className: 'space-y-2' },
             React.createElement('div', { className: 'grid grid-cols-3 gap-2' },
@@ -1210,22 +1275,47 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
                 }, btn.label)
               )
             ),
+
+            needsPhoto && React.createElement('div', { className: 'mt-1' },
+              photoReady
+                ? React.createElement('div', { className: 'flex items-center gap-2' },
+                    React.createElement('span', { style: { fontSize: '11px', color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', padding: '3px 10px', flex: 1, textAlign: 'center' } }, '📷 Photo ready'),
+                    React.createElement('button', {
+                      onClick: () => setActivePhotoTarget({ side, db, idx }),
+                      style: { fontSize: '11px', color: '#6b7280', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '6px', padding: '3px 10px', cursor: 'pointer' }
+                    }, 'Retake')
+                  )
+                : React.createElement('button', {
+                    onClick: () => setActivePhotoTarget({ side, db, idx }),
+                    style: {
+                      width: '100%', padding: '8px', borderRadius: '10px',
+                      background: attempt.result ? '#fff7ed' : '#f9fafb',
+                      border: attempt.result ? '1.5px solid #fdba74' : '1px solid #e5e7eb',
+                      color: attempt.result ? '#9a3412' : '#9ca3af',
+                      fontSize: '12px', fontWeight: '500', cursor: attempt.result ? 'pointer' : 'not-allowed'
+                    },
+                    disabled: !attempt.result
+                  }, '📷 Take photo (required)')
+            ),
+
             React.createElement('button', {
-              disabled: !allImpFilled || !attempt.result,
+              disabled: !canConfirm,
               onClick: () => handleSetAttempt(side, db, idx, '_confirmed', true),
               style: {
                 width: '60%', marginLeft: '20%',
                 padding: '8px', borderRadius: '12px',
-                background: allImpFilled && attempt.result ? '#202B5D' : '#e5e7eb',
-                color: allImpFilled && attempt.result ? 'white' : '#9ca3af',
+                background: canConfirm ? '#202B5D' : '#e5e7eb',
+                color: canConfirm ? 'white' : '#9ca3af',
                 border: 'none', fontSize: '13px', fontWeight: '500',
-                cursor: allImpFilled && attempt.result ? 'pointer' : 'not-allowed',
+                cursor: canConfirm ? 'pointer' : 'not-allowed',
                 transition: 'all 0.2s ease'
               }
             }, 'Confirm attempt')
           ),
+
       errors[errKey] && React.createElement('p', { className: 'text-xs text-red-500' }, errors[errKey]),
-      errors[`${errKey}_imp`] && React.createElement('p', { className: 'text-xs text-red-500' }, errors[`${errKey}_imp`])
+      errors[`${errKey}_imp`] && React.createElement('p', { className: 'text-xs text-red-500' }, errors[`${errKey}_imp`]),
+      errors[`${errKey}_photo`] && React.createElement('p', { className: 'text-xs text-red-500' }, errors[`${errKey}_photo`])
     );
   };
 
@@ -1297,9 +1387,50 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     borderBottom: activeTab === side ? '3px solid #202B5D' : '3px solid transparent'
   });
 
+  const collectPendingPhotos = () => {
+    const uploads = [];
+    ['left', 'right'].forEach(side => {
+      const ear = getEar(side);
+      DB_LEVELS.forEach(db => {
+        ear[db].forEach((attempt, idx) => {
+          if (attempt.photo && isAttemptComplete(attempt)) {
+            uploads.push({ base64: attempt.photo, filename: getFilename(side, db, idx) });
+          }
+        });
+      });
+    });
+    return uploads;
+  };
+
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: t('aabrTest'), subtitle: t('enterResults'), onBack, user, onProfileClick }),
     React.createElement(BabyInfoBanner, { record: initialData }),
+
+    activePhotoTarget && React.createElement(PhotoCaptureModal, {
+      screeningId: initialData.screeningId,
+      onPhotoReady: (base64) => handlePhotoReady(activePhotoTarget.side, activePhotoTarget.db, activePhotoTarget.idx, base64),
+      onSkip: () => setActivePhotoTarget(null)
+    }),
+
+    pendingResultChange && React.createElement('div', {
+      className: 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4',
+      onClick: () => setPendingResultChange(null)
+    },
+      React.createElement('div', { className: 'bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl', onClick: e => e.stopPropagation() },
+        React.createElement('h3', { className: 'text-base font-semibold text-gray-800 mb-2' }, 'Change result?'),
+        React.createElement('p', { className: 'text-sm text-gray-600 mb-4' }, 'You have already taken a photo for this attempt. Changing the result will erase the photo and you will need to take it again.'),
+        React.createElement('div', { className: 'flex gap-3' },
+          React.createElement('button', {
+            onClick: () => setPendingResultChange(null),
+            className: 'flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium text-sm'
+          }, 'Cancel'),
+          React.createElement('button', {
+            onClick: confirmResultChange,
+            className: 'flex-1 py-3 bg-red-500 text-white rounded-xl font-medium text-sm'
+          }, 'Change result')
+        )
+      )
+    ),
 
     showProtocol && React.createElement('div', {
       className: 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4',
@@ -1817,7 +1948,7 @@ const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick }
   const [submitting, setSubmitting] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
 
-  const requiresPhoto = (rec) => rec && !rec.startsWith('Pass');
+  const requiresPhoto = (rec) => record.testType !== 'AABR' && rec && !rec.startsWith('Pass');
 
   const handleSubmit = async () => {
     if (requiresPhoto(recommendation)) {
@@ -1958,6 +2089,33 @@ const isImageBlurry = (canvas) => {
   return variance < 100;
 };
 
+const uploadAttemptPhoto = async (base64Data, filename, deviceTestId) => {
+  const MAX_RETRIES = 3;
+  const DELAY_MS = 2000;
+  const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await fetch(SCRIPT_URL + '?action=uploadPhoto', {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          base64Data,
+          filename,
+          deviceTestId,
+          action: 'uploadPhoto'
+        })
+      });
+      console.log('Photo upload fired:', filename);
+      return;
+    } catch (err) {
+      console.warn(`Photo upload attempt ${attempt} failed for ${filename}:`, err);
+    }
+    if (attempt < MAX_RETRIES) await sleep(DELAY_MS);
+  }
+  console.error('Photo upload failed after retries:', filename);
+};
+
 const uploadPhotoToDrive = async (base64Data, screeningId) => {
   const MAX_ATTEMPTS = 3;
   const DELAY_MS = 2000;
@@ -2033,13 +2191,20 @@ const App = () => {
     fetchAllLogData().then(data => setLogData(data));
   };
   const handleSubmit = async (data) => {
-    const { photoBase64, ...rest } = data;
+    const { photoBase64, _pendingPhotos, _deviceTestId, ...rest } = data;
     const final = { ...record, ...rest };
     const ok = await saveToSheets(final);
     if (ok) {
       setStep(STEP.SUCCESS);
+      // OAE recommendation screen photo
       if (photoBase64 && final.screeningId) {
         uploadPhotoToDrive(photoBase64, final.screeningId);
+      }
+      // AABR per-attempt photos - fire in background
+      if (_pendingPhotos && _pendingPhotos.length > 0 && _deviceTestId) {
+        _pendingPhotos.forEach(({ base64, filename }) => {
+          uploadAttemptPhoto(base64, filename, _deviceTestId);
+        });
       }
     } else {
       alert('Failed to save. Please try again.');
