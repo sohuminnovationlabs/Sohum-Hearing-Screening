@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.0';
+const APP_VERSION = 'v8.1.0';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -2521,7 +2521,6 @@ const App = () => {
     const { photoBase64, ...rest } = data;
     const _pendingPhotos = record._pendingPhotos;
     const _deviceTestId = record._deviceTestId;
-    console.log('handleSubmit: _pendingPhotos=', _pendingPhotos, '_deviceTestId=', _deviceTestId);
     const final = { ...record, ...rest };
     const ok = await saveToSheets(final);
     if (ok) {
