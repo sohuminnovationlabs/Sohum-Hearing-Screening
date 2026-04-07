@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.3.2';
+const APP_VERSION = 'v1.3.3';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -867,7 +867,7 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
               const clean = str.replace(/^AO\[/, '[');
               if (clean.startsWith('[')) {
                 const inner = clean.replace(/^\[/, '').replace(/\]$/, '');
-                return inner.split(',').map(s => s.trim()).reverse(); // oldest first
+return inner.split(',').map(s => s.trim()); // oldest first, matches HCW storage order
               }
               return [clean.trim()];
             };
