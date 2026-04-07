@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.1.0';
+const APP_VERSION = 'v8.1.1';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -1149,7 +1149,18 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
   const getFilename = (side, db, idx) => {
     const uid = initialData.deviceTestId || 'unknown';
     const earCode = side === 'left' ? 'L' : 'R';
-    const attemptNum = String(idx + 1).padStart(2, '0');
+    // Calculate global attempt number across all dB levels for this ear
+    const dbOrder = ['35dB', '50dB', '70dB', '90dB'];
+    const ear = side === 'left' ? leftEar : rightEar;
+    let globalIdx = 0;
+    for (const level of dbOrder) {
+      if (level === db) {
+        globalIdx += idx;
+        break;
+      }
+      globalIdx += ear[level].length;
+    }
+    const attemptNum = String(globalIdx + 1).padStart(2, '0');
     if (PHOTO_STORAGE_MODE === 2) {
       return `${uid}_${db}_${earCode}_${attemptNum}.jpg`;
     }
