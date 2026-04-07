@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.2.2';
+const APP_VERSION = 'v1.3.0';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -453,9 +453,9 @@ const QueueCard = ({ item, onClick, t }) => {
       )
     ),
     React.createElement('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500' },
-      item.hospital && React.createElement('span', {}, '🏥 ' + item.hospital),
-      React.createElement('span', {}, '📟 ' + (item.deviceSerial || '—')),
-      item.uniqueID && React.createElement('span', { className: 'font-mono' }, '🔑 ' + item.uniqueID),
+      item.hospital && React.createElement('span', {}, 'Hospital: ' + item.hospital),
+      React.createElement('span', {}, 'Device: ' + (item.deviceSerial || '—')),
+      item.uniqueID && React.createElement('span', { className: 'font-mono' }, 'Unique ID: ' + item.uniqueID),
       assignedDate && React.createElement('span', { className: 'ml-auto' }, assignedDate)
     )
   );
@@ -676,32 +676,38 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
     if (Object.keys(errs).length > 0) return;
 
     setSubmitting(true);
+    const sid = queueItem.screeningID || queueItem.screeningId || '';
     const perPhotoNotes = Object.entries(photoNotes)
       .filter(([, note]) => note.trim())
       .map(([filename, note]) => ({ filename, note }));
 
-    await api.post({
-      action: 'submitReview',
-      screeningId: queueItem.screeningId,
-      reviewedBy: user.username,
-      verdict,
-      recommendation,
-      comments,
-      perPhotoNotes
-    });
+    try {
+      await api.post({
+        action: 'submitReview',
+        screeningId: sid,
+        reviewedBy: user.username,
+        verdict,
+        recommendation,
+        comments,
+        perPhotoNotes
+      });
+    } catch (e) { console.error('submitReview error:', e); }
     setSubmitting(false);
     onSubmitted();
   };
 
   const handleFlagPhoto = async () => {
     if (!flagReason.trim()) return;
-    await api.post({
-      action: 'requestPhoto',
-      screeningId: queueItem.screeningId,
-      filename: flagModal.filename,
-      reason: flagReason,
-      reviewedBy: user.username
-    });
+    const sid = queueItem.screeningID || queueItem.screeningId || '';
+    try {
+      await api.post({
+        action: 'requestPhoto',
+        screeningId: sid,
+        filename: flagModal.filename,
+        reason: flagReason,
+        reviewedBy: user.username
+      });
+    } catch (e) { console.error('requestPhoto error:', e); }
     setFlagModal(null);
     setFlagReason('');
     onSubmitted();
@@ -836,33 +842,86 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
       activeTab === 'results' && detail && React.createElement('div', { className: 'space-y-3' },
         detail.testType === 'AABR' && React.createElement('div', { className: 'space-y-2' },
           [
-            { key: 'leftEar35DB',  rkey: 'rightEar35DB',  db: '35dB' },
-            { key: 'leftEar50DB',  rkey: 'rightEar50DB',  db: '50dB' },
-            { key: 'leftEar70DB',  rkey: 'rightEar70DB',  db: '70dB' },
-            { key: 'leftEar90DB',  rkey: 'rightEar90DB',  db: '90dB' }
-          ].map(({ key, rkey, db }) => {
-            const lVal = detail[key] || '';
-            const rVal = detail[rkey] || '';
+            { lKey: 'leftEar35DB', rKey: 'rightEar35DB', db: '35dB' },
+            { lKey: 'leftEar50DB', rKey: 'rightEar50DB', db: '50dB' },
+            { lKey: 'leftEar70DB', rKey: 'rightEar70DB', db: '70dB' },
+            { lKey: 'leftEar90DB', rKey: 'rightEar90DB', db: '90dB' }
+          ].map(({ lKey, rKey, db }) => {
+            const lVal = detail[lKey] || '';
+            const rVal = detail[rKey] || '';
             if (!lVal && !rVal) return null;
             const isReviewed = lVal.startsWith('AO[') || rVal.startsWith('AO[');
+
+            // Parse result string into attempt array (reverse chrono → reverse to get chrono)
+            const parseResults = (str) => {
+              if (!str) return [];
+              const clean = str.replace(/^AO\[/, '[');
+              if (clean.startsWith('[')) {
+                const inner = clean.replace(/^\[/, '').replace(/\]$/, '');
+                return inner.split(',').map(s => s.trim()).reverse(); // oldest first
+              }
+              return [clean.trim()];
+            };
+
+            // Parse impedance string for one ear at one dB level
+            // Format: "L: 35dB:65,2|50dB:3 --//-- R: 35dB:12,2"
+            const parseImp = (colVal, ear, dbLevel) => {
+              if (!colVal) return [];
+              const earPrefix = ear + ':';
+              const earSection = colVal.split('--//--').find(s => s.trim().startsWith(earPrefix));
+              if (!earSection) return [];
+              const dbSection = earSection.replace(earPrefix, '').trim().split('|').find(s => s.startsWith(dbLevel + ':'));
+              if (!dbSection) return [];
+              return dbSection.replace(dbLevel + ':', '').split(',').map(s => s.trim());
+            };
+
+            const renderEar = (resultStr, ear, label) => {
+              if (!resultStr) return null;
+              const results = parseResults(resultStr);
+              const vtxGnd = parseImp(detail.impedanceVTXGNDk, ear, db);
+              const gndRef = parseImp(detail.impedanceGNDREFk, ear, db);
+              const refVtx = parseImp(detail.impedanceREFVTXk, ear, db);
+
+              return React.createElement('div', { className: 'bg-soft rounded-xl p-3' },
+                React.createElement('p', { className: 'text-xs font-semibold text-primary mb-2' }, label),
+                results.map((res, i) => {
+                  const resPill = res === 'PASS'
+                    ? React.createElement(Pill, { label: 'PASS', color: 'green' })
+                    : res === 'REFER'
+                      ? React.createElement(Pill, { label: 'REFER', color: 'red' })
+                      : React.createElement(Pill, { label: 'REDO', color: 'orange' });
+                  return React.createElement('div', { key: i, className: 'mb-2 pb-2 border-b border-white/60 last:border-0 last:mb-0 last:pb-0' },
+                    React.createElement('div', { className: 'flex items-center gap-2 mb-1' },
+                      React.createElement('span', { className: 'text-xs text-gray-500' }, 'Attempt ' + (i + 1)),
+                      resPill
+                    ),
+                    React.createElement('div', { className: 'grid grid-cols-3 gap-1 text-xs text-gray-600' },
+                      React.createElement('div', {},
+                        React.createElement('div', { className: 'text-gray-400 text-xs' }, 'VTX-GND'),
+                        React.createElement('div', { className: 'font-mono font-medium' }, vtxGnd[i] || '—')
+                      ),
+                      React.createElement('div', {},
+                        React.createElement('div', { className: 'text-gray-400 text-xs' }, 'GND-REF'),
+                        React.createElement('div', { className: 'font-mono font-medium' }, gndRef[i] || '—')
+                      ),
+                      React.createElement('div', {},
+                        React.createElement('div', { className: 'text-gray-400 text-xs' }, 'REF-VTX'),
+                        React.createElement('div', { className: 'font-mono font-medium' }, refVtx[i] || '—')
+                      )
+                    )
+                  );
+                })
+              );
+            };
+
             return React.createElement(Card, { key: db },
-              React.createElement('div', { className: 'flex items-center justify-between mb-2' },
+              React.createElement('div', { className: 'flex items-center justify-between mb-3' },
                 React.createElement('span', { className: 'text-sm font-semibold text-gray-700' }, db),
                 isReviewed && React.createElement(Pill, { label: t('auditReviewed'), color: 'green' })
               ),
-              React.createElement('div', { className: 'grid grid-cols-2 gap-2' },
-                lVal && React.createElement('div', { className: 'bg-soft rounded-lg p-2' },
-                  React.createElement('p', { className: 'text-xs text-gray-500 mb-1' }, t('leftEar')),
-                  React.createElement('p', { className: 'text-xs font-mono text-gray-800 break-all' }, lVal)
-                ),
-                rVal && React.createElement('div', { className: 'bg-soft rounded-lg p-2' },
-                  React.createElement('p', { className: 'text-xs text-gray-500 mb-1' }, t('rightEar')),
-                  React.createElement('p', { className: 'text-xs font-mono text-gray-800 break-all' }, rVal)
-                )
-              ),
-              React.createElement('div', { className: 'mt-2 text-xs text-gray-500' },
-                React.createElement('span', { className: 'font-medium' }, 'Impedance: '),
-                detail.impedanceVTXGNDk || '—'
+              React.createElement('div', { className: 'space-y-2' },
+                renderEar(lVal, 'L', t('leftEar')),
+                renderEar(rVal, 'R', t('rightEar'))
               )
             );
           })
