@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Sohum Audiologist Portal</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -19,8 +19,7 @@
             success: '#059669'
           },
           fontFamily: {
-            sans: ['DM Sans', 'system-ui', 'sans-serif'],
-            mono: ['DM Mono', 'monospace']
+            sans: ['Inter', 'system-ui', 'sans-serif']
           }
         }
       }
@@ -52,10 +51,14 @@ import React, { useState, useEffect, useRef, useCallback, createContext, useCont
 import { createRoot } from 'react-dom/client';
 
 // ─────────────────────────────────────────────
+// 🔧 VERSION — update this single line for new releases
+// ─────────────────────────────────────────────
+const APP_VERSION = 'v1.2';
+
+// ─────────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────────
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
-const APP_VERSION = 'v1.0';
 const DRIVE_FOLDER_BASE = 'https://drive.google.com/uc?export=view&id=';
 
 const RECOMMENDATIONS = [
@@ -276,18 +279,29 @@ const VersionWatermark = () =>
 const LangSelector = () => {
   const { lang, setLang } = useLang();
   const [open, setOpen] = useState(false);
-  const langs = [{ code: 'en', label: 'EN' }, { code: 'hi', label: 'हि' }, { code: 'kn', label: 'ಕ' }];
+  const langs = [
+    { code: 'en', native: 'English' },
+    { code: 'hi', native: 'हिन्दी' },
+    { code: 'kn', native: 'ಕನ್ನಡ' }
+  ];
   return React.createElement('div', { className: 'relative' },
     React.createElement('button', {
       onClick: () => setOpen(!open),
-      className: 'w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center justify-center'
-    }, langs.find(l => l.code === lang)?.label),
-    open && React.createElement('div', { className: 'absolute right-0 top-11 bg-white rounded-xl shadow-lg py-1 min-w-[80px] z-50 border border-gray-100' },
+      className: 'w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center'
+    }, React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
+      React.createElement('circle', { cx: 12, cy: 12, r: 10 }),
+      React.createElement('line', { x1: 2, x2: 22, y1: 12, y2: 12 }),
+      React.createElement('path', { d: 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z' })
+    )),
+    open && React.createElement('div', { className: 'absolute right-0 top-12 bg-white rounded-xl shadow-lg py-2 min-w-[140px] z-50 border border-gray-200' },
       langs.map(l => React.createElement('button', {
         key: l.code,
         onClick: () => { setLang(l.code); setOpen(false); },
-        className: `w-full px-3 py-2 text-sm text-left hover:bg-soft ${lang === l.code ? 'text-primary font-semibold' : 'text-gray-700'}`
-      }, l.label + ' ' + (l.code === 'en' ? 'English' : l.code === 'hi' ? 'हिन्दी' : 'ಕನ್ನಡ')))
+        className: `w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${lang === l.code ? 'bg-primary/10 text-primary font-medium' : 'text-gray-700'}`
+      }, React.createElement('div', { className: 'flex items-center justify-between' },
+        React.createElement('span', {}, l.native),
+        lang === l.code && React.createElement('span', {}, '✓')
+      )))
     )
   );
 };
@@ -338,7 +352,7 @@ const getPhotoNames = (uniqueId, ear, result) => {
 };
 
 const driveFileUrl = (filename) =>
-  `https://lh3.googleusercontent.com/d/${filename}`;
+  `https://drive.google.com/thumbnail?id=${filename}&sz=w1000`;
 
 // ─────────────────────────────────────────────
 // LOGIN SCREEN
@@ -437,9 +451,10 @@ const QueueCard = ({ item, onClick, t }) => {
           : React.createElement(Pill, { label: t('pending'), color: 'blue' })
       )
     ),
-    React.createElement('div', { className: 'flex items-center gap-3 text-xs text-gray-500' },
-      React.createElement('span', {}, '📍 ' + (item.ngo || '—')),
+    React.createElement('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500' },
+      item.hospital && React.createElement('span', {}, '🏥 ' + item.hospital),
       React.createElement('span', {}, '📟 ' + (item.deviceSerial || '—')),
+      item.uniqueId && React.createElement('span', { className: 'font-mono' }, '🔑 ' + item.uniqueId),
       assignedDate && React.createElement('span', { className: 'ml-auto' }, assignedDate)
     )
   );
@@ -492,8 +507,14 @@ const QueueScreen = ({ user, onReview, onStats, onLogout }) => {
     React.createElement('div', { className: 'flex gap-2 px-4 mt-3' },
       React.createElement('button', {
         onClick: onStats,
-        className: 'flex-1 py-2.5 text-sm font-semibold text-primary bg-soft rounded-xl hover:bg-blue-100 transition-colors'
-      }, t('stats')),
+        className: 'flex-1 py-2.5 text-sm font-semibold text-primary bg-soft rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center gap-2'
+      },
+        React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: 16, height: 16, fill: 'none', stroke: 'currentColor', strokeWidth: 2, viewBox: '0 0 24 24' },
+          React.createElement('path', { d: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' }),
+          React.createElement('circle', { cx: 12, cy: 7, r: 4 })
+        ),
+        t('stats')
+      ),
       React.createElement('button', {
         onClick: load,
         className: 'px-4 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors'
@@ -589,7 +610,11 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
           api.get({ action: 'getScreeningDetail', screeningId: queueItem.screeningId }),
           api.get({ action: 'getBabyHistory', babyId: queueItem.babyId })
         ]);
-        if (detRes.status === 'success') setDetail(detRes.data);
+        if (detRes.status === 'success') {
+          console.log('Detail keys:', Object.keys(detRes.data));
+          console.log('Detail data:', JSON.stringify(detRes.data).slice(0, 500));
+          setDetail(detRes.data);
+        }
         if (histRes.status === 'success') setHistory(histRes.data || []);
       } catch (e) { console.error(e); }
       setLoading(false);
@@ -600,20 +625,21 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
   // Build list of photos from the screening
   const allPhotos = React.useMemo(() => {
     if (!detail) return [];
-    const uid = detail.uniqueId || '';
+    // Try multiple key variants since serializeRow camelCases headers which may vary
+    const uid = detail.uniqueID || detail.uniqueId || detail['uniqueId'] || detail['uniqueID'] || '';
     const photos = [];
     const dbCols = [
-      { col: 'leftEar35DB', ear: 'L', db: '35dB' },
-      { col: 'leftEar50DB', ear: 'L', db: '50dB' },
-      { col: 'leftEar70DB', ear: 'L', db: '70dB' },
-      { col: 'leftEar90DB', ear: 'L', db: '90dB' },
-      { col: 'rightEar35DB', ear: 'R', db: '35dB' },
-      { col: 'rightEar50DB', ear: 'R', db: '50dB' },
-      { col: 'rightEar70DB', ear: 'R', db: '70dB' },
-      { col: 'rightEar90DB', ear: 'R', db: '90dB' }
+      { keys: ['leftEar35DB','leftEar35dB','leftEar35Db'], ear: 'L', db: '35dB' },
+      { keys: ['leftEar50DB','leftEar50dB','leftEar50Db'], ear: 'L', db: '50dB' },
+      { keys: ['leftEar70DB','leftEar70dB','leftEar70Db'], ear: 'L', db: '70dB' },
+      { keys: ['leftEar90DB','leftEar90dB','leftEar90Db'], ear: 'L', db: '90dB' },
+      { keys: ['rightEar35DB','rightEar35dB','rightEar35Db'], ear: 'R', db: '35dB' },
+      { keys: ['rightEar50DB','rightEar50dB','rightEar50Db'], ear: 'R', db: '50dB' },
+      { keys: ['rightEar70DB','rightEar70dB','rightEar70Db'], ear: 'R', db: '70dB' },
+      { keys: ['rightEar90DB','rightEar90dB','rightEar90Db'], ear: 'R', db: '90dB' }
     ];
-    dbCols.forEach(({ col, ear, db }) => {
-      const result = detail[col] || '';
+    dbCols.forEach(({ keys, ear, db }) => {
+      const result = keys.map(k => detail[k]).find(v => v) || '';
       if (!result) return;
       const photoList = getPhotoNames(uid, ear, result);
       photoList.forEach(p => photos.push({ ...p, ear, db, result }));
@@ -669,11 +695,9 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
     { id: 'history', label: t('babyHistory') }
   ];
 
-  if (loading) return React.createElement('div', { className: 'min-h-screen flex items-center justify-center' },
-    React.createElement('div', { className: 'text-center' },
-      React.createElement(Spinner),
-      React.createElement('p', { className: 'text-sm text-gray-400 mt-2' }, t('loading'))
-    )
+  if (loading) return React.createElement('div', { className: 'min-h-screen flex flex-col items-center justify-center gap-3 bg-white' },
+    React.createElement('div', { className: 'w-8 h-8 border-2 border-primary border-t-transparent rounded-full spin' }),
+    React.createElement('p', { className: 'text-sm text-gray-400' }, t('loading'))
   );
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-52' },
@@ -757,14 +781,16 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
         React.createElement('div', { className: 'space-y-3' },
           [
             { label: t('babyName'), value: detail.babyName },
+            { label: 'Unique ID', value: detail.uniqueID || detail.uniqueId },
             { label: t('dob'), value: detail.dateOfBirth },
             { label: t('gender'), value: detail.gender },
-            { label: t('gestAge'), value: detail.gestationalAge ? detail.gestationalAge + ' ' + t('weeks') : '—' },
+            { label: t('gestAge'), value: detail.gestationalAgeWeeks ? detail.gestationalAgeWeeks + ' ' + t('weeks') : (detail.gestationalAge ? detail.gestationalAge + ' ' + t('weeks') : '—') },
             { label: t('riskFactors'), value: detail.riskFactors || 'None' },
             { label: t('parentName'), value: detail.parentName },
-            { label: t('parentPhone'), value: detail.parentPhone },
-            { label: t('ngo'), value: detail.nGO || detail.ngo },
-            { label: t('deviceSerial'), value: detail.deviceSerial }
+            { label: t('parentPhone'), value: detail.parentPhone ? String(detail.parentPhone) : '—' },
+            { label: 'Hospital', value: detail.hospital },
+            { label: t('ngo'), value: detail.nGO || detail.ngo || detail.NGO },
+            { label: t('deviceSerial'), value: detail.deviceSerial || detail.deviceSerialNumber }
           ].map(row =>
             React.createElement('div', { key: row.label, className: 'flex justify-between items-start py-2 border-b border-gray-50 last:border-0' },
               React.createElement('span', { className: 'text-xs text-gray-500 flex-shrink-0 w-32' }, row.label),
@@ -776,12 +802,12 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
 
       // TEST RESULTS TAB
       activeTab === 'results' && detail && React.createElement('div', { className: 'space-y-3' },
-        detail.testType === 'AABR' && React.createElement('div', { className: 'space-y-2' },
+        (detail.testType === 'AABR' || detail.testType === 'aabr') && React.createElement('div', { className: 'space-y-2' },
           ['35dB', '50dB', '70dB', '90dB'].map(db => {
-            const lKey = 'leftEar' + db.replace('dB', 'DB');
-            const rKey = 'rightEar' + db.replace('dB', 'DB');
-            const lVal = detail[lKey] || '';
-            const rVal = detail[rKey] || '';
+            const suffix = db.replace('dB','');
+            // Try all possible key formats serializeRow might produce
+            const lVal = detail['leftEar' + suffix + 'DB'] || detail['leftEar' + suffix + 'Db'] || detail['leftEar' + suffix + 'dB'] || detail['leftEar' + db] || '';
+            const rVal = detail['rightEar' + suffix + 'DB'] || detail['rightEar' + suffix + 'Db'] || detail['rightEar' + suffix + 'dB'] || detail['rightEar' + db] || '';
             if (!lVal && !rVal) return null;
             const isReviewed = lVal.startsWith('AO[') || rVal.startsWith('AO[');
             return React.createElement(Card, { key: db },
@@ -802,25 +828,30 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
             );
           })
         ),
-        detail.testType === 'OAE' && React.createElement(Card, {},
+        (detail.testType === 'OAE' || detail.testType === 'oae') && React.createElement(Card, {},
           React.createElement('div', { className: 'space-y-2' },
             React.createElement('div', { className: 'flex justify-between' },
               React.createElement('span', { className: 'text-xs text-gray-500' }, t('testType')),
-              React.createElement('span', { className: 'text-sm font-medium' }, (detail.oAETestType || detail.oaeTestType || '') + ' · ' + (detail.oAEProtocol || detail.oaeProtocol || ''))
+              React.createElement('span', { className: 'text-sm font-medium' },
+                (detail.oAETestType || detail.oaeTestType || detail.oAEtype || '') + ' · ' +
+                (detail.oAEProtocol || detail.oaeProtocol || '')
+              )
             ),
             React.createElement('div', { className: 'flex justify-between' },
               React.createElement('span', { className: 'text-xs text-gray-500' }, t('leftEar')),
-              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAELeftEar || detail.oaeLeftEar || '—')
+              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAELeftEar || detail.oaeLeftEar || detail.oAEleftEar || '—')
             ),
             React.createElement('div', { className: 'flex justify-between' },
               React.createElement('span', { className: 'text-xs text-gray-500' }, t('rightEar')),
-              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAERightEar || detail.oaeRightEar || '—')
+              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAERightEar || detail.oaeRightEar || detail.oAErightEar || '—')
             )
           )
         ),
         React.createElement(Card, {},
           React.createElement('p', { className: 'text-xs text-gray-500 mb-2' }, t('impedance')),
-          React.createElement('p', { className: 'text-xs font-mono text-gray-700 break-all' }, detail.impedanceVTXGNDk || detail.impedanceVtxGnd || '—')
+          React.createElement('p', { className: 'text-xs font-mono text-gray-700 break-all' },
+            detail.impedanceVTXGNDk || detail.impedanceVTXGND || detail.impedanceVtxGnd || detail.impedanceVTXGNDK || '—'
+          )
         )
       ),
 
