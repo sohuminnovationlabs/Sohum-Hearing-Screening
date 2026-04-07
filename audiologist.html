@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.3.1';
+const APP_VERSION = 'v1.3.2';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -329,9 +329,8 @@ const PhotoZoom = ({ url, onClose }) =>
 // HELPER: parse attempt photos from Unique ID + ear + attempt
 // e.g. uniqueId=abc123, ear=L, maxAttempts=3 → [abc123L01, abc123L02, abc123L03]
 // ─────────────────────────────────────────────
-const getPhotoNames = (uniqueId, ear, result) => {
+const getPhotoNames = (uniqueId, ear, result, globalOffset = 0) => {
   if (!uniqueId || !result) return [];
-  // result could be "PASS", "REFER", "[REFER,REDO,REFER]", "AO[REFER,REDO]"
   const clean = result.replace(/^AO\[/, '[').replace(/^AO/, '');
   let attempts = [];
   if (clean.startsWith('[')) {
@@ -340,12 +339,12 @@ const getPhotoNames = (uniqueId, ear, result) => {
   } else if (clean) {
     attempts = [clean];
   }
-  // Only REFER/REDO have photos
   const photos = [];
   attempts.forEach((res, idx) => {
     if (res === 'REFER' || res === 'REDO') {
-      const num = String(idx + 1).padStart(2, '0');
-      photos.push({ filename: `${uniqueId}${ear}${num}`, result: res, attemptNum: idx + 1 });
+      const globalNum = globalOffset + idx + 1;
+      const num = String(globalNum).padStart(2, '0');
+      photos.push({ filename: `${uniqueId}${ear}${num}`, result: res, attemptNum: globalNum });
     }
   });
   return photos;
@@ -640,10 +639,20 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
       { key: 'rightEar70DB', ear: 'R', db: '70dB' },
       { key: 'rightEar90DB', ear: 'R', db: '90dB' }
     ];
+    const earOffsets = { L: 0, R: 0 };
     dbCols.forEach(({ key, ear, db }) => {
       const result = detail[key] || '';
-      if (!result) return;
-      getPhotoNames(uid, ear, result).forEach(p => photos.push({ ...p, ear, db, noteKey: ear + '_' + db + '_' + p.attemptNum }));
+      const clean = result.replace(/^AO\[/, '[').replace(/^AO/, '');
+      let attemptCount = 0;
+      if (clean.startsWith('[')) {
+        attemptCount = clean.replace(/^\[/, '').replace(/\]$/, '').split(',').length;
+      } else if (clean) {
+        attemptCount = 1;
+      }
+      if (result) {
+        getPhotoNames(uid, ear, result, earOffsets[ear]).forEach(p => photos.push({ ...p, ear, db, noteKey: ear + '_' + db + '_' + p.attemptNum }));
+      }
+      earOffsets[ear] += attemptCount;
     });
     return photos;
   }, [detail]);
