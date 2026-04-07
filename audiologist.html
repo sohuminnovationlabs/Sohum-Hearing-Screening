@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.2.1';
+const APP_VERSION = 'v1.2.2';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -432,7 +432,8 @@ const LoginScreen = ({ onLogin }) => {
 // ─────────────────────────────────────────────
 const QueueCard = ({ item, onClick, t }) => {
   const isUrgent = item.urgencyFlag === true || item.urgencyFlag === 'TRUE';
-  const isPhotoReq = item.reviewStatus === 'photo_requested';
+  const isPhotoReq = item.reviewStatus === 'photo_requested' || item.reviewStatus === 'photo_requested';
+  const sid = item.screeningID || item.screeningId || '';
   const assignedDate = item.assignedAt ? new Date(item.assignedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
 
   return React.createElement('div', {
@@ -442,7 +443,7 @@ const QueueCard = ({ item, onClick, t }) => {
     React.createElement('div', { className: 'flex items-start justify-between gap-2 mb-2' },
       React.createElement('div', { className: 'flex-1 min-w-0' },
         React.createElement('p', { className: 'font-semibold text-gray-800 text-sm truncate' }, item.babyName || '—'),
-        React.createElement('p', { className: 'text-xs text-gray-400 font-mono mt-0.5 truncate' }, item.screeningId)
+        React.createElement('p', { className: 'text-xs text-gray-400 font-mono mt-0.5 truncate' }, sid)
       ),
       React.createElement('div', { className: 'flex flex-col items-end gap-1' },
         isUrgent && React.createElement(Pill, { label: t('urgent'), color: 'orange' }),
@@ -454,7 +455,7 @@ const QueueCard = ({ item, onClick, t }) => {
     React.createElement('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500' },
       item.hospital && React.createElement('span', {}, '🏥 ' + item.hospital),
       React.createElement('span', {}, '📟 ' + (item.deviceSerial || '—')),
-      item.uniqueId && React.createElement('span', { className: 'font-mono' }, '🔑 ' + item.uniqueId),
+      item.uniqueID && React.createElement('span', { className: 'font-mono' }, '🔑 ' + item.uniqueID),
       assignedDate && React.createElement('span', { className: 'ml-auto' }, assignedDate)
     )
   );
@@ -606,46 +607,66 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
     const load = async () => {
       setLoading(true);
       try {
+        // screeningId on queueItem may be camelCased differently — try both
+        const sid = queueItem.screeningID || queueItem.screeningId || '';
+        const bid = queueItem.babyID || queueItem.babyId || '';
         const [detRes, histRes] = await Promise.all([
-          api.get({ action: 'getScreeningDetail', screeningId: queueItem.screeningId }),
-          api.get({ action: 'getBabyHistory', babyId: queueItem.babyId })
+          api.get({ action: 'getScreeningDetail', screeningId: sid }),
+          bid ? api.get({ action: 'getBabyHistory', babyId: String(bid) }) : Promise.resolve({ status: 'success', data: [] })
         ]);
-        if (detRes.status === 'success') {
-          console.log('Detail keys:', Object.keys(detRes.data));
-          console.log('Detail data:', JSON.stringify(detRes.data).slice(0, 500));
-          setDetail(detRes.data);
-        }
+        if (detRes.status === 'success') setDetail(detRes.data);
         if (histRes.status === 'success') setHistory(histRes.data || []);
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error('ReviewScreen load error:', e); }
       setLoading(false);
     };
     load();
-  }, [queueItem.screeningId, queueItem.babyId]);
+  }, [queueItem.screeningID, queueItem.screeningId]);
 
-  // Build list of photos from the screening
+  const [photoFileIds, setPhotoFileIds] = useState({}); // filename → Drive file ID
+
+  // Build list of photos from the screening using exact key names from API
   const allPhotos = React.useMemo(() => {
     if (!detail) return [];
-    // Try multiple key variants since serializeRow camelCases headers which may vary
-    const uid = detail.uniqueID || detail.uniqueId || detail['uniqueId'] || detail['uniqueID'] || '';
+    const uid = detail.uniqueID || '';
+    if (!uid) return [];
     const photos = [];
     const dbCols = [
-      { keys: ['leftEar35DB','leftEar35dB','leftEar35Db'], ear: 'L', db: '35dB' },
-      { keys: ['leftEar50DB','leftEar50dB','leftEar50Db'], ear: 'L', db: '50dB' },
-      { keys: ['leftEar70DB','leftEar70dB','leftEar70Db'], ear: 'L', db: '70dB' },
-      { keys: ['leftEar90DB','leftEar90dB','leftEar90Db'], ear: 'L', db: '90dB' },
-      { keys: ['rightEar35DB','rightEar35dB','rightEar35Db'], ear: 'R', db: '35dB' },
-      { keys: ['rightEar50DB','rightEar50dB','rightEar50Db'], ear: 'R', db: '50dB' },
-      { keys: ['rightEar70DB','rightEar70dB','rightEar70Db'], ear: 'R', db: '70dB' },
-      { keys: ['rightEar90DB','rightEar90dB','rightEar90Db'], ear: 'R', db: '90dB' }
+      { key: 'leftEar35DB',  ear: 'L', db: '35dB' },
+      { key: 'leftEar50DB',  ear: 'L', db: '50dB' },
+      { key: 'leftEar70DB',  ear: 'L', db: '70dB' },
+      { key: 'leftEar90DB',  ear: 'L', db: '90dB' },
+      { key: 'rightEar35DB', ear: 'R', db: '35dB' },
+      { key: 'rightEar50DB', ear: 'R', db: '50dB' },
+      { key: 'rightEar70DB', ear: 'R', db: '70dB' },
+      { key: 'rightEar90DB', ear: 'R', db: '90dB' }
     ];
-    dbCols.forEach(({ keys, ear, db }) => {
-      const result = keys.map(k => detail[k]).find(v => v) || '';
+    dbCols.forEach(({ key, ear, db }) => {
+      const result = detail[key] || '';
       if (!result) return;
-      const photoList = getPhotoNames(uid, ear, result);
-      photoList.forEach(p => photos.push({ ...p, ear, db, result }));
+      getPhotoNames(uid, ear, result).forEach(p => photos.push({ ...p, ear, db }));
     });
     return photos;
   }, [detail]);
+
+  // Fetch Drive file IDs for each photo filename
+  useEffect(() => {
+    if (allPhotos.length === 0) return;
+    const fetchIds = async () => {
+      const entries = await Promise.all(
+        allPhotos.map(async (photo) => {
+          try {
+            const res = await api.get({ action: 'getPhotoId', filename: photo.filename });
+            if (res.status === 'success') return [photo.filename, res.fileId];
+          } catch (e) { /* skip */ }
+          return [photo.filename, null];
+        })
+      );
+      const map = {};
+      entries.forEach(([name, id]) => { if (id) map[name] = id; });
+      setPhotoFileIds(map);
+    };
+    fetchIds();
+  }, [allPhotos.length]);
 
   const handleSubmit = async () => {
     const errs = {};
@@ -738,8 +759,12 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
               React.createElement('div', { className: 'text-3xl mb-2' }, '📷'),
               React.createElement('p', { className: 'text-sm' }, t('noPhotos'))
             )
-          : allPhotos.map((photo, i) =>
-              React.createElement(Card, { key: i },
+          : allPhotos.map((photo, i) => {
+              const fileId = photoFileIds[photo.filename];
+              const imgUrl = fileId
+                ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
+                : null;
+              return React.createElement(Card, { key: i },
                 React.createElement('div', { className: 'flex items-center justify-between mb-2' },
                   React.createElement('div', {},
                     React.createElement('span', { className: 'text-xs font-semibold text-gray-500' },
@@ -755,15 +780,22 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
                   React.createElement('button', {
                     onClick: () => setFlagModal({ filename: photo.filename }),
                     className: 'text-xs text-warn font-semibold bg-yellow-50 border border-yellow-200 px-2 py-1 rounded-lg hover:bg-yellow-100'
-                  }, '⚑ ' + t('requestPhoto').split(' ')[0])
+                  }, '⚑ Flag')
                 ),
-                React.createElement('img', {
-                  src: driveFileUrl(photo.filename),
-                  alt: photo.filename,
-                  className: 'w-full rounded-xl object-cover max-h-56 photo-pinch bg-gray-100',
-                  onClick: () => setZoomUrl(driveFileUrl(photo.filename)),
-                  onError: e => { e.target.style.display = 'none'; }
-                }),
+                imgUrl
+                  ? React.createElement('img', {
+                      src: imgUrl,
+                      alt: photo.filename,
+                      className: 'w-full rounded-xl object-cover max-h-56 photo-pinch bg-gray-100',
+                      onClick: () => setZoomUrl(imgUrl),
+                      onError: e => { e.target.style.display = 'none'; }
+                    })
+                  : React.createElement('div', { className: 'w-full h-32 rounded-xl bg-gray-100 flex items-center justify-center' },
+                      React.createElement('div', { className: 'text-center' },
+                        React.createElement('div', { className: 'w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full spin mx-auto mb-1' }),
+                        React.createElement('p', { className: 'text-xs text-gray-400' }, 'Loading ' + photo.filename)
+                      )
+                    ),
                 React.createElement('p', { className: 'text-xs text-gray-400 mt-1 text-center' }, t('zoomPhoto')),
                 React.createElement('textarea', {
                   value: photoNotes[photo.filename] || '',
@@ -772,25 +804,25 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
                   rows: 2,
                   className: 'w-full mt-2 bg-soft rounded-xl px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none'
                 })
-              )
-            )
+              );
+            })
       ),
 
       // BABY DETAILS TAB
       activeTab === 'details' && detail && React.createElement(Card, {},
         React.createElement('div', { className: 'space-y-3' },
           [
-            { label: t('babyName'), value: detail.babyName },
-            { label: 'Unique ID', value: detail.uniqueID || detail.uniqueId },
-            { label: t('dob'), value: detail.dateOfBirth },
-            { label: t('gender'), value: detail.gender },
-            { label: t('gestAge'), value: detail.gestationalAgeWeeks ? detail.gestationalAgeWeeks + ' ' + t('weeks') : (detail.gestationalAge ? detail.gestationalAge + ' ' + t('weeks') : '—') },
+            { label: t('babyName'),    value: detail.babyName },
+            { label: 'Unique ID',      value: detail.uniqueID },
+            { label: t('dob'),         value: detail.dateOfBirth ? new Date(detail.dateOfBirth).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+            { label: t('gender'),      value: detail.gender },
+            { label: t('gestAge'),     value: detail.gestationalAgeweeks ? detail.gestationalAgeweeks + ' ' + t('weeks') : '—' },
             { label: t('riskFactors'), value: detail.riskFactors || 'None' },
-            { label: t('parentName'), value: detail.parentName },
+            { label: t('parentName'),  value: detail.parentName },
             { label: t('parentPhone'), value: detail.parentPhone ? String(detail.parentPhone) : '—' },
-            { label: 'Hospital', value: detail.hospital },
-            { label: t('ngo'), value: detail.nGO || detail.ngo || detail.NGO },
-            { label: t('deviceSerial'), value: detail.deviceSerial || detail.deviceSerialNumber }
+            { label: 'Hospital',       value: detail.hospital },
+            { label: t('ngo'),         value: detail.nGO },
+            { label: t('deviceSerial'),value: detail.deviceSerial }
           ].map(row =>
             React.createElement('div', { key: row.label, className: 'flex justify-between items-start py-2 border-b border-gray-50 last:border-0' },
               React.createElement('span', { className: 'text-xs text-gray-500 flex-shrink-0 w-32' }, row.label),
@@ -802,12 +834,15 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
 
       // TEST RESULTS TAB
       activeTab === 'results' && detail && React.createElement('div', { className: 'space-y-3' },
-        (detail.testType === 'AABR' || detail.testType === 'aabr') && React.createElement('div', { className: 'space-y-2' },
-          ['35dB', '50dB', '70dB', '90dB'].map(db => {
-            const suffix = db.replace('dB','');
-            // Try all possible key formats serializeRow might produce
-            const lVal = detail['leftEar' + suffix + 'DB'] || detail['leftEar' + suffix + 'Db'] || detail['leftEar' + suffix + 'dB'] || detail['leftEar' + db] || '';
-            const rVal = detail['rightEar' + suffix + 'DB'] || detail['rightEar' + suffix + 'Db'] || detail['rightEar' + suffix + 'dB'] || detail['rightEar' + db] || '';
+        detail.testType === 'AABR' && React.createElement('div', { className: 'space-y-2' },
+          [
+            { key: 'leftEar35DB',  rkey: 'rightEar35DB',  db: '35dB' },
+            { key: 'leftEar50DB',  rkey: 'rightEar50DB',  db: '50dB' },
+            { key: 'leftEar70DB',  rkey: 'rightEar70DB',  db: '70dB' },
+            { key: 'leftEar90DB',  rkey: 'rightEar90DB',  db: '90dB' }
+          ].map(({ key, rkey, db }) => {
+            const lVal = detail[key] || '';
+            const rVal = detail[rkey] || '';
             if (!lVal && !rVal) return null;
             const isReviewed = lVal.startsWith('AO[') || rVal.startsWith('AO[');
             return React.createElement(Card, { key: db },
@@ -824,33 +859,28 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
                   React.createElement('p', { className: 'text-xs text-gray-500 mb-1' }, t('rightEar')),
                   React.createElement('p', { className: 'text-xs font-mono text-gray-800 break-all' }, rVal)
                 )
+              ),
+              React.createElement('div', { className: 'mt-2 text-xs text-gray-500' },
+                React.createElement('span', { className: 'font-medium' }, 'Impedance: '),
+                detail.impedanceVTXGNDk || '—'
               )
             );
           })
         ),
-        (detail.testType === 'OAE' || detail.testType === 'oae') && React.createElement(Card, {},
+        detail.testType === 'OAE' && React.createElement(Card, {},
           React.createElement('div', { className: 'space-y-2' },
             React.createElement('div', { className: 'flex justify-between' },
               React.createElement('span', { className: 'text-xs text-gray-500' }, t('testType')),
-              React.createElement('span', { className: 'text-sm font-medium' },
-                (detail.oAETestType || detail.oaeTestType || detail.oAEtype || '') + ' · ' +
-                (detail.oAEProtocol || detail.oaeProtocol || '')
-              )
+              React.createElement('span', { className: 'text-sm font-medium' }, (detail.oAETestType || '') + ' · ' + (detail.oAEProtocol || ''))
             ),
             React.createElement('div', { className: 'flex justify-between' },
               React.createElement('span', { className: 'text-xs text-gray-500' }, t('leftEar')),
-              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAELeftEar || detail.oaeLeftEar || detail.oAEleftEar || '—')
+              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAELeftEar || '—')
             ),
             React.createElement('div', { className: 'flex justify-between' },
               React.createElement('span', { className: 'text-xs text-gray-500' }, t('rightEar')),
-              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAERightEar || detail.oaeRightEar || detail.oAErightEar || '—')
+              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAERightEar || '—')
             )
-          )
-        ),
-        React.createElement(Card, {},
-          React.createElement('p', { className: 'text-xs text-gray-500 mb-2' }, t('impedance')),
-          React.createElement('p', { className: 'text-xs font-mono text-gray-700 break-all' },
-            detail.impedanceVTXGNDk || detail.impedanceVTXGND || detail.impedanceVtxGnd || detail.impedanceVTXGNDK || '—'
           )
         )
       ),
