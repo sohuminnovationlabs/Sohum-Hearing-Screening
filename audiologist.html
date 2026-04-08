@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.4.0';
+const APP_VERSION = 'v1.5';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -446,9 +446,11 @@ const QueueCard = ({ item, onClick, t }) => {
       ),
       React.createElement('div', { className: 'flex flex-col items-end gap-1' },
         isUrgent && React.createElement(Pill, { label: t('urgent'), color: 'orange' }),
-        isPhotoReq
-          ? React.createElement(Pill, { label: t('photoRequested'), color: 'yellow' })
-          : React.createElement(Pill, { label: t('pending'), color: 'blue' })
+        item.reviewStatus === 'photo_received'
+          ? React.createElement(Pill, { label: '📷 New Photo', color: 'green' })
+          : isPhotoReq
+            ? React.createElement(Pill, { label: t('photoRequested'), color: 'yellow' })
+            : React.createElement(Pill, { label: t('pending'), color: 'blue' })
       )
     ),
     React.createElement('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500' },
@@ -483,6 +485,7 @@ const QueueScreen = ({ user, onReview, onStats, onLogout }) => {
 
   const pending = queue.filter(q => q.reviewStatus === 'pending').length;
   const photoReq = queue.filter(q => q.reviewStatus === 'photo_requested').length;
+  const photoReceived = queue.filter(q => q.reviewStatus === 'photo_received').length;
   const urgent = queue.filter(q => q.urgencyFlag === true || q.urgencyFlag === 'TRUE').length;
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-4' },
@@ -500,6 +503,7 @@ const QueueScreen = ({ user, onReview, onStats, onLogout }) => {
 
     React.createElement('div', { className: 'px-4 pt-4 flex gap-2' },
       React.createElement(StatBox, { label: t('pending'), value: pending }),
+      React.createElement(StatBox, { label: '📷 New', value: photoReceived, color: 'text-success' }),
       React.createElement(StatBox, { label: t('photoRequested'), value: photoReq, color: 'text-warn' }),
       React.createElement(StatBox, { label: t('urgentCount'), value: urgent, color: 'text-danger' })
     ),
