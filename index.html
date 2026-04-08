@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.1.2';
+const APP_VERSION = 'v8.1.3';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -195,7 +195,8 @@ const translations = {
     passNoFollowup: "Pass - No follow-up needed", referFollowup: "Refer - Follow-up required",
     rescreenMonth: "Rescreen in 1 month", referAudiologist: "Refer to audiologist",
     referEnt: "Refer to ENT specialist",
-    audiologistVerification: "Audiologist Verification", submitting: "Submitting...", submitScreening: "Submit Screening",
+    audiologistVerification: "Audiologist Verification", notifications: "Notifications", noNotifications: "No notifications", 
+	awaitingReview: "Awaiting audiologist review", photoRetakeRequested: "Photo retake requested", reviewComplete: "Review complete — tap to view", retakePhoto: "Retake Photo", uploading: "Uploading...", uploadSuccess: "Photo uploaded successfully", viewResult: "View Result", audiologistVerdict: "Audiologist Verdict", audiologistRecommendation: "Audiologist Recommendation", audiologistComments: "Comments", submitting: "Submitting...", submitScreening: "Submit Screening",
     success: "Success", screeningCompleted: "Screening completed", screeningId: "Screening ID",
     hasBeenLogged: "has been successfully logged", screenSameBaby: "Screen Same Baby",
     screenNewBaby: "Screen New Baby", confirmBabyIdentity: "Confirm Baby Identity",
@@ -264,7 +265,7 @@ const translations = {
     passNoFollowup: "उत्तीर्ण - फॉलो-अप की आवश्यकता नहीं", referFollowup: "रेफर करें - फॉलो-अप आवश्यक",
     rescreenMonth: "1 महीने में पुनः जांच", referAudiologist: "ऑडियोलॉजिस्ट के पास भेजें",
     referEnt: "ENT विशेषज्ञ के पास भेजें",
-    audiologistVerification: "ऑडियोलॉजिस्ट सत्यापन", submitting: "जमा हो रहा है...", submitScreening: "जांच जमा करें",
+    audiologistVerification: "ऑडियोलॉजिस्ट सत्यापन", notifications: "सूचनाएं", noNotifications: "कोई सूचना नहीं", awaitingReview: "ऑडियोलॉजिस्ट समीक्षा की प्रतीक्षा", photoRetakeRequested: "फोटो पुनः लेने का अनुरोध", reviewComplete: "समीक्षा पूर्ण — देखने के लिए टैप करें", retakePhoto: "फोटो दोबारा लें", uploading: "अपलोड हो रहा है...", uploadSuccess: "फोटो सफलतापूर्वक अपलोड हुई", viewResult: "परिणाम देखें", audiologistVerdict: "ऑडियोलॉजिस्ट निर्णय", audiologistRecommendation: "ऑडियोलॉजिस्ट सिफारिश", audiologistComments: "टिप्पणियां", submitting: "जमा हो रहा है...", submitScreening: "जांच जमा करें",
     success: "सफल", screeningCompleted: "जांच पूर्ण", screeningId: "जांच आईडी",
     hasBeenLogged: "सफलतापूर्वक लॉग किया गया है", screenSameBaby: "उसी शिशु की जांच करें",
     screenNewBaby: "नए शिशु की जांच करें", confirmBabyIdentity: "शिशु की पहचान की पुष्टि करें",
@@ -334,7 +335,7 @@ const translations = {
     passNoFollowup: "ಉತ್ತೀರ್ಣ - ಫಾಲೋ-ಅಪ್ ಅಗತ್ಯವಿಲ್ಲ", referFollowup: "ಉಲ್ಲೇಖಿಸಿ - ಫಾಲೋ-ಅಪ್ ಅಗತ್ಯವಿದೆ",
     rescreenMonth: "1 ತಿಂಗಳಲ್ಲಿ ಮರುಪರೀಕ್ಷೆ", referAudiologist: "ಆಡಿಯಾಲಜಿಸ್ಟ್‌ಗೆ ಉಲ್ಲೇಖಿಸಿ",
     referEnt: "ENT ತಜ್ಞರಿಗೆ ಉಲ್ಲೇಖಿಸಿ",
-    audiologistVerification: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಪರಿಶೀಲನೆ", submitting: "ಸಲ್ಲಿಸುತ್ತಿದೆ...", submitScreening: "ಪರೀಕ್ಷೆಯನ್ನು ಸಲ್ಲಿಸಿ",
+    audiologistVerification: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಪರಿಶೀಲನೆ", notifications: "ಅಧಿಸೂಚನೆಗಳು", noNotifications: "ಯಾವುದೇ ಅಧಿಸೂಚನೆ ಇಲ್ಲ", awaitingReview: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಪರಿಶೀಲನೆ ನಿರೀಕ್ಷಿಸಲಾಗುತ್ತಿದೆ", photoRetakeRequested: "ಫೋಟೋ ಮರು ತೆಗೆಯಲು ವಿನಂತಿ", reviewComplete: "ಪರಿಶೀಲನೆ ಪೂರ್ಣ — ನೋಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ", retakePhoto: "ಫೋಟೋ ಮತ್ತೆ ತೆಗೆಯಿರಿ", uploading: "ಅಪ್ಲೋಡ್ ಆಗುತ್ತಿದೆ...", uploadSuccess: "ಫೋಟೋ ಯಶಸ್ವಿಯಾಗಿ ಅಪ್ಲೋಡ್ ಆಯಿತು", viewResult: "ಫಲಿತಾಂಶ ನೋಡಿ", audiologistVerdict: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ತೀರ್ಪು", audiologistRecommendation: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಶಿಫಾರಸು", audiologistComments: "ಟಿಪ್ಪಣಿಗಳು", submitting: "ಸಲ್ಲಿಸುತ್ತಿದೆ...", submitScreening: "ಪರೀಕ್ಷೆಯನ್ನು ಸಲ್ಲಿಸಿ",
     success: "ಯಶಸ್ವಿ", screeningCompleted: "ಪರೀಕ್ಷೆ ಪೂರ್ಣಗೊಂಡಿದೆ", screeningId: "ಪರೀಕ್ಷಾ ಐಡಿ",
     hasBeenLogged: "ಯಶಸ್ವಿಯಾಗಿ ದಾಖಲಿಸಲಾಗಿದೆ", screenSameBaby: "ಅದೇ ಮಗುವನ್ನು ಪರೀಕ್ಷಿಸಿ",
     screenNewBaby: "ಹೊಸ ಮಗುವನ್ನು ಪರೀಕ್ಷಿಸಿ", confirmBabyIdentity: "ಮಗುವಿನ ಗುರುತನ್ನು ದೃಢೀಕರಿಸಿ",
@@ -619,7 +620,7 @@ const EnhancedProfileModal = ({ user, onClose }) => {
 };
 
 // Updated Header with Language Selector
-const Header = ({ title, subtitle, onBack, user, onProfileClick }) => {
+const Header = ({ title, subtitle, onBack, user, onProfileClick, onNotificationsClick, notificationCount = 0 }) => {
   return React.createElement('div', { className: "bg-primary text-white pt-12 pb-6 px-6 rounded-b-[2rem] shadow-md relative" },
     onBack && React.createElement('button', { onClick: onBack, className: "absolute left-6 top-14 text-white/80 hover:text-white transition-colors" },
       React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" },
@@ -627,12 +628,18 @@ const Header = ({ title, subtitle, onBack, user, onProfileClick }) => {
       )
     ),
     React.createElement('div', { className: `absolute ${user ? 'right-20' : 'right-6'} top-14` }, React.createElement(LanguageSelector)),
-    user && React.createElement('button', { onClick: onProfileClick, className: "absolute right-6 top-14 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center" },
-      React.createElement('span', { className: "text-sm font-semibold" }, user.hwName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase())
+    user && React.createElement('div', { className: "absolute right-6 top-14 flex items-center gap-2" },
+      onNotificationsClick && React.createElement('button', { onClick: onNotificationsClick, className: "relative w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center" },
+        React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" },
+          React.createElement('path', { d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" }),
+          React.createElement('path', { d: "M13.73 21a2 2 0 0 1-3.46 0" })
+        ),
+        notificationCount > 0 && React.createElement('span', { className: "absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold" }, notificationCount > 9 ? '9+' : notificationCount)
+      ),
+      React.createElement('button', { onClick: onProfileClick, className: "w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center" },
+        React.createElement('span', { className: "text-sm font-semibold" }, user.hwName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase())
+      )
     ),
-    React.createElement('h1', { className: `text-2xl font-semibold tracking-wide ${onBack ? 'text-center' : ''}` }, title),
-    subtitle && React.createElement('p', { className: `text-blue-200 text-sm mt-1 ${onBack ? 'text-center' : ''}` }, subtitle)
-  );
 };
 
 const Container = ({ children, className = '' }) => React.createElement('div', { className: `p-6 flex flex-col gap-5 ${className}` }, children);
@@ -855,10 +862,10 @@ const SessionSetupScreen = ({ user, masterData, initialData, onComplete, onProfi
 };
 
 // Menu Screen
-const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onProfileClick }) => {
+const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onProfileClick, onNotifications, notificationCount }) => {
   const { t } = useTranslation();
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
-    React.createElement(Header, { title: t('mainMenu'), subtitle: t('selectOption'), user, onProfileClick }),
+    React.createElement(Header, { title: t('mainMenu'), subtitle: t('selectOption'), user, onProfileClick, onNotificationsClick: onNotifications, notificationCount }),
     React.createElement(Container, {},
       React.createElement(Card, { onClick: onRegisterBaby },
         React.createElement('div', { className: 'flex items-center gap-4' },
@@ -891,9 +898,169 @@ const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onProfileClick }) =>
         )
       )
     ),
+    ,React.createElement(Card, { onClick: onNotifications },
+        React.createElement('div', { className: 'flex items-center gap-4' },
+          React.createElement('div', { className: 'w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 relative' },
+            React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' },
+              React.createElement('path', { d: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9' }),
+              React.createElement('path', { d: 'M13.73 21a2 2 0 0 1-3.46 0' })
+            ),
+            notificationCount > 0 && React.createElement('span', { className: 'absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold' }, notificationCount > 9 ? '9+' : notificationCount)
+          ),
+          React.createElement('div', { className: 'flex-1' },
+            React.createElement('h3', { className: 'font-semibold text-lg text-gray-800' }, t('notifications')),
+            React.createElement('p', { className: 'text-sm text-gray-500 mt-1' }, notificationCount > 0 ? `${notificationCount} pending` : t('noNotifications'))
+          )
+        )
+      )
+    ),
     React.createElement(VersionWatermark)
   );
 };
+
+// Notifications Screen
+const NotificationsScreen = ({ user, onBack, onProfileClick }) => {
+  const { t } = useTranslation();
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedNotif, setSelectedNotif] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadDone, setUploadDone] = useState({});
+  const cameraRef = React.useRef(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=getHCWNotifications&hwId=${user.hwId}`);
+      const data = await res.json();
+      setNotifications(data.data || []);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleCameraCapture = async (notif, file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target.result.split(',')[1];
+        // filename = original photo filename that audiologist flagged, extracted from synopsis
+        const synopsisMatch = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
+        const originalFilename = synopsisMatch ? synopsisMatch[1].trim() : notif.uniqueId + 'RETAKE';
+        await fetch(SCRIPT_URL, {
+          method: 'POST', mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'submitFlaggedPhoto',
+            base64Data: base64,
+            filename: originalFilename
+          })
+        });
+        setUploadDone(prev => ({ ...prev, [notif.screeningId]: true }));
+        setUploading(false);
+        load();
+      };
+      reader.readAsDataURL(file);
+    } catch (e) { setUploading(false); }
+  };
+
+  const statusColor = (status) => {
+    if (status === 'completed') return 'bg-green-100 text-green-700';
+    if (status === 'photo_requested') return 'bg-yellow-100 text-yellow-700';
+    return 'bg-blue-100 text-blue-700';
+  };
+
+  const statusLabel = (status) => {
+    if (status === 'completed') return t('reviewComplete');
+    if (status === 'photo_requested') return t('photoRetakeRequested');
+    return t('awaitingReview');
+  };
+
+  return React.createElement('div', { className: 'min-h-screen flex flex-col pb-6' },
+    React.createElement(Header, { title: t('notifications'), onBack, user, onProfileClick }),
+    loading
+      ? React.createElement('div', { className: 'flex items-center justify-center py-20 text-gray-400' }, t('loading'))
+      : notifications.length === 0
+        ? React.createElement('div', { className: 'flex flex-col items-center justify-center py-20 text-gray-400' },
+            React.createElement('div', { className: 'text-4xl mb-3' }, '🔔'),
+            React.createElement('p', { className: 'font-medium' }, t('noNotifications'))
+          )
+        : React.createElement('div', { className: 'p-4 space-y-3' },
+            notifications.map((notif, i) =>
+              React.createElement('div', { key: i, className: 'bg-white rounded-2xl border border-gray-100 shadow-sm p-4' },
+                React.createElement('div', { className: 'flex items-start justify-between gap-2 mb-2' },
+                  React.createElement('div', { className: 'flex-1 min-w-0' },
+                    React.createElement('p', { className: 'font-semibold text-gray-800 text-sm' }, notif.babyName || '—'),
+                    React.createElement('p', { className: 'text-xs text-gray-400 font-mono mt-0.5' }, notif.screeningId)
+                  ),
+                  React.createElement('span', { className: `text-xs font-semibold px-2 py-1 rounded-full ${statusColor(notif.reviewStatus)}` },
+                    notif.reviewStatus === 'completed' ? '✓ Done' :
+                    notif.reviewStatus === 'photo_requested' ? '📷 Retake' : '⏳ Pending'
+                  )
+                ),
+                React.createElement('p', { className: 'text-xs text-gray-500 mb-3' }, statusLabel(notif.reviewStatus)),
+
+                // Photo retake requested
+                notif.reviewStatus === 'photo_requested' && React.createElement('div', { className: 'space-y-2' },
+                  React.createElement('div', { className: 'p-2 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-800' },
+                    (() => {
+                      const match = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
+                      return match ? `Retake required for: ${match[1].trim()}` : 'Audiologist requested a photo retake';
+                    })()
+                  ),
+                  uploadDone[notif.screeningId]
+                    ? React.createElement('div', { className: 'text-xs text-green-600 font-medium text-center py-2' }, '✓ ' + t('uploadSuccess'))
+                    : React.createElement('label', { className: `w-full py-3 px-4 rounded-xl text-sm font-semibold text-center cursor-pointer transition-all flex items-center justify-center gap-2 ${uploading ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}` },
+                        uploading ? t('uploading') : ('📷 ' + t('retakePhoto')),
+                        React.createElement('input', {
+                          type: 'file', accept: 'image/*', capture: 'environment',
+                          className: 'hidden',
+                          disabled: uploading,
+                          onChange: (e) => e.target.files[0] && handleCameraCapture(notif, e.target.files[0])
+                        })
+                      )
+                ),
+
+                // Review completed — show result
+                notif.reviewStatus === 'completed' && notif.synopsis && React.createElement('div', { className: 'space-y-2' },
+                  React.createElement('button', {
+                    onClick: () => setSelectedNotif(selectedNotif === i ? null : i),
+                    className: 'w-full py-2 px-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm font-semibold text-center'
+                  }, selectedNotif === i ? '▾ Hide Result' : ('▸ ' + t('viewResult'))),
+                  selectedNotif === i && React.createElement('div', { className: 'p-3 bg-gray-50 rounded-xl space-y-2' },
+                    (() => {
+                      const lines = notif.synopsis.split('\n');
+                      const verdict = lines.find(l => l.startsWith('Verdict:'));
+                      const rec = lines.find(l => l.startsWith('Recommendation:'));
+                      const comment = lines.find(l => l.startsWith('Comment:'));
+                      return React.createElement('div', { className: 'space-y-1 text-sm' },
+                        verdict && React.createElement('div', { className: 'flex justify-between' },
+                          React.createElement('span', { className: 'text-gray-500 text-xs' }, t('audiologistVerdict')),
+                          React.createElement('span', { className: 'font-semibold text-gray-800' }, verdict.replace('Verdict: ', ''))
+                        ),
+                        rec && React.createElement('div', { className: 'flex justify-between' },
+                          React.createElement('span', { className: 'text-gray-500 text-xs' }, t('audiologistRecommendation')),
+                          React.createElement('span', { className: 'font-medium text-gray-700 text-xs text-right flex-1 ml-2' }, rec.replace('Recommendation: ', ''))
+                        ),
+                        comment && React.createElement('div', {},
+                          React.createElement('p', { className: 'text-gray-500 text-xs mb-0.5' }, t('audiologistComments')),
+                          React.createElement('p', { className: 'text-gray-700 text-xs bg-white rounded-lg p-2 border border-gray-100' }, comment.replace('Comment: ', ''))
+                        )
+                      );
+                    })()
+                  )
+                )
+              )
+            )
+          ),
+    React.createElement(VersionWatermark)
+  );
+};
+
+
 
 // Baby Registration Screen
 const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, onProfileClick, prefilled = false }) => {
@@ -2315,7 +2482,7 @@ const SuccessScreen = ({ user, record, onSameBaby, onNewBaby, onProfileClick }) 
 };
 
 // Main App
-const STEP = { LOADING: 'LOADING', LOGIN: 'LOGIN', SESSION: 'SESSION', MENU: 'MENU', BABY: 'BABY', EXISTING_BABY: 'EXISTING_BABY', TEST_SELECT: 'TEST_SELECT', AABR: 'AABR', OAE_TYPE: 'OAE_TYPE', OAE_PROTOCOL: 'OAE_PROTOCOL', OAE: 'OAE', REC: 'REC', SUCCESS: 'SUCCESS' };
+const STEP = { LOADING: 'LOADING', LOGIN: 'LOGIN', SESSION: 'SESSION', MENU: 'MENU', BABY: 'BABY', EXISTING_BABY: 'EXISTING_BABY', TEST_SELECT: 'TEST_SELECT', AABR: 'AABR', OAE_TYPE: 'OAE_TYPE', OAE_PROTOCOL: 'OAE_PROTOCOL', OAE: 'OAE', REC: 'REC', SUCCESS: 'SUCCESS', NOTIFICATIONS: 'NOTIFICATIONS' };
 const compressPhoto = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -2525,6 +2692,7 @@ const App = () => {
   const [record, setRecord] = useState({});
   const [showProfile, setShowProfile] = useState(false);
   const [logData, setLogData] = useState([]);
+  const [notificationCount, setNotificationCount] = useState(0);
   useEffect(() => {
     const loadMasterData = async () => {
       try {
@@ -2545,6 +2713,10 @@ const App = () => {
     setUser(userData);
     setStep(STEP.SESSION);
     fetchAllLogData().then(data => setLogData(data));
+    fetch(`${SCRIPT_URL}?action=getHCWNotifications&hwId=${userData.hwId}`)
+      .then(r => r.json())
+      .then(d => setNotificationCount((d.data || []).filter(n => n.reviewStatus === 'photo_requested' || n.reviewStatus === 'completed').length))
+      .catch(() => {});
   };
   const handleSubmit = async (data) => {
     const { photoBase64, ...rest } = data;
@@ -2576,7 +2748,8 @@ const App = () => {
   return React.createElement('div', {},
     step === STEP.LOGIN && React.createElement(LoginScreen, { onLogin: handleLogin }),
     step === STEP.SESSION && React.createElement(SessionSetupScreen, { user, masterData, initialData: record, onComplete: d => { merge(d); setStep(STEP.MENU); }, onProfileClick: () => setShowProfile(true) }),
-    step === STEP.MENU && React.createElement(MenuScreen, { user, onRegisterBaby: () => setStep(STEP.BABY), onExistingBaby: () => setStep(STEP.EXISTING_BABY), onProfileClick: () => setShowProfile(true) }),
+    step === STEP.MENU && React.createElement(MenuScreen, { user, onRegisterBaby: () => setStep(STEP.BABY), onExistingBaby: () => setStep(STEP.EXISTING_BABY), onProfileClick: () => setShowProfile(true), onNotifications: () => setStep(STEP.NOTIFICATIONS), notificationCount }),
+    step === STEP.NOTIFICATIONS && React.createElement(NotificationsScreen, { user, onBack: () => setStep(STEP.MENU), onProfileClick: () => setShowProfile(true) }),
     step === STEP.EXISTING_BABY && React.createElement(ExistingBabyLookupScreen, { user, onBack: () => setStep(STEP.MENU), onFound: (d) => { merge({ ...d, deviceTestId: '', screeningId: '', _prefilled: true }); setStep(STEP.BABY); }, onProfileClick: () => setShowProfile(true) }),
     step === STEP.BABY && React.createElement(BabyRegistrationScreen, { user, initialData: record, onBack: () => setStep(record._prefilled ? STEP.EXISTING_BABY : STEP.MENU), onNext: d => { merge(d); setStep(STEP.TEST_SELECT); }, onClear: clearBabyData, onProfileClick: () => setShowProfile(true), prefilled: !!record._prefilled }),
     step === STEP.TEST_SELECT && React.createElement(TestSelectionScreen, { user, onBack: () => setStep(STEP.BABY), onSelectAABR: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.AABR); }, onSelectOAE: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.OAE_TYPE); }, onProfileClick: () => setShowProfile(true) }),
