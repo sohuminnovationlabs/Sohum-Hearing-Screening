@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.3.1';
+const APP_VERSION = 'v8.4';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -76,7 +76,7 @@ const MAX_ATTEMPTS_90 = 1;  // attempts allowed at 90 dB
 const PHOTO_MAX_WIDTH = 1920;       // Max width in pixels
 const PHOTO_MAX_HEIGHT = 1440;      // Max height in pixels
 const PHOTO_TARGET_SIZE_KB = 200;   // Target max file size in KB - only compresses if exceeded
-const PHOTO_GRAYSCALE = true;       // true = grayscale (better for text), false = colour
+const PHOTO_GRAYSCALE = false;       // true = grayscale (better for text), false = colour
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
 const MASTER_SHEET_ID = '16evdSZDgIx7DkP3X7rxzkT8p8YtXsLykdIPXeIXhxxM';
@@ -949,23 +949,23 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
     const sid = notif.screeningId || notif.screeningID || '';
     setUploading(prev => ({ ...prev, [sid]: true }));
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target.result.split(',')[1];
-        const filenameMatch = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
-        const originalFilename = filenameMatch ? filenameMatch[1].trim() : (notif.uniqueId || notif.uniqueID || '') + 'RETAKE';
-        await fetch(SCRIPT_URL, {
-          method: 'POST', mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'submitFlaggedPhoto', base64Data: base64, filename: originalFilename })
-        });
-        const newSubmitted = { ...submitted, [sid]: true };
-        setSubmitted(newSubmitted);
-        try { localStorage.setItem('sohum_retake_submitted', JSON.stringify(newSubmitted)); } catch(e) {}
-        setUploading(prev => ({ ...prev, [sid]: false }));
-        load();
-      };
-      reader.readAsDataURL(file);
+      const { base64 } = await processPhoto(file);
+      const synopsisMatch = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
+      const originalFilename = synopsisMatch ? synopsisMatch[1].trim() : (notif.uniqueId || notif.uniqueID || '') + 'RETAKE';
+      await fetch(SCRIPT_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submitFlaggedPhoto',
+          base64Data: base64,
+          filename: originalFilename
+        })
+      });
+      const newSubmitted = { ...submitted, [sid]: true };
+      setSubmitted(newSubmitted);
+      try { localStorage.setItem('sohum_retake_submitted', JSON.stringify(newSubmitted)); } catch(e) {}
+      setUploading(prev => ({ ...prev, [sid]: false }));
+      load();
     } catch (e) { setUploading(prev => ({ ...prev, [sid]: false })); }
   };
 
@@ -2551,14 +2551,28 @@ const compressPhoto = (file) => {
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         ctx.drawImage(img, 0, 0, w, h);
 
-        if (PHOTO_GRAYSCALE) {
+        {
           const imageData = ctx.getImageData(0, 0, w, h);
           const pixels = imageData.data;
           for (let i = 0; i < pixels.length; i += 4) {
-            const grey = Math.round(0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]);
-            pixels[i] = grey;
-            pixels[i + 1] = grey;
-            pixels[i + 2] = grey;
+            const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+            if (PHOTO_GRAYSCALE) {
+              // Full greyscale
+              const grey = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+              pixels[i] = grey; pixels[i + 1] = grey; pixels[i + 2] = grey;
+            } else {
+              // Chromatic-preserving: boost waveform colours, greyscale everything else
+              const isRedDominant   = r > 150 && r > g * 1.5 && r > b * 1.5;
+              const isGreenDominant = g > 150 && g > r * 1.5 && g > b * 1.5;
+              const isBlueDominant  = b > 150 && b > r * 1.5 && b > g * 1.5;
+              if (isRedDominant)        { pixels[i] = 220; pixels[i+1] = 50;  pixels[i+2] = 50;  }
+              else if (isGreenDominant) { pixels[i] = 50;  pixels[i+1] = 200; pixels[i+2] = 50;  }
+              else if (isBlueDominant)  { pixels[i] = 50;  pixels[i+1] = 50;  pixels[i+2] = 220; }
+              else {
+                const grey = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                pixels[i] = grey; pixels[i + 1] = grey; pixels[i + 2] = grey;
+              }
+            }
           }
           ctx.putImageData(imageData, 0, 0);
         }
