@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.3.3';
+const APP_VERSION = 'v1.4';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -661,9 +661,14 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
   useEffect(() => {
     if (allPhotos.length === 0) return;
     const fetchIds = async () => {
+      const isPhotoReq = queueItem.reviewStatus === 'photo_requested';
       const entries = await Promise.all(
         allPhotos.map(async (photo) => {
           try {
+            if (isPhotoReq) {
+              const flaggedRes = await api.get({ action: 'getPhotoId', filename: photo.filename + 'FLAGGED' });
+              if (flaggedRes.status === 'success') return [photo.filename, flaggedRes.fileId];
+            }
             const res = await api.get({ action: 'getPhotoId', filename: photo.filename });
             if (res.status === 'success') return [photo.filename, res.fileId];
           } catch (e) { /* skip */ }
