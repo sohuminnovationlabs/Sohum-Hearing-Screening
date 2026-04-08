@@ -949,7 +949,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
     const sid = notif.screeningId || notif.screeningID || '';
     setUploading(prev => ({ ...prev, [sid]: true }));
     try {
-      const { base64 } = await processPhoto(file);
+      const { base64 } = await compressPhoto(file);
       const synopsisMatch = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
       const originalFilename = synopsisMatch ? synopsisMatch[1].trim() : (notif.uniqueId || notif.uniqueID || '') + 'RETAKE';
       await fetch(SCRIPT_URL, {
