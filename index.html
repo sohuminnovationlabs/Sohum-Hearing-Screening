@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.3';
+const APP_VERSION = 'v8.3.1';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -829,7 +829,7 @@ const LoginScreen = ({ onLogin }) => {
 };
 
 // Session Setup Screen
-const SessionSetupScreen = ({ user, masterData, initialData, onComplete, onProfileClick }) => {
+const SessionSetupScreen = ({ user, masterData, initialData, onComplete, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const hospitals = masterData.hospitals.filter(h => h[0] === user.ngo).map(h => h[1]);
   const devices = masterData.devices.filter(d => d[0] === user.ngo).map(d => d[1]);
@@ -840,7 +840,7 @@ const SessionSetupScreen = ({ user, masterData, initialData, onComplete, onProfi
   const [form, setForm] = useState({ hwName: user.hwName, hwId: user.hwId, ngo: user.ngo, hospitalName: initialData?.hospitalName || '', deviceSerial: initialData?.deviceSerial || '', sessionDate: initialData?.sessionDate || new Date().toISOString().split('T')[0] });
   const canContinue = form.hospitalName && form.deviceSerial && form.sessionDate;
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
-    React.createElement(Header, { title: t('sessionSetup'), subtitle: t('startSession'), user, onProfileClick }),
+    React.createElement(Header, { title: t('sessionSetup'), subtitle: t('startSession'), user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(Container, {},
       React.createElement(Card, {},
         React.createElement('div', { className: 'space-y-4' },
@@ -1107,7 +1107,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
 
 
 // Baby Registration Screen
-const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, onProfileClick, prefilled = false }) => {
+const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, onProfileClick, onNotificationsClick, notificationCount, prefilled = false }) => {
   const { t, lang } = useTranslation();
   const [unlockedFields, setUnlockedFields] = useState({});
   const unlockField = (field) => setUnlockedFields(prev => ({ ...prev, [field]: true }));
@@ -1155,7 +1155,7 @@ const validate = () => {
   } 
 };
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
-    React.createElement(Header, { title: t('babyRegistration'), onBack, user, onProfileClick }),
+    React.createElement(Header, { title: t('babyRegistration'), onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(Container, {},
       React.createElement(Card, {},
         React.createElement('div', { className: 'space-y-4' },
@@ -1320,10 +1320,10 @@ React.createElement('div', {},
 };
 
 // Test Selection Screen
-const TestSelectionScreen = ({ user, onBack, onSelectAABR, onSelectOAE, onProfileClick }) => {
+const TestSelectionScreen = ({ user, onBack, onSelectAABR, onSelectOAE, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
-    React.createElement(Header, { title: t('selectTest'), onBack, user, onProfileClick }),
+    React.createElement(Header, { title: t('selectTest'), onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(Container, {},
       React.createElement(Card, { onClick: onSelectAABR },
         React.createElement('div', { className: 'text-center py-4' },
@@ -1343,7 +1343,7 @@ const TestSelectionScreen = ({ user, onBack, onSelectAABR, onSelectOAE, onProfil
 };
 
 // AABR Entry Screen - multi-attempt with per-attempt impedance
-const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClick }) => {
+const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('left');
   const [showProtocol, setShowProtocol] = useState(false);
@@ -1766,7 +1766,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
   
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
-    React.createElement(Header, { title: t('aabrTest'), subtitle: t('enterResults'), onBack, user, onProfileClick }),
+    React.createElement(Header, { title: t('aabrTest'), subtitle: t('enterResults'), onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(BabyInfoBanner, { record: initialData }),
 
     activePhotoTarget && React.createElement(PhotoCaptureModal, {
@@ -1836,10 +1836,10 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
 };
 
 // OAE Type Screen
-const OAETypeScreen = ({ user, onBack, onNext, onProfileClick }) => {
+const OAETypeScreen = ({ user, onBack, onNext, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
-    React.createElement(Header, { title: t('selectOaeType'), onBack, user, onProfileClick }),
+    React.createElement(Header, { title: t('selectOaeType'), onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(Container, {},
       React.createElement(Card, { onClick: () => onNext({ oaeTestType: 'DPOAE' }) },
         React.createElement('div', { className: 'text-center py-4' },
@@ -1859,11 +1859,11 @@ const OAETypeScreen = ({ user, onBack, onNext, onProfileClick }) => {
 };
 
 // OAE Protocol Screen
-const OAEProtocolScreen = ({ user, oaeType, onBack, onNext, onProfileClick }) => {
+const OAEProtocolScreen = ({ user, oaeType, onBack, onNext, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const protocols = oaeType === 'DPOAE' ? ['1-6 kHz', '2-4 kHz', '2-6 kHz'] : ['8 sec', '32 sec'];
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
-    React.createElement(Header, { title: `${oaeType} ${t('protocol')}`, onBack, user, onProfileClick }),
+    React.createElement(Header, { title: `${oaeType} ${t('protocol')}`, onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(Container, {}, protocols.map(protocol => React.createElement(Card, { key: protocol, onClick: () => onNext({ oaeProtocol: protocol }) },
       React.createElement('div', { className: 'text-center py-4' },
         React.createElement('h3', { className: 'text-xl font-semibold text-gray-800' }, protocol)
@@ -1873,7 +1873,7 @@ const OAEProtocolScreen = ({ user, oaeType, onBack, onNext, onProfileClick }) =>
   );
 };
 // DPOAE Entry Screen (keeping v2 logic with override)
-const DPOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfileClick }) => {
+const DPOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('left');
   const frequencies = protocol === '1-6 kHz' ? ['1.5k', '2k', '3k', '4k', '6k'] : protocol === '2-4 kHz' ? ['2k', '3k', '4k'] : ['2k', '3k', '4k', '5k', '6k'];
@@ -1935,7 +1935,7 @@ if (rightResult === 'PASS' && rightSnrValues.length > 0) {
     }
   };
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
-    React.createElement(Header, { title: `DPOAE - ${protocol}`, onBack, user, onProfileClick }),
+    React.createElement(Header, { title: `DPOAE - ${protocol}`, onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(BabyInfoBanner, { record }),
     React.createElement(Container, {},
       React.createElement(Card, {},
@@ -1986,7 +1986,7 @@ activeTab === 'right' && React.createElement('div', { className: 'space-y-4' },
 };
 
 // TEOAE Entry Screen (same structure as DPOAE)
-const TEOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfileClick }) => {
+const TEOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('left');
   const frequencies = ['1.5k', '2k', '3k', '4k', '6k'];
@@ -2048,7 +2048,7 @@ if (rightResult === 'PASS' && rightSnrValues.length > 0) {
   }
 };
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
-    React.createElement(Header, { title: `TEOAE - ${protocol}`, onBack, user, onProfileClick }),
+    React.createElement(Header, { title: `TEOAE - ${protocol}`, onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(BabyInfoBanner, { record }),
     React.createElement(Container, {},
       React.createElement(Card, {},
@@ -2099,7 +2099,7 @@ activeTab === 'right' && React.createElement('div', { className: 'space-y-4' },
 };
 
 // Existing Baby Lookup Screen
-const ExistingBabyLookupScreen = ({ user, onBack, onFound, onProfileClick }) => {
+const ExistingBabyLookupScreen = ({ user, onBack, onFound, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [searchBy, setSearchBy] = useState('uniqueId');
   const [query, setQuery] = useState('');
@@ -2132,7 +2132,7 @@ const ExistingBabyLookupScreen = ({ user, onBack, onFound, onProfileClick }) => 
   };
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
-    React.createElement(Header, { title: t('searchBaby'), onBack, user, onProfileClick }),
+    React.createElement(Header, { title: t('searchBaby'), onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(Container, {},
       React.createElement(Card, {},
         React.createElement('div', { className: 'space-y-4' },
@@ -2419,7 +2419,7 @@ const BabyInfoBanner = ({ record }) => {
 };
 
 // Recommendation Screen
-const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick }) => {
+const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [recommendation, setRecommendation] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -2458,7 +2458,7 @@ const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick }
   };
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
-    React.createElement(Header, { title: t('recommendation'), onBack, user, onProfileClick }),
+    React.createElement(Header, { title: t('recommendation'), onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(BabyInfoBanner, { record }),
     React.createElement(Container, {},
       React.createElement(Card, {},
@@ -2496,13 +2496,13 @@ const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick }
 };
 
 // Success Screen with DOB Confirmation
-const SuccessScreen = ({ user, record, onSameBaby, onNewBaby, onProfileClick }) => {
+const SuccessScreen = ({ user, record, onSameBaby, onNewBaby, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [showDOBModal, setShowDOBModal] = useState(false);
   const handleSameBaby = () => { setShowDOBModal(true); };
   const handleDOBConfirmed = () => { setShowDOBModal(false); onSameBaby(); };
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
-    React.createElement(Header, { title: t('success'), subtitle: t('screeningCompleted'), user, onProfileClick }),
+    React.createElement(Header, { title: t('success'), subtitle: t('screeningCompleted'), user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(Container, { className: 'flex-1 justify-center' },
       React.createElement(Card, {},
         React.createElement('div', { className: 'text-center space-y-4' },
