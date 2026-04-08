@@ -2562,9 +2562,9 @@ const compressPhoto = (file) => {
               pixels[i] = grey; pixels[i + 1] = grey; pixels[i + 2] = grey;
             } else {
               // Chromatic-preserving: boost waveform colours, greyscale everything else
-              const isRedDominant   = r > 150 && r > g * 1.5 && r > b * 1.5;
-              const isGreenDominant = g > 150 && g > r * 1.5 && g > b * 1.5;
-              const isBlueDominant  = b > 150 && b > r * 1.5 && b > g * 1.5;
+              const isRedDominant   = r > 120 && r > g * 1.2 && r > b * 1.2;
+              const isGreenDominant = g > 120 && g > r * 1.2 && g > b * 1.2;
+              const isBlueDominant  = b > 120 && b > r * 1.2 && b > g * 1.2;
               if (isRedDominant)        { pixels[i] = 220; pixels[i+1] = 50;  pixels[i+2] = 50;  }
               else if (isGreenDominant) { pixels[i] = 50;  pixels[i+1] = 200; pixels[i+2] = 50;  }
               else if (isBlueDominant)  { pixels[i] = 50;  pixels[i+1] = 50;  pixels[i+2] = 220; }
