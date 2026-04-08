@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.2.0';
+const APP_VERSION = 'v8.3';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -921,14 +921,16 @@ const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onProfileClick, onNo
 };
 
 // Notifications Screen
-const NotificationsScreen = ({ user, onBack, onProfileClick }) => {
+const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedNotif, setSelectedNotif] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadDone, setUploadDone] = useState({});
-  const cameraRef = React.useRef(null);
+  const [uploading, setUploading] = useState({});
+  const [submitted, setSubmitted] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sohum_retake_submitted') || '{}'); } catch(e) { return {}; }
+  });
+  const [activeTab, setActiveTab] = useState('retake');
 
   const load = async () => {
     setLoading(true);
@@ -944,94 +946,123 @@ const NotificationsScreen = ({ user, onBack, onProfileClick }) => {
 
   const handleCameraCapture = async (notif, file) => {
     if (!file) return;
-    setUploading(true);
+    const sid = notif.screeningId || notif.screeningID || '';
+    setUploading(prev => ({ ...prev, [sid]: true }));
     try {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const base64 = e.target.result.split(',')[1];
-        // filename = original photo filename that audiologist flagged, extracted from synopsis
-        const synopsisMatch = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
-        const originalFilename = synopsisMatch ? synopsisMatch[1].trim() : notif.uniqueId + 'RETAKE';
+        const filenameMatch = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
+        const originalFilename = filenameMatch ? filenameMatch[1].trim() : (notif.uniqueId || notif.uniqueID || '') + 'RETAKE';
         await fetch(SCRIPT_URL, {
           method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'submitFlaggedPhoto',
-            base64Data: base64,
-            filename: originalFilename
-          })
+          body: JSON.stringify({ action: 'submitFlaggedPhoto', base64Data: base64, filename: originalFilename })
         });
-        setUploadDone(prev => ({ ...prev, [notif.screeningId]: true }));
-        setUploading(false);
+        const newSubmitted = { ...submitted, [sid]: true };
+        setSubmitted(newSubmitted);
+        try { localStorage.setItem('sohum_retake_submitted', JSON.stringify(newSubmitted)); } catch(e) {}
+        setUploading(prev => ({ ...prev, [sid]: false }));
         load();
       };
       reader.readAsDataURL(file);
-    } catch (e) { setUploading(false); }
+    } catch (e) { setUploading(prev => ({ ...prev, [sid]: false })); }
   };
 
-  const statusColor = (status) => {
-    if (status === 'completed') return 'bg-green-100 text-green-700';
-    if (status === 'photo_requested') return 'bg-yellow-100 text-yellow-700';
-    return 'bg-blue-100 text-blue-700';
-  };
+  const tabs = [
+    { id: 'retake', label: '📷 Retake', filter: n => n.reviewStatus === 'photo_requested' },
+    { id: 'pending', label: '⏳ Pending', filter: n => n.reviewStatus === 'pending' },
+    { id: 'done', label: '✓ Done', filter: n => n.reviewStatus === 'completed' },
+    { id: 'all', label: 'All', filter: n => true }
+  ];
 
-  const statusLabel = (status) => {
-    if (status === 'completed') return t('reviewComplete');
-    if (status === 'photo_requested') return t('photoRetakeRequested');
-    return t('awaitingReview');
-  };
+  const currentTab = tabs.find(tab => tab.id === activeTab);
+  const filtered = notifications.filter(currentTab.filter);
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-6' },
-    React.createElement(Header, { title: t('notifications'), onBack, user, onProfileClick }),
+    React.createElement(Header, { title: t('notifications'), onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
+
+    React.createElement('div', { className: 'flex px-4 pt-3 gap-1 overflow-x-auto pb-1 items-center' },
+      tabs.map(tab => {
+        const count = notifications.filter(tab.filter).length;
+        return React.createElement('button', {
+          key: tab.id,
+          onClick: () => setActiveTab(tab.id),
+          className: `px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap flex-shrink-0 transition-colors ${activeTab === tab.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'}`
+        }, tab.label + (count > 0 ? ` (${count})` : ''));
+      }),
+      React.createElement('button', {
+        onClick: load,
+        className: 'ml-auto flex-shrink-0 w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors'
+      }, '↻')
+    ),
+
     loading
       ? React.createElement('div', { className: 'flex items-center justify-center py-20 text-gray-400' }, t('loading'))
-      : notifications.length === 0
+      : filtered.length === 0
         ? React.createElement('div', { className: 'flex flex-col items-center justify-center py-20 text-gray-400' },
             React.createElement('div', { className: 'text-4xl mb-3' }, '🔔'),
             React.createElement('p', { className: 'font-medium' }, t('noNotifications'))
           )
         : React.createElement('div', { className: 'p-4 space-y-3' },
-            notifications.map((notif, i) =>
-              React.createElement('div', { key: i, className: 'bg-white rounded-2xl border border-gray-100 shadow-sm p-4' },
+            filtered.map((notif, i) => {
+              const sid = notif.screeningId || notif.screeningID || '';
+              const isUploading = uploading[sid];
+              const isSubmitted = submitted[sid];
+
+              return React.createElement('div', { key: i, className: 'bg-white rounded-2xl border border-gray-100 shadow-sm p-4' },
                 React.createElement('div', { className: 'flex items-start justify-between gap-2 mb-2' },
                   React.createElement('div', { className: 'flex-1 min-w-0' },
                     React.createElement('p', { className: 'font-semibold text-gray-800 text-sm' }, notif.babyName || '—'),
-                    React.createElement('p', { className: 'text-xs text-gray-400 font-mono mt-0.5' }, notif.screeningId)
+                    React.createElement('p', { className: 'text-xs text-gray-400 font-mono mt-0.5' }, sid)
                   ),
-                  React.createElement('span', { className: `text-xs font-semibold px-2 py-1 rounded-full ${statusColor(notif.reviewStatus)}` },
+                  React.createElement('span', { className: `text-xs font-semibold px-2 py-1 rounded-full ${
+                    notif.reviewStatus === 'completed' ? 'bg-green-100 text-green-700' :
+                    notif.reviewStatus === 'photo_requested' ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-blue-100 text-blue-700'
+                  }` },
                     notif.reviewStatus === 'completed' ? '✓ Done' :
                     notif.reviewStatus === 'photo_requested' ? '📷 Retake' : '⏳ Pending'
                   )
                 ),
-                React.createElement('p', { className: 'text-xs text-gray-500 mb-3' }, statusLabel(notif.reviewStatus)),
 
-                // Photo retake requested
                 notif.reviewStatus === 'photo_requested' && React.createElement('div', { className: 'space-y-2' },
-                  React.createElement('div', { className: 'p-2 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-800' },
+                  React.createElement('div', { className: 'p-2 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-800 space-y-1' },
                     (() => {
-                      const match = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
-                      return match ? `Retake required for: ${match[1].trim()}` : 'Audiologist requested a photo retake';
+                      const filenameMatch = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
+                      const reasonMatch = (notif.synopsis || '').match(/Reason: ([^\n]+)/);
+                      return React.createElement('div', {},
+                        filenameMatch && React.createElement('p', {}, `Retake required for: ${filenameMatch[1].trim()}`),
+                        reasonMatch && React.createElement('p', { className: 'font-medium' }, `Reason: ${reasonMatch[1].trim()}`)
+                      );
                     })()
                   ),
-                  uploadDone[notif.screeningId]
-                    ? React.createElement('div', { className: 'text-xs text-green-600 font-medium text-center py-2' }, '✓ ' + t('uploadSuccess'))
-                    : React.createElement('label', { className: `w-full py-3 px-4 rounded-xl text-sm font-semibold text-center cursor-pointer transition-all flex items-center justify-center gap-2 ${uploading ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}` },
-                        uploading ? t('uploading') : ('📷 ' + t('retakePhoto')),
+                  isSubmitted
+                    ? React.createElement('div', { className: 'flex items-center justify-between' },
+                        React.createElement('div', { className: 'text-xs text-green-600 font-medium py-2' }, '✓ Photo submitted — awaiting review'),
+                        React.createElement('label', { className: 'text-xs text-primary underline cursor-pointer' },
+                          'Retake again',
+                          React.createElement('input', {
+                            type: 'file', accept: 'image/*', capture: 'environment', className: 'hidden',
+                            onChange: (e) => e.target.files[0] && handleCameraCapture(notif, e.target.files[0])
+                          })
+                        )
+                      )
+                    : React.createElement('label', { className: `w-full py-3 px-4 rounded-xl text-sm font-semibold text-center cursor-pointer transition-all flex items-center justify-center gap-2 ${isUploading ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}` },
+                        isUploading ? t('uploading') : '📷 ' + t('retakePhoto'),
                         React.createElement('input', {
-                          type: 'file', accept: 'image/*', capture: 'environment',
-                          className: 'hidden',
-                          disabled: uploading,
+                          type: 'file', accept: 'image/*', capture: 'environment', className: 'hidden',
+                          disabled: isUploading,
                           onChange: (e) => e.target.files[0] && handleCameraCapture(notif, e.target.files[0])
                         })
                       )
                 ),
 
-                // Review completed — show result
                 notif.reviewStatus === 'completed' && notif.synopsis && React.createElement('div', { className: 'space-y-2' },
                   React.createElement('button', {
                     onClick: () => setSelectedNotif(selectedNotif === i ? null : i),
                     className: 'w-full py-2 px-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm font-semibold text-center'
-                  }, selectedNotif === i ? '▾ Hide Result' : ('▸ ' + t('viewResult'))),
+                  }, selectedNotif === i ? '▾ Hide Result' : '▸ ' + t('viewResult')),
                   selectedNotif === i && React.createElement('div', { className: 'p-3 bg-gray-50 rounded-xl space-y-2' },
                     (() => {
                       const lines = notif.synopsis.split('\n');
@@ -1040,7 +1071,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick }) => {
                       const comment = lines.find(l => l.startsWith('Comment:'));
                       const photoNotesStart = lines.findIndex(l => l.includes('Per Photo Notes'));
                       const photoNotes = photoNotesStart >= 0 ? lines.slice(photoNotesStart + 1).filter(l => l.trim() && !l.startsWith('---')) : [];
-                      return React.createElement('div', { className: 'space-y-1 text-sm' },
+                      return React.createElement('div', { className: 'space-y-2 text-sm' },
                         verdict && React.createElement('div', { className: 'flex justify-between' },
                           React.createElement('span', { className: 'text-gray-500 text-xs' }, t('audiologistVerdict')),
                           React.createElement('span', { className: 'font-semibold text-gray-800' }, verdict.replace('Verdict: ', ''))
@@ -1054,24 +1085,25 @@ const NotificationsScreen = ({ user, onBack, onProfileClick }) => {
                           React.createElement('p', { className: 'text-gray-700 text-xs bg-white rounded-lg p-2 border border-gray-100' }, comment.replace('Comment: ', ''))
                         ),
                         photoNotes.length > 0 && React.createElement('div', {},
-                          React.createElement('p', { className: 'text-gray-500 text-xs mb-0.5 mt-1' }, 'Per Photo Notes'),
+                          React.createElement('p', { className: 'text-gray-500 text-xs mb-0.5' }, 'Per Photo Notes'),
                           React.createElement('div', { className: 'bg-white rounded-lg p-2 border border-gray-100 space-y-1' },
                             photoNotes.map((note, ni) =>
-                              React.createElement('p', { key: ni, className: 'text-gray-700 text-xs' }, note)
+                              React.createElement('p', { key: ni, className: 'text-gray-700 text-xs font-mono' }, note)
                             )
                           )
                         )
                       );
                     })()
                   )
-                )
-              )
-            )
+                ),
+
+                notif.reviewStatus === 'pending' && React.createElement('p', { className: 'text-xs text-gray-400 italic' }, t('awaitingReview'))
+              );
+            })
           ),
     React.createElement(VersionWatermark)
   );
 };
-
 
 
 // Baby Registration Screen
@@ -2705,6 +2737,13 @@ const App = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [logData, setLogData] = useState([]);
   const [notificationCount, setNotificationCount] = useState(0);
+  const notifPollRef = React.useRef(null);
+  const fetchNotifCount = React.useCallback((hwId) => {
+    fetch(`${SCRIPT_URL}?action=getHCWNotifications&hwId=${hwId}`)
+      .then(r => r.json())
+      .then(d => setNotificationCount((d.data || []).filter(n => n.reviewStatus === 'photo_requested').length))
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     const loadMasterData = async () => {
       try {
@@ -2716,6 +2755,7 @@ const App = () => {
     loadMasterData();
   }, []);
   const merge = (data) => setRecord({ ...record, ...data });
+  const navProps = { onProfileClick: () => setShowProfile(true), onNotificationsClick: () => setStep(STEP.NOTIFICATIONS), onNotifications: () => setStep(STEP.NOTIFICATIONS), notificationCount };
   const clearBabyData = () => {
     const { babyId, babyName, deviceTestId, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, ...rest } = record;
     setRecord({ ...rest, babyId: generateBabyId() });
@@ -2725,10 +2765,9 @@ const App = () => {
     setUser(userData);
     setStep(STEP.SESSION);
     fetchAllLogData().then(data => setLogData(data));
-    fetch(`${SCRIPT_URL}?action=getHCWNotifications&hwId=${userData.hwId}`)
-      .then(r => r.json())
-      .then(d => setNotificationCount((d.data || []).filter(n => n.reviewStatus === 'photo_requested').length))
-      .catch(() => {});
+    fetchNotifCount(userData.hwId);
+    if (notifPollRef.current) clearInterval(notifPollRef.current);
+    notifPollRef.current = setInterval(() => fetchNotifCount(userData.hwId), 300000);
   };
   const handleSubmit = async (data) => {
     const { photoBase64, ...rest } = data;
@@ -2737,6 +2776,7 @@ const App = () => {
     const final = { ...record, ...rest };
     const ok = await saveToSheets(final);
     if (ok) {
+      fetchNotifCount(user.hwId);
       setStep(STEP.SUCCESS);
       // OAE recommendation screen photo
       if (photoBase64 && final.screeningId) {
@@ -2759,18 +2799,18 @@ const App = () => {
   }
   return React.createElement('div', {},
     step === STEP.LOGIN && React.createElement(LoginScreen, { onLogin: handleLogin }),
-    step === STEP.SESSION && React.createElement(SessionSetupScreen, { user, masterData, initialData: record, onComplete: d => { merge(d); setStep(STEP.MENU); }, onProfileClick: () => setShowProfile(true) }),
-    step === STEP.MENU && React.createElement(MenuScreen, { user, onRegisterBaby: () => setStep(STEP.BABY), onExistingBaby: () => setStep(STEP.EXISTING_BABY), onProfileClick: () => setShowProfile(true), onNotifications: () => setStep(STEP.NOTIFICATIONS), notificationCount }),
-    step === STEP.NOTIFICATIONS && React.createElement(NotificationsScreen, { user, onBack: () => setStep(STEP.MENU), onProfileClick: () => setShowProfile(true) }),
-    step === STEP.EXISTING_BABY && React.createElement(ExistingBabyLookupScreen, { user, onBack: () => setStep(STEP.MENU), onFound: (d) => { merge({ ...d, deviceTestId: '', screeningId: '', _prefilled: true }); setStep(STEP.BABY); }, onProfileClick: () => setShowProfile(true) }),
-    step === STEP.BABY && React.createElement(BabyRegistrationScreen, { user, initialData: record, onBack: () => setStep(record._prefilled ? STEP.EXISTING_BABY : STEP.MENU), onNext: d => { merge(d); setStep(STEP.TEST_SELECT); }, onClear: clearBabyData, onProfileClick: () => setShowProfile(true), prefilled: !!record._prefilled }),
-    step === STEP.TEST_SELECT && React.createElement(TestSelectionScreen, { user, onBack: () => setStep(STEP.BABY), onSelectAABR: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.AABR); }, onSelectOAE: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.OAE_TYPE); }, onProfileClick: () => setShowProfile(true) }),
-    step === STEP.AABR && React.createElement(AABREntryScreen, { user, initialData: record, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.REC); }, onProfileClick: () => setShowProfile(true) }),
-    step === STEP.OAE_TYPE && React.createElement(OAETypeScreen, { user, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.OAE_PROTOCOL); }, onProfileClick: () => setShowProfile(true) }),
-    step === STEP.OAE_PROTOCOL && React.createElement(OAEProtocolScreen, { user, oaeType: record.oaeTestType, onBack: () => setStep(STEP.OAE_TYPE), onNext: d => { merge(d); setStep(STEP.OAE); }, onProfileClick: () => setShowProfile(true) }),
-    step === STEP.OAE && (record.oaeTestType === 'DPOAE' ? React.createElement(DPOAEEntryScreen, { user, record, protocol: record.oaeProtocol, onBack: () => setStep(STEP.OAE_PROTOCOL), onNext: d => { merge(d); setStep(STEP.REC); }, onProfileClick: () => setShowProfile(true) }) : React.createElement(TEOAEEntryScreen, { user, record, protocol: record.oaeProtocol, onBack: () => setStep(STEP.OAE_PROTOCOL), onNext: d => { merge(d); setStep(STEP.REC); }, onProfileClick: () => setShowProfile(true) })),
-    step === STEP.REC && React.createElement(RecommendationScreen, { user, record, onBack: () => setStep(record.testType === 'AABR' ? STEP.AABR : STEP.OAE), onSubmit: handleSubmit, onProfileClick: () => setShowProfile(true) }),
-    step === STEP.SUCCESS && React.createElement(SuccessScreen, { user, record, onSameBaby: () => { const sessionAndBabyData = { hwName: record.hwName, hwId: record.hwId, ngo: record.ngo, hospitalName: record.hospitalName, deviceSerial: record.deviceSerial, sessionDate: record.sessionDate, babyId: record.babyId, babyName: record.babyName, deviceTestId: record.deviceTestId, dateOfBirth: record.dateOfBirth, gender: record.gender, gestationalAge: record.gestationalAge, parentName: record.parentName, parentPhone: record.parentPhone, parentEmail: record.parentEmail, riskFactors: record.riskFactors, screeningId: generateScreeningId() }; setRecord(sessionAndBabyData); setStep(STEP.TEST_SELECT); }, onNewBaby: () => { const sessionData = { hwName: record.hwName, hwId: record.hwId, ngo: record.ngo, hospitalName: record.hospitalName, deviceSerial: record.deviceSerial, sessionDate: record.sessionDate, babyId: generateBabyId() }; setRecord(sessionData); setStep(STEP.BABY); }, onProfileClick: () => setShowProfile(true) }),
+    step === STEP.SESSION && React.createElement(SessionSetupScreen, { user, masterData, initialData: record, onComplete: d => { merge(d); setStep(STEP.MENU); }, ...navProps }),
+    step === STEP.MENU && React.createElement(MenuScreen, { user, onRegisterBaby: () => setStep(STEP.BABY), onExistingBaby: () => setStep(STEP.EXISTING_BABY), ...navProps }),
+    step === STEP.NOTIFICATIONS && React.createElement(NotificationsScreen, { user, onBack: () => setStep(STEP.MENU), ...navProps }),
+    step === STEP.EXISTING_BABY && React.createElement(ExistingBabyLookupScreen, { user, onBack: () => setStep(STEP.MENU), onFound: (d) => { merge({ ...d, deviceTestId: '', screeningId: '', _prefilled: true }); setStep(STEP.BABY); }, ...navProps }),
+    step === STEP.BABY && React.createElement(BabyRegistrationScreen, { user, initialData: record, onBack: () => setStep(record._prefilled ? STEP.EXISTING_BABY : STEP.MENU), onNext: d => { merge(d); setStep(STEP.TEST_SELECT); }, onClear: clearBabyData, ...navProps, prefilled: !!record._prefilled }),
+    step === STEP.TEST_SELECT && React.createElement(TestSelectionScreen, { user, onBack: () => setStep(STEP.BABY), onSelectAABR: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.AABR); }, onSelectOAE: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.OAE_TYPE); }, ...navProps }),
+    step === STEP.AABR && React.createElement(AABREntryScreen, { user, initialData: record, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.REC); }, ...navProps }),
+    step === STEP.OAE_TYPE && React.createElement(OAETypeScreen, { user, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.OAE_PROTOCOL); }, ...navProps }),
+    step === STEP.OAE_PROTOCOL && React.createElement(OAEProtocolScreen, { user, oaeType: record.oaeTestType, onBack: () => setStep(STEP.OAE_TYPE), onNext: d => { merge(d); setStep(STEP.OAE); }, ...navProps }),
+    step === STEP.OAE && (record.oaeTestType === 'DPOAE' ? React.createElement(DPOAEEntryScreen, { user, record, protocol: record.oaeProtocol, onBack: () => setStep(STEP.OAE_PROTOCOL), onNext: d => { merge(d); setStep(STEP.REC); }, ...navProps }) : React.createElement(TEOAEEntryScreen, { user, record, protocol: record.oaeProtocol, onBack: () => setStep(STEP.OAE_PROTOCOL), onNext: d => { merge(d); setStep(STEP.REC); }, ...navProps })),
+    step === STEP.REC && React.createElement(RecommendationScreen, { user, record, onBack: () => setStep(record.testType === 'AABR' ? STEP.AABR : STEP.OAE), onSubmit: handleSubmit, ...navProps }),
+    step === STEP.SUCCESS && React.createElement(SuccessScreen, { user, record, onSameBaby: () => { const sessionAndBabyData = { hwName: record.hwName, hwId: record.hwId, ngo: record.ngo, hospitalName: record.hospitalName, deviceSerial: record.deviceSerial, sessionDate: record.sessionDate, babyId: record.babyId, babyName: record.babyName, deviceTestId: record.deviceTestId, dateOfBirth: record.dateOfBirth, gender: record.gender, gestationalAge: record.gestationalAge, parentName: record.parentName, parentPhone: record.parentPhone, parentEmail: record.parentEmail, riskFactors: record.riskFactors, screeningId: generateScreeningId() }; setRecord(sessionAndBabyData); setStep(STEP.TEST_SELECT); }, onNewBaby: () => { const sessionData = { hwName: record.hwName, hwId: record.hwId, ngo: record.ngo, hospitalName: record.hospitalName, deviceSerial: record.deviceSerial, sessionDate: record.sessionDate, babyId: generateBabyId() }; setRecord(sessionData); setStep(STEP.BABY); }, ...navProps }),
 showProfile && user && React.createElement(EnhancedProfileModal, { user, onClose: () => setShowProfile(false) })
   );
 };
