@@ -33,7 +33,7 @@ import { createRoot } from 'react-dom/client';
 
 // 🧪 TEST MODE - Set to true to pre-fill baby registration form for faster testing
 // Set back to false before pushing to production
-const TEST_MODE = false;
+const TEST_MODE = true;
 const TEST_DATA = {
   babyName: 'Test Baby',
   deviceTestId: '26siltestuid',
@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.1.1';
+const APP_VERSION = 'v8.1.2';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -194,7 +194,8 @@ const translations = {
     clinicalRecommendation: "Clinical Recommendation", selectRecommendation: "Select recommendation",
     passNoFollowup: "Pass - No follow-up needed", referFollowup: "Refer - Follow-up required",
     rescreenMonth: "Rescreen in 1 month", referAudiologist: "Refer to audiologist",
-    referEnt: "Refer to ENT specialist", submitting: "Submitting...", submitScreening: "Submit Screening",
+    referEnt: "Refer to ENT specialist",
+    audiologistVerification: "Audiologist Verification", submitting: "Submitting...", submitScreening: "Submit Screening",
     success: "Success", screeningCompleted: "Screening completed", screeningId: "Screening ID",
     hasBeenLogged: "has been successfully logged", screenSameBaby: "Screen Same Baby",
     screenNewBaby: "Screen New Baby", confirmBabyIdentity: "Confirm Baby Identity",
@@ -262,7 +263,8 @@ const translations = {
     clinicalRecommendation: "नैदानिक सिफारिश", selectRecommendation: "सिफारिश चुनें",
     passNoFollowup: "उत्तीर्ण - फॉलो-अप की आवश्यकता नहीं", referFollowup: "रेफर करें - फॉलो-अप आवश्यक",
     rescreenMonth: "1 महीने में पुनः जांच", referAudiologist: "ऑडियोलॉजिस्ट के पास भेजें",
-    referEnt: "ENT विशेषज्ञ के पास भेजें", submitting: "जमा हो रहा है...", submitScreening: "जांच जमा करें",
+    referEnt: "ENT विशेषज्ञ के पास भेजें",
+    audiologistVerification: "ऑडियोलॉजिस्ट सत्यापन", submitting: "जमा हो रहा है...", submitScreening: "जांच जमा करें",
     success: "सफल", screeningCompleted: "जांच पूर्ण", screeningId: "जांच आईडी",
     hasBeenLogged: "सफलतापूर्वक लॉग किया गया है", screenSameBaby: "उसी शिशु की जांच करें",
     screenNewBaby: "नए शिशु की जांच करें", confirmBabyIdentity: "शिशु की पहचान की पुष्टि करें",
@@ -331,7 +333,8 @@ const translations = {
     clinicalRecommendation: "ಕ್ಲಿನಿಕಲ್ ಶಿಫಾರಸು", selectRecommendation: "ಶಿಫಾರಸು ಆಯ್ಕೆಮಾಡಿ",
     passNoFollowup: "ಉತ್ತೀರ್ಣ - ಫಾಲೋ-ಅಪ್ ಅಗತ್ಯವಿಲ್ಲ", referFollowup: "ಉಲ್ಲೇಖಿಸಿ - ಫಾಲೋ-ಅಪ್ ಅಗತ್ಯವಿದೆ",
     rescreenMonth: "1 ತಿಂಗಳಲ್ಲಿ ಮರುಪರೀಕ್ಷೆ", referAudiologist: "ಆಡಿಯಾಲಜಿಸ್ಟ್‌ಗೆ ಉಲ್ಲೇಖಿಸಿ",
-    referEnt: "ENT ತಜ್ಞರಿಗೆ ಉಲ್ಲೇಖಿಸಿ", submitting: "ಸಲ್ಲಿಸುತ್ತಿದೆ...", submitScreening: "ಪರೀಕ್ಷೆಯನ್ನು ಸಲ್ಲಿಸಿ",
+    referEnt: "ENT ತಜ್ಞರಿಗೆ ಉಲ್ಲೇಖಿಸಿ",
+    audiologistVerification: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಪರಿಶೀಲನೆ", submitting: "ಸಲ್ಲಿಸುತ್ತಿದೆ...", submitScreening: "ಪರೀಕ್ಷೆಯನ್ನು ಸಲ್ಲಿಸಿ",
     success: "ಯಶಸ್ವಿ", screeningCompleted: "ಪರೀಕ್ಷೆ ಪೂರ್ಣಗೊಂಡಿದೆ", screeningId: "ಪರೀಕ್ಷಾ ಐಡಿ",
     hasBeenLogged: "ಯಶಸ್ವಿಯಾಗಿ ದಾಖಲಿಸಲಾಗಿದೆ", screenSameBaby: "ಅದೇ ಮಗುವನ್ನು ಪರೀಕ್ಷಿಸಿ",
     screenNewBaby: "ಹೊಸ ಮಗುವನ್ನು ಪರೀಕ್ಷಿಸಿ", confirmBabyIdentity: "ಮಗುವಿನ ಗುರುತನ್ನು ದೃಢೀಕರಿಸಿ",
@@ -2227,6 +2230,20 @@ const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick }
     const overrideNote = record.aabrOverrideNote || record.oaeOverrideNote || '';
     const finalRecommendation = recommendation + overrideNote;
     await onSubmit({ recommendation: finalRecommendation, photoBase64 });
+    if (recommendation === 'Audiologist Verification') {
+      try {
+        await fetch(SCRIPT_URL, {
+          method: 'POST', mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'flagForReview',
+            screeningId: record.screeningId,
+            deviceSerial: record.deviceSerial,
+            ngo: record.ngo
+          })
+        });
+      } catch (e) { console.warn('flagForReview failed:', e); }
+    }
   };
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
@@ -2251,7 +2268,8 @@ const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick }
             React.createElement('option', { value: 'Refer - Follow-up required' }, t('referFollowup')),
             React.createElement('option', { value: 'Rescreen in 1 month' }, t('rescreenMonth')),
             React.createElement('option', { value: 'Refer to audiologist' }, t('referAudiologist')),
-            React.createElement('option', { value: 'Refer to ENT specialist' }, t('referEnt'))
+            React.createElement('option', { value: 'Refer to ENT specialist' }, t('referEnt')),
+            record.testType === 'AABR' && [record.leftResult35dB, record.leftResult50dB, record.leftResult70dB, record.leftResult90dB, record.rightResult35dB, record.rightResult50dB, record.rightResult70dB, record.rightResult90dB].join(',').match(/REFER|REDO/) && React.createElement('option', { value: 'Audiologist Verification' }, t('audiologistVerification'))
           )
         )
       )
