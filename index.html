@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.6.0';
+const APP_VERSION = 'v8.6.1';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -953,7 +953,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
       const synopsisMatch = (notif.synopsis || '').match(/Filename requested: ([^\n]+)/);
       const originalFilename = synopsisMatch ? synopsisMatch[1].trim() : (notif.uniqueId || notif.uniqueID || '') + 'RETAKE';
       await fetch(SCRIPT_URL, {
-        method: 'POST', mode: 'no-cors',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'submitFlaggedPhoto',
