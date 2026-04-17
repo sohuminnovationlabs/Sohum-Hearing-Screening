@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.6.0';
+const APP_VERSION = 'v1.6.1';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -1063,52 +1063,7 @@ return inner.split(',').map(s => s.trim()); // oldest first, matches HCW storage
       )
     ),
 
-    <!-- // VERDICT SECTION — always visible at bottom before sticky -->
-    <!-- React.createElement('div', { className: 'px-4 mt-4 space-y-3' }, -->
-      <!-- React.createElement(Card, {}, -->
-        <!-- React.createElement('p', { className: 'text-sm font-semibold text-gray-700 mb-3' }, t('verdict')), -->
-        <!-- React.createElement('div', { className: 'grid grid-cols-3 gap-2' }, -->
-          <!-- ['PASS', 'REFER', 'REDO'].map(v => -->
-            <!-- React.createElement('button', { -->
-              <!-- key: v, -->
-              <!-- onClick: () => setVerdict(verdict === v ? '' : v), -->
-              <!-- className: `py-3 rounded-xl text-sm font-bold transition-all border-2 ${ -->
-                <!-- verdict === v -->
-                  <!-- ? v === 'PASS' ? 'bg-success text-white border-success' : -->
-                    <!-- v === 'REFER' ? 'bg-danger text-white border-danger' : -->
-                    <!-- 'bg-warn text-white border-warn' -->
-                  <!-- : v === 'PASS' ? 'text-success border-green-200 bg-green-50' : -->
-                    <!-- v === 'REFER' ? 'text-danger border-red-200 bg-red-50' : -->
-                    <!-- 'text-warn border-orange-200 bg-orange-50' -->
-              <!-- }` -->
-            <!-- }, t(v.toLowerCase())) -->
-          <!-- ) -->
-        <!-- ), -->
-        <!-- errors.verdict && React.createElement('p', { className: 'text-xs text-danger mt-1' }, errors.verdict), -->
-
-        <!-- React.createElement('div', { className: 'mt-3' }, -->
-          <!-- React.createElement('label', { className: 'text-xs font-medium text-gray-600 mb-1 block' }, t('recommendation')), -->
-          <!-- React.createElement('select', { -->
-            <!-- value: recommendation, -->
-            <!-- onChange: e => setRecommendation(e.target.value), -->
-            <!-- className: 'w-full bg-soft rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20' -->
-          <!-- }, -->
-            <!-- React.createElement('option', { value: '' }, t('selectRecommendation')), -->
-            <!-- RECOMMENDATIONS.map(r => React.createElement('option', { key: r, value: r }, r)) -->
-          <!-- ), -->
-          <!-- errors.rec && React.createElement('p', { className: 'text-xs text-danger mt-1' }, errors.rec) -->
-        <!-- ), -->
-
-        <!-- React.createElement('textarea', { -->
-          <!-- value: comments, -->
-          <!-- onChange: e => setComments(e.target.value), -->
-          <!-- placeholder: t('addComment'), -->
-          <!-- rows: 3, -->
-          <!-- className: 'w-full mt-3 bg-soft rounded-xl px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none' -->
-        <!-- }) -->
-      <!-- ) -->
-    <!-- ), -->
-
+  
     // STICKY SUBMIT
     React.createElement(StickyBottom, {},
       React.createElement(Btn, {
