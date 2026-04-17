@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.6.1';
+const APP_VERSION = 'v1.6.2';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -691,10 +691,12 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
 
   const handleSubmit = async () => {
     const errs = {};
-    if (!leftVerdict) errs.leftVerdict = t('verdictRequired');
-    if (!leftRecommendation) errs.leftRec = t('recRequired');
-    if (!rightVerdict) errs.rightVerdict = t('verdictRequired');
-    if (!rightRecommendation) errs.rightRec = t('recRequired');
+    const leftPhotos  = allPhotos.filter(p => p.ear === 'L');
+    const rightPhotos = allPhotos.filter(p => p.ear === 'R');
+    if (leftPhotos.length > 0 && !leftVerdict)        errs.leftVerdict = t('verdictRequired');
+    if (leftPhotos.length > 0 && !leftRecommendation)  errs.leftRec     = t('recRequired');
+    if (rightPhotos.length > 0 && !rightVerdict)       errs.rightVerdict = t('verdictRequired');
+    if (rightPhotos.length > 0 && !rightRecommendation) errs.rightRec   = t('recRequired');
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -709,9 +711,9 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
         action: 'submitReview',
         screeningId: sid,
         reviewedBy: user.username,
-        verdict: `L:${leftVerdict} / R:${rightVerdict}`,
-        recommendation: `L:${leftRecommendation} / R:${rightRecommendation}`,
-        comments: `Left: ${leftComments}\nRight: ${rightComments}`,
+        verdict: [leftVerdict, rightVerdict].filter(Boolean).join(' / '),
+        recommendation: [leftRecommendation, rightRecommendation].filter(Boolean).join(' / '),
+        comments: [leftComments ? 'Left: ' + leftComments : '', rightComments ? 'Right: ' + rightComments : ''].filter(Boolean).join('\n'),
         leftVerdict,
         leftRecommendation,
         leftComments,
