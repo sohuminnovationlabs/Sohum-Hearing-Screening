@@ -33,7 +33,7 @@ import { createRoot } from 'react-dom/client';
 
 // 🧪 TEST MODE - Set to true to pre-fill baby registration form for faster testing
 // Set back to false before pushing to production
-const TEST_MODE = false;
+const TEST_MODE = true;
 const TEST_DATA = {
   babyName: 'Test Baby',
   deviceTestId: '26siltestuid',
@@ -1018,10 +1018,12 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                   ),
                   React.createElement('span', { className: `text-xs font-semibold px-2 py-1 rounded-full ${
                     notif.reviewStatus === 'completed' ? 'bg-green-100 text-green-700' :
+                    notif.reviewStatus === 'photo_received' ? 'bg-green-100 text-green-700' :
                     notif.reviewStatus === 'photo_requested' ? 'bg-yellow-100 text-yellow-700' :
                     'bg-blue-100 text-blue-700'
                   }` },
                     notif.reviewStatus === 'completed' ? '✓ Done' :
+                    notif.reviewStatus === 'photo_received' ? '✓ Photo submitted' :
                     notif.reviewStatus === 'photo_requested' ? '📷 Retake' : '⏳ Pending'
                   )
                 ),
@@ -2755,7 +2757,7 @@ const App = () => {
   const fetchNotifCount = React.useCallback((hwId) => {
     fetch(`${SCRIPT_URL}?action=getHCWNotifications&hwId=${hwId}`)
       .then(r => r.json())
-      .then(d => setNotificationCount((d.data || []).filter(n => n.reviewStatus === 'photo_requested').length))
+      .then(d => setNotificationCount((d.data || []).filter(n => n.reviewStatus === 'photo_requested' || n.reviewStatus === 'photo_received').length))
       .catch(() => {});
   }, []);
   useEffect(() => {
