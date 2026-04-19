@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.6.1';
+const APP_VERSION = 'v8.6.1.0';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -1068,26 +1068,39 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                   selectedNotif === i && React.createElement('div', { className: 'p-3 bg-gray-50 rounded-xl space-y-2' },
                     (() => {
                       const lines = notif.synopsis.split('\n');
-                      const verdict = lines.find(l => l.startsWith('Verdict:'));
-                      const rec = lines.find(l => l.startsWith('Recommendation:'));
-                      const comment = lines.find(l => l.startsWith('Comment:'));
-                      const photoNotesStart = lines.findIndex(l => l.includes('Per Photo Notes'));
-                      const photoNotes = photoNotesStart >= 0 ? lines.slice(photoNotesStart + 1).filter(l => l.trim() && !l.startsWith('---')) : [];
+                      const get = (prefix) => { const l = lines.find(l => l.startsWith(prefix)); return l ? l.slice(prefix.length).trim() : null; };
+                      const leftVerdict         = get('Left Verdict:');
+                      const leftRec             = get('Left Recommendation:');
+                      const leftComment         = get('Left Comment:');
+                      const rightVerdict        = get('Right Verdict:');
+                      const rightRec            = get('Right Recommendation:');
+                      const rightComment        = get('Right Comment:');
+                      const photoNotesStart     = lines.findIndex(l => l.includes('Per Photo Notes'));
+                      const photoNotes          = photoNotesStart >= 0 ? lines.slice(photoNotesStart + 1).filter(l => l.trim() && !l.startsWith('---')) : [];
+                      const row = (label, value) => value && React.createElement('div', { className: 'flex justify-between items-start gap-2' },
+                        React.createElement('span', { className: 'text-gray-500 text-xs flex-shrink-0' }, label),
+                        React.createElement('span', { className: 'font-medium text-gray-800 text-xs text-right' }, value)
+                      );
                       return React.createElement('div', { className: 'space-y-2 text-sm' },
-                        verdict && React.createElement('div', { className: 'flex justify-between' },
-                          React.createElement('span', { className: 'text-gray-500 text-xs' }, t('audiologistVerdict')),
-                          React.createElement('span', { className: 'font-semibold text-gray-800' }, verdict.replace('Verdict: ', ''))
+                        (leftVerdict || rightVerdict) && React.createElement('div', { className: 'space-y-1' },
+                          React.createElement('p', { className: 'text-gray-500 text-xs font-semibold' }, t('audiologistVerdict')),
+                          row('Left ear', leftVerdict),
+                          row('Right ear', rightVerdict)
                         ),
-                        rec && React.createElement('div', { className: 'flex justify-between' },
-                          React.createElement('span', { className: 'text-gray-500 text-xs' }, t('audiologistRecommendation')),
-                          React.createElement('span', { className: 'font-medium text-gray-700 text-xs text-right flex-1 ml-2' }, rec.replace('Recommendation: ', ''))
+                        (leftRec || rightRec) && React.createElement('div', { className: 'space-y-1' },
+                          React.createElement('p', { className: 'text-gray-500 text-xs font-semibold' }, t('audiologistRecommendation')),
+                          row('Left ear', leftRec),
+                          row('Right ear', rightRec)
                         ),
-                        comment && React.createElement('div', {},
-                          React.createElement('p', { className: 'text-gray-500 text-xs mb-0.5' }, t('audiologistComments')),
-                          React.createElement('p', { className: 'text-gray-700 text-xs bg-white rounded-lg p-2 border border-gray-100' }, comment.replace('Comment: ', ''))
+                        (leftComment || rightComment) && React.createElement('div', {},
+                          React.createElement('p', { className: 'text-gray-500 text-xs font-semibold mb-0.5' }, t('audiologistComments')),
+                          React.createElement('div', { className: 'bg-white rounded-lg p-2 border border-gray-100 space-y-1' },
+                            leftComment  && React.createElement('p', { className: 'text-gray-700 text-xs' }, 'Left: ' + leftComment),
+                            rightComment && React.createElement('p', { className: 'text-gray-700 text-xs' }, 'Right: ' + rightComment)
+                          )
                         ),
                         photoNotes.length > 0 && React.createElement('div', {},
-                          React.createElement('p', { className: 'text-gray-500 text-xs mb-0.5' }, 'Per Photo Notes'),
+                          React.createElement('p', { className: 'text-gray-500 text-xs font-semibold mb-0.5' }, 'Per Photo Notes'),
                           React.createElement('div', { className: 'bg-white rounded-lg p-2 border border-gray-100 space-y-1' },
                             photoNotes.map((note, ni) =>
                               React.createElement('p', { key: ni, className: 'text-gray-700 text-xs font-mono' }, note)
