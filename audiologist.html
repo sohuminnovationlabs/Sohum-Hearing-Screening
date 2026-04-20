@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.6.4';
+const APP_VERSION = 'v1.6.5';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -447,7 +447,7 @@ const QueueCard = ({ item, onClick, t }) => {
       React.createElement('div', { className: 'flex flex-col items-end gap-1' },
         isUrgent && React.createElement(Pill, { label: t('urgent'), color: 'orange' }),
         item.reviewStatus === 'photo_received'
-          ? React.createElement(Pill, { label: '📷 New Photo', color: 'green' })
+           React.createElement('span', { className: 'text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-100' }, '📷 Photo re-uploaded')
           : isPhotoReq
             ? React.createElement(Pill, { label: t('photoRequested'), color: 'yellow' })
             : React.createElement(Pill, { label: t('pending'), color: 'blue' })
@@ -458,6 +458,20 @@ const QueueCard = ({ item, onClick, t }) => {
       React.createElement('span', {}, 'Device: ' + (item.deviceSerial || '—')),
       item.uniqueID && React.createElement('span', { className: 'font-mono' }, 'Unique ID: ' + item.uniqueID),
       assignedDate && React.createElement('span', { className: 'ml-auto' }, assignedDate)
+    ),
+    React.createElement('div', { className: 'flex gap-1.5 mt-2' },
+      (() => {
+        const hasLeft  = ['leftEar35DB','leftEar50DB','leftEar70DB','leftEar90DB'].some(k => item[k] && item[k].toString().trim());
+        const hasRight = ['rightEar35DB','rightEar50DB','rightEar70DB','rightEar90DB'].some(k => item[k] && item[k].toString().trim());
+        const hasOAELeft  = item.oAELeftEar  && item.oAELeftEar.toString().trim();
+        const hasOAERight = item.oAERightEar && item.oAERightEar.toString().trim();
+        const showL = hasLeft  || hasOAELeft;
+        const showR = hasRight || hasOAERight;
+        return React.createElement(React.Fragment, {},
+          showL && React.createElement('span', { className: 'text-xs font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200' }, 'L'),
+          showR && React.createElement('span', { className: 'text-xs font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200' }, 'R')
+        );
+      })()
     )
   );
 };
@@ -553,36 +567,109 @@ const QueueScreen = ({ user, onReview, onStats, onLogout }) => {
 // ─────────────────────────────────────────────
 const StatsScreen = ({ user, onBack }) => {
   const { t } = useLang();
-  const [stats, setStats] = useState(null);
+  const [allRows, setAllRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filterDim, setFilterDim] = useState('');   // '' | 'ngo' | 'hospital' | 'hcw'
+  const [filterVal, setFilterVal] = useState('');
 
   useEffect(() => {
-    api.get({ action: 'getAudiologistStats', username: user.username })
-      .then(res => { if (res.status === 'success') setStats(res.data); })
+    fetch(`${SCRIPT_URL}?action=getAll`)
+      .then(r => r.json())
+      .then(d => {
+        const rows = (d.data || []).slice(1); // skip header
+        // Keep only rows reviewed by this audiologist
+        const mine = rows.filter(row => {
+          const assignedTo = (row[55] || '').toString().trim();
+          const status     = (row[56] || '').toString().trim();
+          return assignedTo === user.username && status === 'completed';
+        });
+        setAllRows(mine);
+      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [user.username]);
 
+  // Build filter options from the rows
+  const optionsFor = (dim) => {
+    const vals = new Set();
+    allRows.forEach(row => {
+      if (dim === 'ngo')      vals.add((row[3]  || '').toString().trim());
+      if (dim === 'hospital') vals.add((row[4]  || '').toString().trim());
+      if (dim === 'hcw')      vals.add((row[1]  || '').toString().trim());
+    });
+    return [...vals].filter(Boolean).sort();
+  };
+
+  // Apply filter
+  const filtered = filterDim && filterVal
+    ? allRows.filter(row => {
+        if (filterDim === 'ngo')      return (row[3]  || '').toString().trim() === filterVal;
+        if (filterDim === 'hospital') return (row[4]  || '').toString().trim() === filterVal;
+        if (filterDim === 'hcw')      return (row[1]  || '').toString().trim() === filterVal;
+        return true;
+      })
+    : allRows;
+
+  // Compute time-based counts from filtered rows
+  const now = new Date();
+  const todayStart  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekAgo     = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000);
+  const monthStart  = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thirtyAgo   = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const ts = (row) => new Date(row[0]);
+  const stats = {
+    today:     filtered.filter(r => ts(r) >= todayStart).length,
+    last7:     filtered.filter(r => ts(r) >= weekAgo).length,
+    thisMonth: filtered.filter(r => ts(r) >= monthStart).length,
+    last30:    filtered.filter(r => ts(r) >= thirtyAgo).length,
+    allTime:   filtered.length
+  };
+
+  const dimOptions = [
+    { value: 'ngo',      label: 'Filter by NGO' },
+    { value: 'hospital', label: 'Filter by Hospital' },
+    { value: 'hcw',      label: 'Filter by Healthcare Worker' }
+  ];
+
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
     React.createElement(Header, { title: t('stats'), subtitle: user.name, onBack }),
-    React.createElement('div', { className: 'p-4' },
+    React.createElement('div', { className: 'p-4 space-y-4' },
+      // Filter controls
+      React.createElement('div', { className: 'space-y-2' },
+        React.createElement('select', {
+          value: filterDim,
+          onChange: e => { setFilterDim(e.target.value); setFilterVal(''); },
+          className: 'w-full bg-soft rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20'
+        },
+          React.createElement('option', { value: '' }, 'All cases (no filter)'),
+          dimOptions.map(o => React.createElement('option', { key: o.value, value: o.value }, o.label))
+        ),
+        filterDim && React.createElement('select', {
+          value: filterVal,
+          onChange: e => setFilterVal(e.target.value),
+          className: 'w-full bg-soft rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20'
+        },
+          React.createElement('option', { value: '' }, 'Select ' + dimOptions.find(o => o.value === filterDim)?.label.replace('Filter by ', '')),
+          optionsFor(filterDim).map(v => React.createElement('option', { key: v, value: v }, v))
+        )
+      ),
+      // Stats cards
       loading
         ? React.createElement('div', { className: 'flex justify-center py-12' }, React.createElement(Spinner))
-        : stats
-          ? React.createElement('div', { className: 'space-y-3' },
-              [
-                { label: t('today'), value: stats.today },
-                { label: t('last7'), value: stats.last7 },
-                { label: t('thisMonth'), value: stats.thisMonth },
-                { label: t('last30'), value: stats.last30 },
-                { label: t('allTime'), value: stats.allTime }
-              ].map(s =>
-                React.createElement(Card, { key: s.label, className: 'flex items-center justify-between slide-up' },
-                  React.createElement('span', { className: 'text-sm text-gray-600' }, s.label),
-                  React.createElement('span', { className: 'text-2xl font-bold text-primary' }, s.value)
-                )
+        : React.createElement('div', { className: 'space-y-3' },
+            [
+              { label: t('today'),     value: stats.today },
+              { label: t('last7'),     value: stats.last7 },
+              { label: t('thisMonth'), value: stats.thisMonth },
+              { label: t('last30'),    value: stats.last30 },
+              { label: t('allTime'),   value: stats.allTime }
+            ].map(s =>
+              React.createElement(Card, { key: s.label, className: 'flex items-center justify-between slide-up' },
+                React.createElement('span', { className: 'text-sm text-gray-600' }, s.label),
+                React.createElement('span', { className: 'text-2xl font-bold text-primary' }, s.value)
               )
             )
-          : React.createElement('p', { className: 'text-center text-gray-400 py-12' }, t('error'))
+          )
     )
   );
 };
