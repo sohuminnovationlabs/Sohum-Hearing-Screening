@@ -1106,7 +1106,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                       const formatPhotoLabel = (raw) => {
                         // converts e.g. "L_35dB_1" → "35dB, Test attempt 1"
                         const m = raw.match(/^[LR]_(\d+(?:\.\d+)?(?:k)?[Dd][Bb])_(\d+)/);
-                        return m ? `${m[1].toUpperCase()}, Test attempt ${m[2]}` : raw;
+                        return m ? `${m[1].replace(/db/i, 'dB')}, Test attempt ${m[2]}` : raw;
                       };
 
                       // Parse photo notes into a map: ear ('L'|'R') → array of { label, val }
@@ -1119,7 +1119,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                         const ear = earMatch ? earMatch[1] : null;
                         if (ear) {
                           const m = rawKey.match(/^[LR]_(\d+(?:\.\d+)?(?:k)?dB)_(\d+)/i);
-                          const label = m ? `${m[1].toUpperCase()} — attempt ${m[2]}` : rawKey;
+                          const label = m ? `${m[1].replace(/db/i, 'dB')} — attempt ${m[2]}` : rawKey;
                           notesByEar[ear].push({ label, val });
                         }
                       });
