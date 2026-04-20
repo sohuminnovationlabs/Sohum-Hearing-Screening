@@ -53,7 +53,7 @@ import { createRoot } from 'react-dom/client';
 // ─────────────────────────────────────────────
 // 🔧 VERSION — update this single line for new releases
 // ─────────────────────────────────────────────
-const APP_VERSION = 'v1.6.2';
+const APP_VERSION = 'v1.6.3';
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -628,8 +628,9 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
     load();
   }, [queueItem.screeningID, queueItem.screeningId]);
 
-  const [photoFileIds, setPhotoFileIds] = useState({}); // filename → Drive file ID
-
+  const [photoFileIds, setPhotoFileIds] = useState({});         // filename → current file ID to show
+  const [photoOriginalIds, setPhotoOriginalIds] = useState({}); // filename → original ID (when retake exists)
+  const [showOriginal, setShowOriginal] = useState({});         // filename → bool
   // Build list of photos from the screening using exact key names from API
   const allPhotos = React.useMemo(() => {
     if (!detail) return [];
@@ -668,23 +669,28 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
   useEffect(() => {
     if (allPhotos.length === 0) return;
     const fetchIds = async () => {
-      const isPhotoReq = queueItem.reviewStatus === 'photo_requested';
-      const entries = await Promise.all(
+      const hasFlagged = queueItem.reviewStatus === 'photo_requested' || queueItem.reviewStatus === 'photo_received';
+      const currentMap = {};
+      const originalMap = {};
+      await Promise.all(
         allPhotos.map(async (photo) => {
           try {
-            if (isPhotoReq) {
+            const origRes = await api.get({ action: 'getPhotoId', filename: photo.filename });
+            const origId = origRes.status === 'success' ? origRes.fileId : null;
+            if (hasFlagged) {
               const flaggedRes = await api.get({ action: 'getPhotoId', filename: photo.filename + 'FLAGGED' });
-              if (flaggedRes.status === 'success') return [photo.filename, flaggedRes.fileId];
+              if (flaggedRes.status === 'success') {
+                currentMap[photo.filename] = flaggedRes.fileId;
+                if (origId) originalMap[photo.filename] = origId;
+                return;
+              }
             }
-            const res = await api.get({ action: 'getPhotoId', filename: photo.filename });
-            if (res.status === 'success') return [photo.filename, res.fileId];
+            if (origId) currentMap[photo.filename] = origId;
           } catch (e) { /* skip */ }
-          return [photo.filename, null];
         })
       );
-      const map = {};
-      entries.forEach(([name, id]) => { if (id) map[name] = id; });
-      setPhotoFileIds(map);
+      setPhotoFileIds(currentMap);
+      setPhotoOriginalIds(originalMap);
     };
     fetchIds();
   }, [allPhotos.length]);
@@ -817,20 +823,1366 @@ const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
                 className: 'text-xs text-warn font-semibold bg-yellow-50 border border-yellow-200 px-2 py-1 rounded-lg hover:bg-yellow-100'
               }, '⚑ Flag')
             ),
-            imgUrl
-              ? React.createElement('img', {
-                  src: imgUrl, alt: photo.filename,
-                  className: 'w-full rounded-xl object-cover max-h-56 photo-pinch bg-gray-100',
-                  onClick: () => setZoomUrl(imgUrl),
-                  onError: e => { e.target.style.display = 'none'; }
+            (() => {
+              const isShowingOriginal = showOriginal[photo.filename];
+              const displayId  = isShowingOriginal ? photoOriginalIds[photo.filename] : (photoFileIds[photo.filename] || null);
+              const displayUrl = displayId ? `https://drive.google.com/thumbnail?id=${displayId}&sz=w1000` : null;
+              const hasRetake  = !!photoOriginalIds[photo.filename];
+              return React.createElement('div', {},
+                displayUrl
+                  ? React.createElement('img', {
+                      src: displayUrl, alt: photo.filename,
+                      className: 'w-full rounded-xl object-cover max-h-56 photo-pinch bg-gray-100',
+                      onClick: () => setZoomUrl(displayUrl),
+                      onError: e => { e.target.style.display = 'none'; }
+                    })
+                  : React.createElement('div', { className: 'w-full h-32 rounded-xl bg-gray-100 flex items-center justify-center' },
+                      React.createElement('div', { className: 'text-center' },
+                        React.createElement('div', { className: 'w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full spin mx-auto mb-1' }),
+                        React.createElement('p', { className: 'text-xs text-gray-400' }, 'Loading ' + photo.filename)
+                      )
+                    ),
+                React.createElement('div', { className: 'flex items-center justify-between mt-1' },
+                  React.createElement('p', { className: 'text-xs text-gray-400' }, t('zoomPhoto')),
+                  hasRetake && React.createElement('button', {
+                    onClick: () => setShowOriginal(prev => ({ ...prev, [photo.filename]: !prev[photo.filename] })),
+                    className: 'text-xs text-primary underline font-medium'
+                  }, isShowingOriginal ? 'View retaken photo' : 'View original photo')
+                )
+              );
+            })(),
+            React.createElement('textarea', {
+              value: photoNotes[photo.noteKey] || '',
+              onChange: e => setPhotoNotes({ ...photoNotes, [photo.noteKey]: e.target.value }),
+              placeholder: t('addPhotoNote'), rows: 2,
+              className: 'w-full mt-2 bg-soft rounded-xl px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none'
+            })
+          );
+        };
+
+        const renderVerdictCard = (ear) => {
+          const isLeft = ear === 'L';
+          const verdict         = isLeft ? leftVerdict         : rightVerdict;
+          const setVerdictFn    = isLeft ? setLeftVerdict      : setRightVerdict;
+          const recommendation  = isLeft ? leftRecommendation  : rightRecommendation;
+          const setRecFn        = isLeft ? setLeftRecommendation : setRightRecommendation;
+          const commentsVal     = isLeft ? leftComments        : rightComments;
+          const setCommentsFn   = isLeft ? setLeftComments     : setRightComments;
+          const verdictErr      = isLeft ? errors.leftVerdict  : errors.rightVerdict;
+          const recErr          = isLeft ? errors.leftRec      : errors.rightRec;
+          const label           = isLeft ? t('leftEar')        : t('rightEar');
+
+          return React.createElement(Card, { key: ear },
+            React.createElement('p', { className: 'text-sm font-semibold text-gray-700 mb-3' }, label + ' — ' + t('verdict')),
+            React.createElement('div', { className: 'grid grid-cols-3 gap-2' },
+              ['PASS', 'REFER', 'REDO'].map(v =>
+                React.createElement('button', {
+                  key: v,
+                  onClick: () => setVerdictFn(verdict === v ? '' : v),
+                  className: `py-3 rounded-xl text-sm font-bold transition-all border-2 ${
+                    verdict === v
+                      ? v === 'PASS' ? 'bg-success text-white border-success' :
+                        v === 'REFER' ? 'bg-danger text-white border-danger' :
+                        'bg-warn text-white border-warn'
+                      : v === 'PASS' ? 'text-success border-green-200 bg-green-50' :
+                        v === 'REFER' ? 'text-danger border-red-200 bg-red-50' :
+                        'text-warn border-orange-200 bg-orange-50'
+                  }`
+                }, t(v.toLowerCase()))
+              )
+            ),
+            verdictErr && React.createElement('p', { className: 'text-xs text-danger mt-1' }, verdictErr),
+            React.createElement('div', { className: 'mt-3' },
+              React.createElement('label', { className: 'text-xs font-medium text-gray-600 mb-1 block' }, t('recommendation')),
+              React.createElement('select', {
+                value: recommendation,
+                onChange: e => setRecFn(e.target.value),
+                className: 'w-full bg-soft rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20'
+              },
+                React.createElement('option', { value: '' }, t('selectRecommendation')),
+                RECOMMENDATIONS.map(r => React.createElement('option', { key: r, value: r }, r))
+              ),
+              recErr && React.createElement('p', { className: 'text-xs text-danger mt-1' }, recErr)
+            ),
+            React.createElement('textarea', {
+              value: commentsVal,
+              onChange: e => setCommentsFn(e.target.value),
+              placeholder: t('addComment'), rows: 3,
+              className: 'w-full mt-3 bg-soft rounded-xl px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none'
+            })
+          );
+        };
+
+        if (allPhotos.length === 0) {
+          return React.createElement('div', { className: 'text-center py-12 text-gray-400' },
+            React.createElement('div', { className: 'text-3xl mb-2' }, '📷'),
+            React.createElement('p', { className: 'text-sm' }, t('noPhotos'))
+          );
+        }
+
+        return React.createElement('div', { className: 'space-y-3' },
+          leftPhotos.length > 0 && React.createElement('div', { className: 'space-y-3' },
+            React.createElement('p', { className: 'text-xs font-bold text-primary uppercase tracking-wide px-1' }, t('leftEar')),
+            ...leftPhotos.map(renderPhotoCard),
+            renderVerdictCard('L')
+          ),
+          rightPhotos.length > 0 && React.createElement('div', { className: 'space-y-3 mt-4' },
+            React.createElement('p', { className: 'text-xs font-bold text-primary uppercase tracking-wide px-1' }, t('rightEar')),
+            ...rightPhotos.map(renderPhotoCard),
+            renderVerdictCard('R')
+          )
+        );
+      })(),
+
+      // BABY DETAILS TAB
+      activeTab === 'details' && detail && React.createElement(Card, {},
+        React.createElement('div', { className: 'space-y-3' },
+          [
+            { label: t('babyName'),    value: detail.babyName },
+            { label: 'Unique ID',      value: detail.uniqueID },
+            { label: t('dob'),         value: detail.dateOfBirth ? new Date(detail.dateOfBirth).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+            { label: t('gender'),      value: detail.gender },
+            { label: t('gestAge'),     value: detail.gestationalAgeweeks ? detail.gestationalAgeweeks + ' ' + t('weeks') : '—' },
+            { label: t('riskFactors'), value: detail.riskFactors || 'None' },
+            { label: t('parentName'),  value: detail.parentName },
+            { label: t('parentPhone'), value: detail.parentPhone ? String(detail.parentPhone) : '—' },
+            { label: 'Hospital',       value: detail.hospital },
+            { label: t('ngo'),         value: detail.nGO },
+            { label: t('deviceSerial'),value: detail.deviceSerial }
+          ].map(row =>
+            React.createElement('div', { key: row.label, className: 'flex justify-between items-start py-2 border-b border-gray-50 last:border-0' },
+              React.createElement('span', { className: 'text-xs text-gray-500 flex-shrink-0 w-32' }, row.label),
+              React.createElement('span', { className: 'text-sm font-medium text-gray-800 text-right flex-1' }, row.value || '—')
+            )
+          )
+        )
+      ),
+
+      // TEST RESULTS TAB
+      activeTab === 'results' && detail && React.createElement('div', { className: 'space-y-3' },
+        detail.testType === 'AABR' && React.createElement('div', { className: 'space-y-2' },
+          [
+            { lKey: 'leftEar35DB', rKey: 'rightEar35DB', db: '35dB' },
+            { lKey: 'leftEar50DB', rKey: 'rightEar50DB', db: '50dB' },
+            { lKey: 'leftEar70DB', rKey: 'rightEar70DB', db: '70dB' },
+            { lKey: 'leftEar90DB', rKey: 'rightEar90DB', db: '90dB' }
+          ].map(({ lKey, rKey, db }) => {
+            const lVal = detail[lKey] || '';
+            const rVal = detail[rKey] || '';
+            if (!lVal && !rVal) return null;
+            const isReviewed = lVal.startsWith('AO[') || rVal.startsWith('AO[');
+
+            // Parse result string into attempt array (reverse chrono → reverse to get chrono)
+            const parseResults = (str) => {
+              if (!str) return [];
+              const clean = str.replace(/^AO\[/, '[');
+              if (clean.startsWith('[')) {
+                const inner = clean.replace(/^\[/, '').replace(/\]$/, '');
+return inner.split(',').map(s => s.trim()); // oldest first, matches HCW storage order
+              }
+              return [clean.trim()];
+            };
+
+            // Parse impedance string for one ear at one dB level
+            // Format: "L: 35dB:65,2|50dB:3 --//-- R: 35dB:12,2"
+            const parseImp = (colVal, ear, dbLevel) => {
+              if (!colVal) return [];
+              const earPrefix = ear + ':';
+              const earSection = colVal.split('--//--').find(s => s.trim().startsWith(earPrefix));
+              if (!earSection) return [];
+              const dbSection = earSection.replace(earPrefix, '').trim().split('|').find(s => s.startsWith(dbLevel + ':'));
+              if (!dbSection) return [];
+              return dbSection.replace(dbLevel + ':', '').split(',').map(s => s.trim());
+            };
+
+            const renderEar = (resultStr, ear, label) => {
+              if (!resultStr) return null;
+              const results = parseResults(resultStr);
+              const vtxGnd = parseImp(detail.impedanceVTXGNDk, ear, db);
+              const gndRef = parseImp(detail.impedanceGNDREFk, ear, db);
+              const refVtx = parseImp(detail.impedanceREFVTXk, ear, db);
+
+              return React.createElement('div', { className: 'bg-soft rounded-xl p-3' },
+                React.createElement('p', { className: 'text-xs font-semibold text-primary mb-2' }, label),
+                results.map((res, i) => {
+                  const resPill = res === 'PASS'
+                    ? React.createElement(Pill, { label: 'PASS', color: 'green' })
+                    : res === 'REFER'
+                      ? React.createElement(Pill, { label: 'REFER', color: 'red' })
+                      : React.createElement(Pill, { label: 'REDO', color: 'orange' });
+                  return React.createElement('div', { key: i, className: 'mb-2 pb-2 border-b border-white/60 last:border-0 last:mb-0 last:pb-0' },
+                    React.createElement('div', { className: 'flex items-center gap-2 mb-1' },
+                      React.createElement('span', { className: 'text-xs text-gray-500' }, 'Attempt ' + (i + 1)),
+                      resPill
+                    ),
+                    React.createElement('div', { className: 'grid grid-cols-3 gap-1 text-xs text-gray-600' },
+                      React.createElement('div', {},
+                        React.createElement('div', { className: 'text-gray-400 text-xs' }, 'VTX-GND'),
+                        React.createElement('div', { className: 'font-mono font-medium' }, vtxGnd[i] || '—')
+                      ),
+                      React.createElement('div', {},
+                        React.createElement('div', { className: 'text-gray-400 text-xs' }, 'GND-REF'),
+                        React.createElement('div', { className: 'font-mono font-medium' }, gndRef[i] || '—')
+                      ),
+                      React.createElement('div', {},
+                        React.createElement('div', { className: 'text-gray-400 text-xs' }, 'REF-VTX'),
+                        React.createElement('div', { className: 'font-mono font-medium' }, refVtx[i] || '—')
+                      )
+                    )
+                  );
                 })
-              : React.createElement('div', { className: 'w-full h-32 rounded-xl bg-gray-100 flex items-center justify-center' },
-                  React.createElement('div', { className: 'text-center' },
-                    React.createElement('div', { className: 'w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full spin mx-auto mb-1' }),
-                    React.createElement('p', { className: 'text-xs text-gray-400' }, 'Loading ' + photo.filename)
+              );
+            };
+
+            return React.createElement(Card, { key: db },
+              React.createElement('div', { className: 'flex items-center justify-between mb-3' },
+                React.createElement('span', { className: 'text-sm font-semibold text-gray-700' }, db),
+                isReviewed && React.createElement(Pill, { label: t('auditReviewed'), color: 'green' })
+              ),
+              React.createElement('div', { className: 'space-y-2' },
+                renderEar(lVal, 'L', t('leftEar')),
+                renderEar(rVal, 'R', t('rightEar'))
+              )
+            );
+          })
+        ),
+        detail.testType === 'OAE' && React.createElement(Card, {},
+          React.createElement('div', { className: 'space-y-2' },
+            React.createElement('div', { className: 'flex justify-between' },
+              React.createElement('span', { className: 'text-xs text-gray-500' }, t('testType')),
+              React.createElement('span', { className: 'text-sm font-medium' }, (detail.oAETestType || '') + ' · ' + (detail.oAEProtocol || ''))
+            ),
+            React.createElement('div', { className: 'flex justify-between' },
+              React.createElement('span', { className: 'text-xs text-gray-500' }, t('leftEar')),
+              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAELeftEar || '—')
+            ),
+            React.createElement('div', { className: 'flex justify-between' },
+              React.createElement('span', { className: 'text-xs text-gray-500' }, t('rightEar')),
+              React.createElement('span', { className: 'text-sm font-medium' }, detail.oAERightEar || '—')
+            )
+          )
+        )
+      ),
+
+      // HISTORY TAB
+      activeTab === 'history' && React.createElement('div', { className: 'space-y-2' },
+        history.length <= 1
+          ? React.createElement('p', { className: 'text-center text-gray-400 py-8 text-sm' }, t('noHistory'))
+          : history.filter(h => h.screeningId !== queueItem.screeningId).map((h, i) =>
+              React.createElement(Card, { key: i, className: 'text-sm' },
+                React.createElement('div', { className: 'flex justify-between items-start' },
+                  React.createElement('div', {},
+                    React.createElement('p', { className: 'font-medium text-gray-700 text-xs font-mono' }, h.screeningId),
+                    React.createElement('p', { className: 'text-xs text-gray-400 mt-0.5' }, h.timestamp ? new Date(h.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
+                  ),
+                  React.createElement('div', { className: 'text-right' },
+                    React.createElement('p', { className: 'text-xs text-gray-500' }, h.testType),
+                    React.createElement('p', { className: 'text-xs font-medium text-gray-700 mt-0.5' }, h.recommendation || '—')
+                  )
+                )
+              )
+            )
+      )
+    ),
+
+  
+    // STICKY SUBMIT
+    React.createElement(StickyBottom, {},
+      React.createElement(Btn, {
+        onClick: handleSubmit,
+        loading: submitting
+      }, submitting ? t('submitting') : t('submitReview'))
+    ),
+
+    // PHOTO ZOOM MODAL
+    zoomUrl && React.createElement(PhotoZoom, { url: zoomUrl, onClose: () => setZoomUrl(null) }),
+
+    // FLAG PHOTO MODAL
+    flagModal && React.createElement('div', {
+      className: 'fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4',
+      onClick: () => setFlagModal(null)
+    },
+      React.createElement('div', {
+        className: 'bg-white rounded-2xl p-5 w-full max-w-[480px] space-y-3',
+        onClick: e => e.stopPropagation()
+      },
+        React.createElement('h3', { className: 'font-semibold text-gray-800' }, t('requestPhoto')),
+        React.createElement('p', { className: 'text-xs text-gray-500 font-mono' }, flagModal.filename),
+        React.createElement('textarea', {
+          value: flagReason,
+          onChange: e => setFlagReason(e.target.value),
+          placeholder: t('describeIssue'),
+          rows: 3,
+          autoFocus: true,
+          className: 'w-full bg-soft rounded-xl px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-warn/20 resize-none'
+        }),
+        React.createElement('div', { className: 'flex gap-2' },
+          React.createElement('button', {
+            onClick: () => setFlagModal(null),
+            className: 'flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold'
+          }, t('cancel')),
+          React.createElement('button', {
+            onClick: handleFlagPhoto,
+            disabled: !flagReason.trim(),
+            className: 'flex-1 py-3 bg-warn text-white rounded-xl text-sm font-semibold disabled:opacity-40'
+          }, t('flagPhoto'))
+        )
+      )
+    ),
+
+    React.createElement(VersionWatermark)
+  );
+};
+
+// ─────────────────────────────────────────────
+// ADMIN OVERVIEW SCREEN
+// ─────────────────────────────────────────────
+const AdminOverviewScreen = ({ user, onLogout, onReassign }) => {
+  const { t } = useLang();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+  const [reassignModal, setReassignModal] = useState(null);
+  const [audiologists, setAudiologists] = useState([]);
+  const [newAssignee, setNewAssignee] = useState('');
+  const [reassigning, setReassigning] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get({ action: 'getAdminOverview' });
+      if (res.status === 'success') {
+        setData(res.data);
+        setAudiologists(Object.keys(res.data));
+      }
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleReassign = async () => {
+    if (!newAssignee || !reassignModal) return;
+    setReassigning(true);
+    await api.post({
+      action: 'reassignCase',
+      screeningId: reassignModal.screeningId,
+      newAudiologist: newAssignee,
+      adminUsername: user.username
+    });
+    setReassignModal(null);
+    setNewAssignee('');
+    setReassigning(false);
+    load();
+  };
+
+  return React.createElement('div', { className: 'min-h-screen flex flex-col pb-4' },
+    React.createElement(Header, {
+      title: t('adminOverview'),
+      subtitle: user.name,
+      rightEl: React.createElement('div', { className: 'flex gap-2' },
+        React.createElement(LangSelector),
+        React.createElement('button', {
+          onClick: onLogout,
+          className: 'w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center'
+        }, '⎋')
+      )
+    }),
+
+    loading
+      ? React.createElement('div', { className: 'flex justify-center py-16' }, React.createElement(Spinner))
+      : React.createElement('div', { className: 'px-4 pt-4 space-y-3' },
+          data && Object.entries(data).map(([username, info]) =>
+            React.createElement('div', { key: username, className: 'bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden' },
+              React.createElement('div', {
+                className: 'p-4 flex items-center justify-between cursor-pointer hover:bg-soft transition-colors',
+                onClick: () => setExpanded(expanded === username ? null : username)
+              },
+                React.createElement('div', {},
+                  React.createElement('p', { className: 'font-semibold text-gray-800 text-sm' }, username),
+                  React.createElement('div', { className: 'flex gap-2 mt-1' },
+                    React.createElement(Pill, { label: info.pending + ' ' + t('pendingCount'), color: 'blue' }),
+                    info.urgent > 0 && React.createElement(Pill, { label: info.urgent + ' ' + t('urgentCount'), color: 'orange' }),
+                    info.photoRequested > 0 && React.createElement(Pill, { label: info.photoRequested + ' ' + t('photoReqCount'), color: 'yellow' })
                   )
                 ),
-            React.createElement('p', { className: 'text-xs text-gray-400 mt-1 text-center' }, t('zoomPhoto')),
+                React.createElement('span', { className: 'text-gray-400 text-lg' }, expanded === username ? '▾' : '▸')
+              ),
+              expanded === username && info.cases && info.cases.length > 0 &&
+                React.createElement('div', { className: 'border-t border-gray-100 divide-y divide-gray-50' },
+                  info.cases.map((c, i) =>
+                    React.createElement('div', { key: i, className: 'px-4 py-3 flex items-center justify-between' },
+                      React.createElement('div', { className: 'flex-1 min-w-0' },
+                        React.createElement('p', { className: 'text-xs font-medium text-gray-700 truncate' }, c.babyName || '—'),
+                        React.createElement('p', { className: 'text-xs text-gray-400 font-mono' }, c.screeningId),
+                        React.createElement('div', { className: 'flex gap-1 mt-0.5' },
+                          c.urgent && React.createElement(Pill, { label: t('urgent'), color: 'orange' }),
+                          React.createElement(Pill, {
+                            label: c.status === 'photo_requested' ? t('photoRequested') : t('pending'),
+                            color: c.status === 'photo_requested' ? 'yellow' : 'blue'
+                          })
+                        )
+                      ),
+                      React.createElement('button', {
+                        onClick: () => { setReassignModal(c); setNewAssignee(''); },
+                        className: 'ml-3 text-xs font-semibold text-primary bg-soft px-2.5 py-1.5 rounded-lg hover:bg-teal-100 flex-shrink-0'
+                      }, t('reassign'))
+                    )
+                  )
+                )
+            )
+          )
+        ),
+
+    // Reassign modal
+    reassignModal && React.createElement('div', {
+      className: 'fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4',
+      onClick: () => setReassignModal(null)
+    },
+      React.createElement('div', {
+        className: 'bg-white rounded-2xl p-5 w-full max-w-[480px] space-y-3',
+        onClick: e => e.stopPropagation()
+      },
+        React.createElement('h3', { className: 'font-semibold text-gray-800' }, t('reassignTo')),
+        React.createElement('p', { className: 'text-xs font-mono text-gray-500' }, reassignModal.screeningId),
+        React.createElement('select', {
+          value: newAssignee,
+          onChange: e => setNewAssignee(e.target.value),
+          className: 'w-full bg-soft rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20'
+        },
+          React.createElement('option', { value: '' }, t('selectAudiologist')),
+          audiologists.filter(a => a !== reassignModal.assignedTo).map(a =>
+            React.createElement('option', { key: a, value: a }, a)
+          )
+        ),
+        React.createElement('div', { className: 'flex gap-2' },
+          React.createElement('button', {
+            onClick: () => setReassignModal(null),
+            className: 'flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold'
+          }, t('cancel')),
+          React.createElement(Btn, {
+            onClick: handleReassign,
+            disabled: !newAssignee,
+            loading: reassigning,
+            className: 'flex-1'
+          }, t('confirm'))
+        )
+      )
+    ),
+
+    React.createElement(VersionWatermark)
+  );
+};
+
+// ─────────────────────────────────────────────
+// APP ROOT
+// ─────────────────────────────────────────────
+const SCREEN = {
+  LOGIN: 'LOGIN',
+  QUEUE: 'QUEUE',
+  REVIEW: 'REVIEW',
+  STATS: 'STATS',
+  ADMIN: 'ADMIN'
+};
+
+const App = () => {
+  const [lang, setLang] = useState('en');
+  const t = key => T[lang][key] || key;
+  const [screen, setScreen] = useState(SCREEN.LOGIN);
+  const [user, setUser] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    setScreen(userData.role === 'admin' ? SCREEN.ADMIN : SCREEN.QUEUE);
+  };
+
+  const handleLogout = () => { setUser(null); setScreen(SCREEN.LOGIN); };
+
+  return React.createElement(LangCtx.Provider, { value: { lang, setLang, t } },
+    React.createElement('div', {},
+      screen === SCREEN.LOGIN && React.createElement(LoginScreen, { onLogin: handleLogin }),
+      screen === SCREEN.QUEUE && React.createElement(QueueScreen, {
+        user,
+        onReview: item => { setSelectedItem(item); setScreen(SCREEN.REVIEW); },
+        onStats: () => setScreen(SCREEN.STATS),
+        onLogout: handleLogout
+      }),
+      screen === SCREEN.REVIEW && React.createElement(ReviewScreen, {
+        user,
+        queueItem: selectedItem,
+        onBack: () => setScreen(SCREEN.QUEUE),
+        onSubmitted: () => setScreen(SCREEN.QUEUE)
+      }),
+      screen === SCREEN.STATS && React.createElement(StatsScreen, {
+        user,
+        onBack: () => setScreen(SCREEN.QUEUE)
+      }),
+      screen === SCREEN.ADMIN && React.createElement(AdminOverviewScreen, {
+        user,
+        onLogout: handleLogout
+      })
+    )
+  );
+};
+
+createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Sohum Audiologist Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0F766E',
+            accent:  '#0F766E',
+            soft:    '#F0FDFA',
+            danger:  '#DC2626',
+            warn:    '#D97706',
+            success: '#059669'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #F8FAFF; display: flex; justify-content: center; min-height: 100vh; }
+    #root { width: 100%; max-width: 480px; background: #fff; min-height: 100vh; box-shadow: 0 0 40px rgba(32,43,93,0.08); position: relative; overflow-x: hidden; }
+    ::-webkit-scrollbar { width: 0; background: transparent; }
+    .slide-up { animation: slideUp 0.3s ease forwards; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.25s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .photo-pinch { touch-action: pinch-zoom; cursor: zoom-in; }
+    .urgency-pulse { animation: urgencyPulse 2s ease-in-out infinite; }
+    @keyframes urgencyPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(217,119,6,0.4); } 50% { box-shadow: 0 0 0 6px rgba(217,119,6,0); } }
+  </style>
+  <script type="importmap">
+    { "imports": { "react-dom/": "https://esm.sh/react-dom@^19.0.0/", "react/": "https://esm.sh/react@^19.0.0/", "react": "https://esm.sh/react@^19.0.0" } }
+  </script>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react';
+import { createRoot } from 'react-dom/client';
+
+// ─────────────────────────────────────────────
+// 🔧 VERSION — update this single line for new releases
+// ─────────────────────────────────────────────
+const APP_VERSION = 'v1.6.3';
+
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
+const DRIVE_FOLDER_BASE = 'https://drive.google.com/uc?export=view&id=';
+
+const RECOMMENDATIONS = [
+  'Recommendation A',
+  'Recommendation B',
+  'Recommendation C',
+  'Recommendation D'
+];
+
+// ─────────────────────────────────────────────
+// TRANSLATIONS
+// ─────────────────────────────────────────────
+const T = {
+  en: {
+    appName: 'Audiologist Portal', login: 'Login', username: 'Username', password: 'Password',
+    enterUsername: 'Enter username', enterPassword: 'Enter password', loggingIn: 'Signing in...',
+    invalidCredentials: 'Invalid username or password', back: 'Back', submit: 'Submit',
+    cancel: 'Cancel', close: 'Close', save: 'Save', loading: 'Loading...',
+    queue: 'My Queue', stats: 'Statistics', adminOverview: 'All Queues', logout: 'Sign Out',
+    pending: 'Pending', photoRequested: 'Photo Requested', completed: 'Completed',
+    urgent: 'URGENT', noQueue: 'No pending cases', babyName: 'Baby Name',
+    screeningId: 'Screening ID', assignedAt: 'Assigned', deviceSerial: 'Device',
+    ngo: 'NGO', reviewCase: 'Review Case', photos: 'Photos',
+    babyDetails: 'Baby Details', testResults: 'Test Results', verdict: 'Your Verdict',
+    pass: 'PASS', refer: 'REFER', redo: 'REDO', recommendation: 'Recommendation',
+    selectRecommendation: 'Select recommendation', comments: 'Comments (optional)',
+    addComment: 'Add a clinical note...', photoNote: 'Note on this photo (optional)',
+    addPhotoNote: 'Type a note about what you see...', submitReview: 'Submit Review',
+    submitting: 'Submitting...', reviewSubmitted: 'Review submitted',
+    requestPhoto: 'Flag Photo as Unreadable', rejectionReason: 'Reason',
+    describeIssue: 'Describe the photo issue...', flagPhoto: 'Flag & Request Retake',
+    babyHistory: 'Baby History', priorScreenings: 'Prior Screenings', noHistory: 'No prior screenings',
+    today: 'Today', last7: 'Last 7 Days', thisMonth: 'This Month', last30: 'Last 30 Days',
+    allTime: 'All Time', reviewsDone: 'Reviews Done', audiologist: 'Audiologist',
+    pendingCount: 'Pending', photoReqCount: 'Photo Req.', completedCount: 'Completed',
+    urgentCount: 'Urgent', reassign: 'Reassign', selectAudiologist: 'Select audiologist',
+    reassignTo: 'Reassign to', confirm: 'Confirm', dob: 'Date of Birth',
+    gender: 'Gender', gestAge: 'Gestational Age', riskFactors: 'Risk Factors',
+    parentName: 'Parent', parentPhone: 'Phone', testType: 'Test Type',
+    impedance: 'Impedance', left: 'Left', right: 'Right', oaeResult: 'OAE Result',
+    snrValues: 'SNR Values', leftEar: 'Left Ear', rightEar: 'Right Ear',
+    zoomPhoto: 'Tap photo to zoom', noPhotos: 'No photos available for this screening',
+    verdictRequired: 'Please select a verdict', recRequired: 'Please select a recommendation',
+    error: 'Error', retry: 'Retry', photoOf: 'Photo', attempt: 'Attempt',
+    hwResult: 'HCW Result', auditReviewed: 'Reviewed', weeks: 'weeks'
+  },
+  hi: {
+    appName: 'ऑडियोलॉजिस्ट पोर्टल', login: 'लॉगिन', username: 'उपयोगकर्ता नाम',
+    password: 'पासवर्ड', enterUsername: 'उपयोगकर्ता नाम दर्ज करें', enterPassword: 'पासवर्ड दर्ज करें',
+    loggingIn: 'लॉगिन हो रहा है...', invalidCredentials: 'अमान्य उपयोगकर्ता नाम या पासवर्ड',
+    back: 'वापस', submit: 'जमा करें', cancel: 'रद्द करें', close: 'बंद करें', save: 'सहेजें',
+    loading: 'लोड हो रहा है...', queue: 'मेरी कतार', stats: 'आंकड़े',
+    adminOverview: 'सभी कतारें', logout: 'साइन आउट', pending: 'लंबित',
+    photoRequested: 'फोटो अनुरोधित', completed: 'पूर्ण', urgent: 'अत्यावश्यक',
+    noQueue: 'कोई लंबित मामला नहीं', babyName: 'शिशु का नाम', screeningId: 'जांच आईडी',
+    assignedAt: 'सौंपा गया', deviceSerial: 'डिवाइस', ngo: 'एनजीओ',
+    reviewCase: 'मामले की समीक्षा', photos: 'फोटो', babyDetails: 'शिशु विवरण',
+    testResults: 'परीक्षण परिणाम', verdict: 'आपका निर्णय', pass: 'उत्तीर्ण',
+    refer: 'रेफर', redo: 'पुनः करें', recommendation: 'सिफारिश',
+    selectRecommendation: 'सिफारिश चुनें', comments: 'टिप्पणियां (वैकल्पिक)',
+    addComment: 'नैदानिक नोट जोड़ें...', photoNote: 'इस फोटो पर नोट (वैकल्पिक)',
+    addPhotoNote: 'आप क्या देखते हैं लिखें...', submitReview: 'समीक्षा जमा करें',
+    submitting: 'जमा हो रहा है...', reviewSubmitted: 'समीक्षा जमा की गई',
+    requestPhoto: 'फोटो को अपठनीय चिह्नित करें', rejectionReason: 'कारण',
+    describeIssue: 'फोटो समस्या का वर्णन करें...', flagPhoto: 'फ्लैग करें और पुनः लेने का अनुरोध करें',
+    babyHistory: 'शिशु इतिहास', priorScreenings: 'पूर्व जांच', noHistory: 'कोई पूर्व जांच नहीं',
+    today: 'आज', last7: 'पिछले 7 दिन', thisMonth: 'इस महीने', last30: 'पिछले 30 दिन',
+    allTime: 'कुल', reviewsDone: 'समीक्षाएं पूर्ण', audiologist: 'ऑडियोलॉजिस्ट',
+    pendingCount: 'लंबित', photoReqCount: 'फोटो अनु.', completedCount: 'पूर्ण',
+    urgentCount: 'अत्यावश्यक', reassign: 'पुनः सौंपें', selectAudiologist: 'ऑडियोलॉजिस्ट चुनें',
+    reassignTo: 'इसे सौंपें', confirm: 'पुष्टि करें', dob: 'जन्म तिथि', gender: 'लिंग',
+    gestAge: 'गर्भकालीन आयु', riskFactors: 'जोखिम कारक', parentName: 'माता-पिता',
+    parentPhone: 'फोन', testType: 'परीक्षण प्रकार', impedance: 'प्रतिबाधा',
+    left: 'बाएं', right: 'दाएं', oaeResult: 'OAE परिणाम', snrValues: 'SNR मान',
+    leftEar: 'बायां कान', rightEar: 'दायां कान', zoomPhoto: 'ज़ूम के लिए टैप करें',
+    noPhotos: 'कोई फोटो उपलब्ध नहीं', verdictRequired: 'कृपया निर्णय चुनें',
+    recRequired: 'कृपया सिफारिश चुनें', error: 'त्रुटि', retry: 'पुनः प्रयास',
+    photoOf: 'फोटो', attempt: 'प्रयास', hwResult: 'HCW परिणाम',
+    auditReviewed: 'समीक्षित', weeks: 'सप्ताह'
+  },
+  kn: {
+    appName: 'ಆಡಿಯಾಲಜಿಸ್ಟ್ ಪೋರ್ಟಲ್', login: 'ಲಾಗಿನ್', username: 'ಬಳಕೆದಾರ ಹೆಸರು',
+    password: 'ಪಾಸ್ವರ್ಡ್', enterUsername: 'ಬಳಕೆದಾರ ಹೆಸರು ನಮೂದಿಸಿ',
+    enterPassword: 'ಪಾಸ್ವರ್ಡ್ ನಮೂದಿಸಿ', loggingIn: 'ಲಾಗಿನ್ ಆಗುತ್ತಿದೆ...',
+    invalidCredentials: 'ಅಮಾನ್ಯ ಬಳಕೆದಾರ ಹೆಸರು ಅಥವಾ ಪಾಸ್ವರ್ಡ್',
+    back: 'ಹಿಂದೆ', submit: 'ಸಲ್ಲಿಸಿ', cancel: 'ರದ್ದುಮಾಡಿ', close: 'ಮುಚ್ಚಿ', save: 'ಉಳಿಸಿ',
+    loading: 'ಲೋಡ್ ಆಗುತ್ತಿದೆ...', queue: 'ನನ್ನ ಕ್ಯೂ', stats: 'ಅಂಕಿಅಂಶ',
+    adminOverview: 'ಎಲ್ಲಾ ಕ್ಯೂಗಳು', logout: 'ಸೈನ್ ಔಟ್', pending: 'ಬಾಕಿ',
+    photoRequested: 'ಫೋಟೋ ವಿನಂತಿ', completed: 'ಪೂರ್ಣ', urgent: 'ತುರ್ತು',
+    noQueue: 'ಯಾವುದೇ ಬಾಕಿ ಪ್ರಕರಣ ಇಲ್ಲ', babyName: 'ಮಗುವಿನ ಹೆಸರು',
+    screeningId: 'ಸ್ಕ್ರೀನಿಂಗ್ ಐಡಿ', assignedAt: 'ನಿಯೋಜಿಸಲಾಗಿದೆ',
+    deviceSerial: 'ಸಾಧನ', ngo: 'ಎನ್‌ಜಿಓ', reviewCase: 'ಪ್ರಕರಣ ಪರಿಶೀಲನೆ',
+    photos: 'ಫೋಟೋಗಳು', babyDetails: 'ಮಗುವಿನ ವಿವರಗಳು', testResults: 'ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳು',
+    verdict: 'ನಿಮ್ಮ ತೀರ್ಪು', pass: 'ಉತ್ತೀರ್ಣ', refer: 'ರೆಫರ್', redo: 'ಮತ್ತೆ ಮಾಡಿ',
+    recommendation: 'ಶಿಫಾರಸು', selectRecommendation: 'ಶಿಫಾರಸು ಆಯ್ಕೆಮಾಡಿ',
+    comments: 'ಟಿಪ್ಪಣಿಗಳು (ಐಚ್ಛಿಕ)', addComment: 'ಕ್ಲಿನಿಕಲ್ ನೋಟ್ ಸೇರಿಸಿ...',
+    photoNote: 'ಈ ಫೋಟೋದ ಟಿಪ್ಪಣಿ (ಐಚ್ಛಿಕ)', addPhotoNote: 'ನೀವು ಏನು ನೋಡುತ್ತೀರಿ ಬರೆಯಿರಿ...',
+    submitReview: 'ಪರಿಶೀಲನೆ ಸಲ್ಲಿಸಿ', submitting: 'ಸಲ್ಲಿಸಲಾಗುತ್ತಿದೆ...',
+    reviewSubmitted: 'ಪರಿಶೀಲನೆ ಸಲ್ಲಿಸಲಾಗಿದೆ',
+    requestPhoto: 'ಫೋಟೋ ಓದಲಾಗದು ಎಂದು ಗುರುತಿಸಿ', rejectionReason: 'ಕಾರಣ',
+    describeIssue: 'ಫೋಟೋ ಸಮಸ್ಯೆ ವಿವರಿಸಿ...', flagPhoto: 'ಫ್ಲ್ಯಾಗ್ ಮಾಡಿ ಮತ್ತು ಮರು ತೆಗೆಯಲು ಕೇಳಿ',
+    babyHistory: 'ಮಗುವಿನ ಇತಿಹಾಸ', priorScreenings: 'ಹಿಂದಿನ ಸ್ಕ್ರೀನಿಂಗ್‌ಗಳು',
+    noHistory: 'ಹಿಂದಿನ ಸ್ಕ್ರೀನಿಂಗ್‌ಗಳಿಲ್ಲ', today: 'ಇಂದು', last7: 'ಕಳೆದ 7 ದಿನ',
+    thisMonth: 'ಈ ತಿಂಗಳು', last30: 'ಕಳೆದ 30 ದಿನ', allTime: 'ಒಟ್ಟು',
+    reviewsDone: 'ಪರಿಶೀಲನೆಗಳು ಪೂರ್ಣ', audiologist: 'ಆಡಿಯಾಲಜಿಸ್ಟ್',
+    pendingCount: 'ಬಾಕಿ', photoReqCount: 'ಫೋಟೋ ವಿನಂತಿ', completedCount: 'ಪೂರ್ಣ',
+    urgentCount: 'ತುರ್ತು', reassign: 'ಮರು ನಿಯೋಜಿಸಿ', selectAudiologist: 'ಆಡಿಯಾಲಜಿಸ್ಟ್ ಆಯ್ಕೆಮಾಡಿ',
+    reassignTo: 'ಇದಕ್ಕೆ ನಿಯೋಜಿಸಿ', confirm: 'ದೃಢೀಕರಿಸಿ', dob: 'ಹುಟ್ಟಿದ ದಿನಾಂಕ',
+    gender: 'ಲಿಂಗ', gestAge: 'ಗರ್ಭಾವಧಿಯ ವಯಸ್ಸು', riskFactors: 'ಅಪಾಯ ಅಂಶಗಳು',
+    parentName: 'ಪೋಷಕರು', parentPhone: 'ಫೋನ್', testType: 'ಪರೀಕ್ಷಾ ಪ್ರಕಾರ',
+    impedance: 'ಪ್ರತಿರೋಧ', left: 'ಎಡ', right: 'ಬಲ', oaeResult: 'OAE ಫಲಿತಾಂಶ',
+    snrValues: 'SNR ಮೌಲ್ಯಗಳು', leftEar: 'ಎಡ ಕಿವಿ', rightEar: 'ಬಲ ಕಿವಿ',
+    zoomPhoto: 'ಜ಼ೂಮ್‌ಗಾಗಿ ಟ್ಯಾಪ್ ಮಾಡಿ', noPhotos: 'ಯಾವುದೇ ಫೋಟೋ ಲಭ್ಯವಿಲ್ಲ',
+    verdictRequired: 'ದಯವಿಟ್ಟು ತೀರ್ಪು ಆಯ್ಕೆಮಾಡಿ', recRequired: 'ದಯವಿಟ್ಟು ಶಿಫಾರಸು ಆಯ್ಕೆಮಾಡಿ',
+    error: 'ದೋಷ', retry: 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ', photoOf: 'ಫೋಟೋ', attempt: 'ಪ್ರಯತ್ನ',
+    hwResult: 'HCW ಫಲಿತಾಂಶ', auditReviewed: 'ಪರಿಶೀಲಿಸಲಾಗಿದೆ', weeks: 'ವಾರಗಳು'
+  }
+};
+
+// ─────────────────────────────────────────────
+// CONTEXT
+// ─────────────────────────────────────────────
+const LangCtx = createContext();
+const useLang = () => useContext(LangCtx);
+
+// ─────────────────────────────────────────────
+// API HELPERS
+// ─────────────────────────────────────────────
+const api = {
+  get: async (params) => {
+    const url = SCRIPT_URL + '?' + new URLSearchParams(params).toString();
+    const res = await fetch(url);
+    return res.json();
+  },
+  post: async (body) => {
+    await fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return { status: 'success' };
+  },
+  postReadable: async (body) => {
+    const res = await fetch(SCRIPT_URL + '?action=' + body.action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(body)
+    });
+    return res.json();
+  }
+};
+
+// ─────────────────────────────────────────────
+// SMALL SHARED COMPONENTS
+// ─────────────────────────────────────────────
+const Spinner = () => React.createElement('div', {
+  className: 'w-5 h-5 border-2 border-current border-t-transparent rounded-full spin'
+});
+
+const Header = ({ title, subtitle, onBack, rightEl }) =>
+  React.createElement('div', { className: 'bg-primary text-white pt-12 pb-5 px-5 rounded-b-3xl shadow-md relative' },
+    onBack && React.createElement('button', {
+      onClick: onBack,
+      className: 'absolute left-5 top-14 text-white/70 hover:text-white transition-colors'
+    }, React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: 24, height: 24, fill: 'none', stroke: 'currentColor', strokeWidth: 2, viewBox: '0 0 24 24' },
+      React.createElement('path', { d: 'm15 18-6-6 6-6' })
+    )),
+    rightEl && React.createElement('div', { className: 'absolute right-5 top-14' }, rightEl),
+    React.createElement('h1', { className: `text-xl font-semibold tracking-wide ${onBack ? 'text-center' : ''}` }, title),
+    subtitle && React.createElement('p', { className: `text-teal-200 text-sm mt-0.5 ${onBack ? 'text-center' : ''}` }, subtitle)
+  );
+
+const Pill = ({ label, color = 'gray' }) => {
+  const colors = {
+    green: 'bg-green-100 text-green-800', red: 'bg-red-100 text-red-800',
+    yellow: 'bg-yellow-100 text-yellow-800', blue: 'bg-teal-100 text-teal-800',
+    gray: 'bg-gray-100 text-gray-600', orange: 'bg-orange-100 text-orange-800'
+  };
+  return React.createElement('span', { className: `text-xs font-semibold px-2 py-0.5 rounded-full ${colors[color]}` }, label);
+};
+
+const Card = ({ children, className = '', onClick }) =>
+  React.createElement('div', {
+    onClick,
+    className: `bg-white rounded-2xl shadow-sm border border-gray-100 p-4 ${onClick ? 'cursor-pointer active:scale-[0.99] transition-transform hover:shadow-md' : ''} ${className}`
+  }, children);
+
+const StickyBottom = ({ children }) =>
+  React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 shadow-lg z-40' },
+    React.createElement('div', { className: 'max-w-[480px] mx-auto' }, children)
+  );
+
+const Btn = ({ children, onClick, variant = 'primary', disabled, loading, className = '' }) => {
+  const variants = {
+    primary: 'bg-primary text-white hover:bg-primary/90 disabled:bg-gray-300',
+    danger: 'bg-danger text-white hover:bg-danger/90',
+    ghost: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+    warn: 'bg-warn text-white hover:bg-warn/90'
+  };
+  return React.createElement('button', {
+    onClick, disabled: disabled || loading,
+    className: `w-full py-3.5 px-5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${variants[variant]} ${disabled || loading ? 'cursor-not-allowed' : 'active:scale-95'} ${className}`
+  }, loading ? React.createElement(Spinner) : children);
+};
+
+const StatBox = ({ label, value, color = 'text-primary' }) =>
+  React.createElement('div', { className: 'flex-1 bg-soft rounded-xl p-3 text-center' },
+    React.createElement('div', { className: `text-2xl font-bold ${color}` }, value),
+    React.createElement('div', { className: 'text-xs text-gray-500 mt-0.5' }, label)
+  );
+
+const VersionWatermark = () =>
+  React.createElement('div', { className: 'fixed bottom-2 left-2 bg-black/40 text-white text-xs px-2 py-0.5 rounded-full z-50 font-mono' }, APP_VERSION);
+
+// ─────────────────────────────────────────────
+// LANGUAGE SELECTOR
+// ─────────────────────────────────────────────
+const LangSelector = () => {
+  const { lang, setLang } = useLang();
+  const [open, setOpen] = useState(false);
+  const langs = [
+    { code: 'en', native: 'English' },
+    { code: 'hi', native: 'हिन्दी' },
+    { code: 'kn', native: 'ಕನ್ನಡ' }
+  ];
+  return React.createElement('div', { className: 'relative' },
+    React.createElement('button', {
+      onClick: () => setOpen(!open),
+      className: 'w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center'
+    }, React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
+      React.createElement('circle', { cx: 12, cy: 12, r: 10 }),
+      React.createElement('line', { x1: 2, x2: 22, y1: 12, y2: 12 }),
+      React.createElement('path', { d: 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z' })
+    )),
+    open && React.createElement('div', { className: 'absolute right-0 top-12 bg-white rounded-xl shadow-lg py-2 min-w-[140px] z-50 border border-gray-200' },
+      langs.map(l => React.createElement('button', {
+        key: l.code,
+        onClick: () => { setLang(l.code); setOpen(false); },
+        className: `w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${lang === l.code ? 'bg-primary/10 text-primary font-medium' : 'text-gray-700'}`
+      }, React.createElement('div', { className: 'flex items-center justify-between' },
+        React.createElement('span', {}, l.native),
+        lang === l.code && React.createElement('span', {}, '✓')
+      )))
+    )
+  );
+};
+
+// ─────────────────────────────────────────────
+// PHOTO ZOOM MODAL
+// ─────────────────────────────────────────────
+const PhotoZoom = ({ url, onClose }) =>
+  React.createElement('div', {
+    className: 'fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-2',
+    onClick: onClose
+  },
+    React.createElement('img', {
+      src: url, alt: 'Photo',
+      className: 'max-w-full max-h-full object-contain rounded-lg',
+      onClick: e => e.stopPropagation()
+    }),
+    React.createElement('button', {
+      onClick: onClose,
+      className: 'absolute top-4 right-4 text-white bg-white/20 rounded-full w-9 h-9 flex items-center justify-center text-xl'
+    }, '×')
+  );
+
+// ─────────────────────────────────────────────
+// HELPER: parse attempt photos from Unique ID + ear + attempt
+// e.g. uniqueId=abc123, ear=L, maxAttempts=3 → [abc123L01, abc123L02, abc123L03]
+// ─────────────────────────────────────────────
+const getPhotoNames = (uniqueId, ear, result, globalOffset = 0) => {
+  if (!uniqueId || !result) return [];
+  const clean = result.replace(/^AO\[/, '[').replace(/^AO/, '');
+  let attempts = [];
+  if (clean.startsWith('[')) {
+    const inner = clean.replace(/^\[/, '').replace(/\]$/, '');
+    attempts = inner.split(',').map(s => s.trim());
+  } else if (clean) {
+    attempts = [clean];
+  }
+  const photos = [];
+  attempts.forEach((res, idx) => {
+    if (res === 'REFER' || res === 'REDO') {
+      const globalNum = globalOffset + idx + 1;
+      const num = String(globalNum).padStart(2, '0');
+      photos.push({ filename: `${uniqueId}${ear}${num}`, result: res, attemptNum: globalNum });
+    }
+  });
+  return photos;
+};
+
+const driveFileUrl = (filename) =>
+  `https://drive.google.com/thumbnail?id=${filename}&sz=w1000`;
+
+// ─────────────────────────────────────────────
+// LOGIN SCREEN
+// ─────────────────────────────────────────────
+const LoginScreen = ({ onLogin }) => {
+  const { t } = useLang();
+  const [form, setForm] = useState({ username: '', password: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    setError(''); setLoading(true);
+    try {
+      const res = await api.get({
+        action: 'validateLogin',
+        username: form.username.trim(),
+        password: form.password
+      });
+      if (res.status === 'success' && res.role) {
+        onLogin({ ...res });
+      } else {
+        setError(t('invalidCredentials'));
+      }
+    } catch (e) {
+      setError(t('error') + ': ' + e.message);
+    }
+    setLoading(false);
+  };
+
+  return React.createElement('div', { className: 'min-h-screen flex flex-col' },
+    React.createElement('div', { className: 'bg-primary text-white pt-16 pb-10 px-6 rounded-b-3xl shadow-md relative' },
+      React.createElement('div', { className: 'absolute right-5 top-14' }, React.createElement(LangSelector)),
+      React.createElement('div', { className: 'flex items-center gap-3 mb-1' },
+        React.createElement('div', { className: 'w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl' }, '🎧'),
+        React.createElement('div', {},
+          React.createElement('h1', { className: 'text-xl font-semibold' }, t('appName')),
+          React.createElement('p', { className: 'text-teal-200 text-xs' }, 'Sohum Innovation Labs')
+        )
+      )
+    ),
+    React.createElement('div', { className: 'flex-1 flex items-center justify-center p-6' },
+      React.createElement(Card, { className: 'w-full slide-up' },
+        React.createElement('div', { className: 'space-y-4' },
+          React.createElement('div', { className: 'space-y-1.5' },
+            React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, t('username')),
+            React.createElement('input', {
+              type: 'text', value: form.username, placeholder: t('enterUsername'),
+              onChange: e => setForm({ ...form, username: e.target.value }),
+              autoCapitalize: 'none', autoCorrect: 'off',
+              className: 'w-full bg-soft rounded-xl px-4 py-3 text-gray-800 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20'
+            })
+          ),
+          React.createElement('div', { className: 'space-y-1.5' },
+            React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, t('password')),
+            React.createElement('input', {
+              type: 'password', value: form.password, placeholder: t('enterPassword'),
+              onChange: e => setForm({ ...form, password: e.target.value }),
+              onKeyDown: e => e.key === 'Enter' && handleLogin(),
+              className: 'w-full bg-soft rounded-xl px-4 py-3 text-gray-800 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20'
+            })
+          ),
+          error && React.createElement('p', { className: 'text-sm text-danger text-center' }, error),
+          React.createElement(Btn, {
+            onClick: handleLogin,
+            disabled: !form.username || !form.password,
+            loading
+          }, loading ? t('loggingIn') : t('login'))
+        )
+      )
+    ),
+    React.createElement(VersionWatermark)
+  );
+};
+
+// ─────────────────────────────────────────────
+// QUEUE CARD
+// ─────────────────────────────────────────────
+const QueueCard = ({ item, onClick, t }) => {
+  const isUrgent = item.urgencyFlag === true || item.urgencyFlag === 'TRUE';
+  const isPhotoReq = item.reviewStatus === 'photo_requested' || item.reviewStatus === 'photo_requested';
+  const sid = item.screeningID || item.screeningId || '';
+  const assignedDate = item.assignedAt ? new Date(item.assignedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
+
+  return React.createElement('div', {
+    onClick,
+    className: `bg-white rounded-2xl border p-4 cursor-pointer active:scale-[0.99] transition-all hover:shadow-md ${isUrgent ? 'border-warn urgency-pulse' : 'border-gray-100 shadow-sm'}`
+  },
+    React.createElement('div', { className: 'flex items-start justify-between gap-2 mb-2' },
+      React.createElement('div', { className: 'flex-1 min-w-0' },
+        React.createElement('p', { className: 'font-semibold text-gray-800 text-sm truncate' }, item.babyName || '—'),
+        React.createElement('p', { className: 'text-xs text-gray-400 font-mono mt-0.5 truncate' }, sid)
+      ),
+      React.createElement('div', { className: 'flex flex-col items-end gap-1' },
+        isUrgent && React.createElement(Pill, { label: t('urgent'), color: 'orange' }),
+        item.reviewStatus === 'photo_received'
+          ? React.createElement(Pill, { label: '📷 New Photo', color: 'green' })
+          : isPhotoReq
+            ? React.createElement(Pill, { label: t('photoRequested'), color: 'yellow' })
+            : React.createElement(Pill, { label: t('pending'), color: 'blue' })
+      )
+    ),
+    React.createElement('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500' },
+      item.hospital && React.createElement('span', {}, 'Hospital: ' + item.hospital),
+      React.createElement('span', {}, 'Device: ' + (item.deviceSerial || '—')),
+      item.uniqueID && React.createElement('span', { className: 'font-mono' }, 'Unique ID: ' + item.uniqueID),
+      assignedDate && React.createElement('span', { className: 'ml-auto' }, assignedDate)
+    )
+  );
+};
+
+// ─────────────────────────────────────────────
+// QUEUE SCREEN (audiologist)
+// ─────────────────────────────────────────────
+const QueueScreen = ({ user, onReview, onStats, onLogout }) => {
+  const { t } = useLang();
+  const [queue, setQueue] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const res = await api.get({ action: 'getAudiologistQueue', username: user.username });
+      if (res.status === 'success') setQueue(res.data || []);
+      else setError(res.message || t('error'));
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  }, [user.username]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const pending = queue.filter(q => q.reviewStatus === 'pending').length;
+  const photoReq = queue.filter(q => q.reviewStatus === 'photo_requested').length;
+  const photoReceived = queue.filter(q => q.reviewStatus === 'photo_received').length;
+  const urgent = queue.filter(q => q.urgencyFlag === true || q.urgencyFlag === 'TRUE').length;
+
+  return React.createElement('div', { className: 'min-h-screen flex flex-col pb-4' },
+    React.createElement(Header, {
+      title: t('queue'),
+      subtitle: user.name,
+      rightEl: React.createElement('div', { className: 'flex items-center gap-2' },
+        React.createElement(LangSelector),
+        React.createElement('button', {
+          onClick: onLogout,
+          className: 'w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-lg'
+        }, '⎋')
+      )
+    }),
+
+    React.createElement('div', { className: 'px-4 pt-4 flex gap-2' },
+      React.createElement(StatBox, { label: t('pending'), value: pending }),
+      React.createElement(StatBox, { label: '📷 New', value: photoReceived, color: 'text-success' }),
+      React.createElement(StatBox, { label: t('photoRequested'), value: photoReq, color: 'text-warn' }),
+      React.createElement(StatBox, { label: t('urgentCount'), value: urgent, color: 'text-danger' })
+    ),
+
+    React.createElement('div', { className: 'flex gap-2 px-4 mt-3' },
+      React.createElement('button', {
+        onClick: onStats,
+        className: 'flex-1 py-2.5 text-sm font-semibold text-primary bg-soft rounded-xl hover:bg-teal-100 transition-colors flex items-center justify-center gap-2'
+      },
+        React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: 16, height: 16, fill: 'none', stroke: 'currentColor', strokeWidth: 2, viewBox: '0 0 24 24' },
+          React.createElement('path', { d: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' }),
+          React.createElement('circle', { cx: 12, cy: 7, r: 4 })
+        ),
+        t('stats')
+      ),
+      React.createElement('button', {
+        onClick: load,
+        className: 'px-4 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors'
+      }, '↻')
+    ),
+
+    React.createElement('div', { className: 'px-4 mt-4 space-y-3' },
+      loading
+        ? React.createElement('div', { className: 'flex items-center justify-center py-12 gap-2 text-gray-400' },
+            React.createElement(Spinner), React.createElement('span', { className: 'text-sm' }, t('loading'))
+          )
+        : error
+          ? React.createElement('div', { className: 'text-center py-12' },
+              React.createElement('p', { className: 'text-sm text-danger mb-3' }, error),
+              React.createElement('button', { onClick: load, className: 'text-sm text-primary underline' }, t('retry'))
+            )
+          : queue.length === 0
+            ? React.createElement('div', { className: 'text-center py-16 text-gray-400' },
+                React.createElement('div', { className: 'text-4xl mb-3' }, '✓'),
+                React.createElement('p', { className: 'font-medium' }, t('noQueue'))
+              )
+            : queue.map((item, i) =>
+                React.createElement(QueueCard, { key: i, item, t, onClick: () => onReview(item) })
+              )
+    ),
+    React.createElement(VersionWatermark)
+  );
+};
+
+// ─────────────────────────────────────────────
+// STATS SCREEN
+// ─────────────────────────────────────────────
+const StatsScreen = ({ user, onBack }) => {
+  const { t } = useLang();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get({ action: 'getAudiologistStats', username: user.username })
+      .then(res => { if (res.status === 'success') setStats(res.data); })
+      .finally(() => setLoading(false));
+  }, [user.username]);
+
+  return React.createElement('div', { className: 'min-h-screen flex flex-col' },
+    React.createElement(Header, { title: t('stats'), subtitle: user.name, onBack }),
+    React.createElement('div', { className: 'p-4' },
+      loading
+        ? React.createElement('div', { className: 'flex justify-center py-12' }, React.createElement(Spinner))
+        : stats
+          ? React.createElement('div', { className: 'space-y-3' },
+              [
+                { label: t('today'), value: stats.today },
+                { label: t('last7'), value: stats.last7 },
+                { label: t('thisMonth'), value: stats.thisMonth },
+                { label: t('last30'), value: stats.last30 },
+                { label: t('allTime'), value: stats.allTime }
+              ].map(s =>
+                React.createElement(Card, { key: s.label, className: 'flex items-center justify-between slide-up' },
+                  React.createElement('span', { className: 'text-sm text-gray-600' }, s.label),
+                  React.createElement('span', { className: 'text-2xl font-bold text-primary' }, s.value)
+                )
+              )
+            )
+          : React.createElement('p', { className: 'text-center text-gray-400 py-12' }, t('error'))
+    )
+  );
+};
+
+// ─────────────────────────────────────────────
+// REVIEW SCREEN
+// ─────────────────────────────────────────────
+const ReviewScreen = ({ user, queueItem, onBack, onSubmitted }) => {
+  const { t } = useLang();
+  const [detail, setDetail] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('photos'); // photos | details | results | history
+  const [leftVerdict, setLeftVerdict] = useState('');
+  const [leftRecommendation, setLeftRecommendation] = useState('');
+  const [leftComments, setLeftComments] = useState('');
+  const [rightVerdict, setRightVerdict] = useState('');
+  const [rightRecommendation, setRightRecommendation] = useState('');
+  const [rightComments, setRightComments] = useState('');
+  const [photoNotes, setPhotoNotes] = useState({});
+  const [flagModal, setFlagModal] = useState(null); // { filename }
+  const [flagReason, setFlagReason] = useState('');
+  const [zoomUrl, setZoomUrl] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        // screeningId on queueItem may be camelCased differently — try both
+        const sid = queueItem.screeningID || queueItem.screeningId || '';
+        const bid = queueItem.babyID || queueItem.babyId || '';
+        const [detRes, histRes] = await Promise.all([
+          api.get({ action: 'getScreeningDetail', screeningId: sid }),
+          bid ? api.get({ action: 'getBabyHistory', babyId: String(bid) }) : Promise.resolve({ status: 'success', data: [] })
+        ]);
+        if (detRes.status === 'success') setDetail(detRes.data);
+        if (histRes.status === 'success') setHistory(histRes.data || []);
+      } catch (e) { console.error('ReviewScreen load error:', e); }
+      setLoading(false);
+    };
+    load();
+  }, [queueItem.screeningID, queueItem.screeningId]);
+
+  const [photoFileIds, setPhotoFileIds] = useState({});         // filename → current file ID to show
+  const [photoOriginalIds, setPhotoOriginalIds] = useState({}); // filename → original ID (when retake exists)
+  const [showOriginal, setShowOriginal] = useState({});         // filename → bool
+  // Build list of photos from the screening using exact key names from API
+  const allPhotos = React.useMemo(() => {
+    if (!detail) return [];
+    const uid = detail.uniqueID || '';
+    if (!uid) return [];
+    const photos = [];
+    const dbCols = [
+      { key: 'leftEar35DB',  ear: 'L', db: '35dB' },
+      { key: 'leftEar50DB',  ear: 'L', db: '50dB' },
+      { key: 'leftEar70DB',  ear: 'L', db: '70dB' },
+      { key: 'leftEar90DB',  ear: 'L', db: '90dB' },
+      { key: 'rightEar35DB', ear: 'R', db: '35dB' },
+      { key: 'rightEar50DB', ear: 'R', db: '50dB' },
+      { key: 'rightEar70DB', ear: 'R', db: '70dB' },
+      { key: 'rightEar90DB', ear: 'R', db: '90dB' }
+    ];
+    const earOffsets = { L: 0, R: 0 };
+    dbCols.forEach(({ key, ear, db }) => {
+      const result = detail[key] || '';
+      const clean = result.replace(/^AO\[/, '[').replace(/^AO/, '');
+      let attemptCount = 0;
+      if (clean.startsWith('[')) {
+        attemptCount = clean.replace(/^\[/, '').replace(/\]$/, '').split(',').length;
+      } else if (clean) {
+        attemptCount = 1;
+      }
+      if (result) {
+        getPhotoNames(uid, ear, result, earOffsets[ear]).forEach(p => photos.push({ ...p, ear, db, noteKey: ear + '_' + db + '_' + p.attemptNum }));
+      }
+      earOffsets[ear] += attemptCount;
+    });
+    return photos;
+  }, [detail]);
+
+  // Fetch Drive file IDs for each photo filename
+  useEffect(() => {
+    if (allPhotos.length === 0) return;
+    const fetchIds = async () => {
+      const hasFlagged = queueItem.reviewStatus === 'photo_requested' || queueItem.reviewStatus === 'photo_received';
+      const currentMap = {};
+      const originalMap = {};
+      await Promise.all(
+        allPhotos.map(async (photo) => {
+          try {
+            const origRes = await api.get({ action: 'getPhotoId', filename: photo.filename });
+            const origId = origRes.status === 'success' ? origRes.fileId : null;
+            if (hasFlagged) {
+              const flaggedRes = await api.get({ action: 'getPhotoId', filename: photo.filename + 'FLAGGED' });
+              if (flaggedRes.status === 'success') {
+                currentMap[photo.filename] = flaggedRes.fileId;
+                if (origId) originalMap[photo.filename] = origId;
+                return;
+              }
+            }
+            if (origId) currentMap[photo.filename] = origId;
+          } catch (e) { /* skip */ }
+        })
+      );
+      setPhotoFileIds(currentMap);
+      setPhotoOriginalIds(originalMap);
+    };
+    fetchIds();
+  }, [allPhotos.length]);
+
+  const handleSubmit = async () => {
+    const errs = {};
+    const leftPhotos  = allPhotos.filter(p => p.ear === 'L');
+    const rightPhotos = allPhotos.filter(p => p.ear === 'R');
+    if (leftPhotos.length > 0 && !leftVerdict)        errs.leftVerdict = t('verdictRequired');
+    if (leftPhotos.length > 0 && !leftRecommendation)  errs.leftRec     = t('recRequired');
+    if (rightPhotos.length > 0 && !rightVerdict)       errs.rightVerdict = t('verdictRequired');
+    if (rightPhotos.length > 0 && !rightRecommendation) errs.rightRec   = t('recRequired');
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    setSubmitting(true);
+    const sid = queueItem.screeningID || queueItem.screeningId || '';
+    const perPhotoNotes = Object.entries(photoNotes)
+      .filter(([, note]) => note.trim())
+      .map(([noteKey, note]) => ({ filename: noteKey, note }));
+
+    try {
+      await api.post({
+        action: 'submitReview',
+        screeningId: sid,
+        reviewedBy: user.username,
+        verdict: [leftVerdict, rightVerdict].filter(Boolean).join(' / '),
+        recommendation: [leftRecommendation, rightRecommendation].filter(Boolean).join(' / '),
+        comments: [leftComments ? 'Left: ' + leftComments : '', rightComments ? 'Right: ' + rightComments : ''].filter(Boolean).join('\n'),
+        leftVerdict,
+        leftRecommendation,
+        leftComments,
+        rightVerdict,
+        rightRecommendation,
+        rightComments,
+        perPhotoNotes
+      });
+    } catch (e) { console.error('submitReview error:', e); }
+    setSubmitting(false);
+    onSubmitted();
+  };
+
+  const handleFlagPhoto = async () => {
+    if (!flagReason.trim()) return;
+    const sid = queueItem.screeningID || queueItem.screeningId || '';
+    try {
+      await api.post({
+        action: 'requestPhoto',
+        screeningId: sid,
+        filename: flagModal.filename,
+        reason: flagReason,
+        reviewedBy: user.username
+      });
+    } catch (e) { console.error('requestPhoto error:', e); }
+    setFlagModal(null);
+    setFlagReason('');
+    onSubmitted();
+  };
+
+  const isUrgent = queueItem.urgencyFlag === true || queueItem.urgencyFlag === 'TRUE';
+
+  const tabs = [
+    { id: 'photos', label: t('photos') },
+    { id: 'details', label: t('babyDetails') },
+    { id: 'results', label: t('testResults') },
+    { id: 'history', label: t('babyHistory') }
+  ];
+
+  if (loading) return React.createElement('div', { className: 'min-h-screen flex flex-col items-center justify-center gap-3 bg-white' },
+    React.createElement('div', { className: 'w-8 h-8 border-2 border-primary border-t-transparent rounded-full spin' }),
+    React.createElement('p', { className: 'text-sm text-gray-400' }, t('loading'))
+  );
+
+  return React.createElement('div', { className: 'min-h-screen flex flex-col pb-52' },
+    React.createElement(Header, {
+      title: t('reviewCase'),
+      subtitle: detail?.babyName || queueItem.babyName || '—',
+      onBack
+    }),
+
+    // Urgency + status badges
+    React.createElement('div', { className: 'px-4 pt-3 flex gap-2 flex-wrap' },
+      isUrgent && React.createElement(Pill, { label: '🚨 ' + t('urgent'), color: 'orange' }),
+      React.createElement(Pill, {
+        label: queueItem.reviewStatus === 'photo_received' ? '📷 ' + t('photoReceived') :
+               queueItem.reviewStatus === 'photo_requested' ? t('photoRequested') : t('pending'),
+        color: queueItem.reviewStatus === 'photo_received' ? 'green' :
+               queueItem.reviewStatus === 'photo_requested' ? 'yellow' : 'blue'
+      }),
+      React.createElement('span', { className: 'text-xs text-gray-400 font-mono ml-auto' }, queueItem.screeningId)
+    ),
+
+    // Tabs
+    React.createElement('div', { className: 'flex px-4 mt-3 gap-1 overflow-x-auto pb-1' },
+      tabs.map(tab =>
+        React.createElement('button', {
+          key: tab.id,
+          onClick: () => setActiveTab(tab.id),
+          className: `px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === tab.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-soft'}`
+        }, tab.label)
+      )
+    ),
+
+    // Tab content
+    React.createElement('div', { className: 'px-4 mt-3 space-y-3 fade-in' },
+
+     // PHOTOS TAB — left ear photos + left verdict, then right ear photos + right verdict
+      activeTab === 'photos' && (() => {
+        const leftPhotos  = allPhotos.filter(p => p.ear === 'L');
+        const rightPhotos = allPhotos.filter(p => p.ear === 'R');
+
+        const renderPhotoCard = (photo, i) => {
+          const fileId = photoFileIds[photo.filename];
+          const imgUrl = fileId ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000` : null;
+          return React.createElement(Card, { key: i },
+            React.createElement('div', { className: 'flex items-center justify-between mb-2' },
+              React.createElement('div', {},
+                React.createElement('span', { className: 'text-xs font-semibold text-gray-500' },
+                  (photo.ear === 'L' ? t('leftEar') : t('rightEar')) + ' · ' + photo.db + ' · ' + t('attempt') + ' ' + photo.attemptNum
+                ),
+                React.createElement('div', { className: 'mt-0.5' },
+                  React.createElement(Pill, {
+                    label: t('hwResult') + ': ' + photo.result,
+                    color: photo.result === 'REFER' ? 'red' : 'orange'
+                  })
+                )
+              ),
+              React.createElement('button', {
+                onClick: () => setFlagModal({ filename: photo.filename }),
+                className: 'text-xs text-warn font-semibold bg-yellow-50 border border-yellow-200 px-2 py-1 rounded-lg hover:bg-yellow-100'
+              }, '⚑ Flag')
+            ),
+            (() => {
+              const isShowingOriginal = showOriginal[photo.filename];
+              const displayId  = isShowingOriginal ? photoOriginalIds[photo.filename] : (photoFileIds[photo.filename] || null);
+              const displayUrl = displayId ? `https://drive.google.com/thumbnail?id=${displayId}&sz=w1000` : null;
+              const hasRetake  = !!photoOriginalIds[photo.filename];
+              return React.createElement('div', {},
+                displayUrl
+                  ? React.createElement('img', {
+                      src: displayUrl, alt: photo.filename,
+                      className: 'w-full rounded-xl object-cover max-h-56 photo-pinch bg-gray-100',
+                      onClick: () => setZoomUrl(displayUrl),
+                      onError: e => { e.target.style.display = 'none'; }
+                    })
+                  : React.createElement('div', { className: 'w-full h-32 rounded-xl bg-gray-100 flex items-center justify-center' },
+                      React.createElement('div', { className: 'text-center' },
+                        React.createElement('div', { className: 'w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full spin mx-auto mb-1' }),
+                        React.createElement('p', { className: 'text-xs text-gray-400' }, 'Loading ' + photo.filename)
+                      )
+                    ),
+                React.createElement('div', { className: 'flex items-center justify-between mt-1' },
+                  React.createElement('p', { className: 'text-xs text-gray-400' }, t('zoomPhoto')),
+                  hasRetake && React.createElement('button', {
+                    onClick: () => setShowOriginal(prev => ({ ...prev, [photo.filename]: !prev[photo.filename] })),
+                    className: 'text-xs text-primary underline font-medium'
+                  }, isShowingOriginal ? 'View retaken photo' : 'View original photo')
+                )
+              );
+            })(),
             React.createElement('textarea', {
               value: photoNotes[photo.noteKey] || '',
               onChange: e => setPhotoNotes({ ...photoNotes, [photo.noteKey]: e.target.value }),
