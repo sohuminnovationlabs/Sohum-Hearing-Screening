@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.6.1.1';
+const APP_VERSION = 'v8.6.1.2';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -2488,9 +2488,11 @@ const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick, 
     await onSubmit({ recommendation: finalRecommendation, photoBase64 });
     if (recommendation === 'Audiologist Verification') {
       try {
-        await fetch(SCRIPT_URL, {
-          method: 'POST', mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const flagRes = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          redirect: 'follow',
+          headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({
             action: 'flagForReview',
             screeningId: record.screeningId,
@@ -2498,6 +2500,10 @@ const RecommendationScreen = ({ user, record, onBack, onSubmit, onProfileClick, 
             ngo: record.ngo
           })
         });
+        const flagJson = await flagRes.json();
+        if (flagJson.status !== 'success') {
+          console.warn('flagForReview returned:', flagJson.message);
+        }
       } catch (e) { console.warn('flagForReview failed:', e); }
     }
   };
@@ -2814,7 +2820,8 @@ const App = () => {
     loadMasterData();
   }, []);
   const merge = (data) => setRecord({ ...record, ...data });
-  const navProps = { onProfileClick: () => setShowProfile(true), onNotificationsClick: () => setStep(STEP.NOTIFICATIONS), onNotifications: () => setStep(STEP.NOTIFICATIONS), notificationCount };
+  const sessionComplete = step !== STEP.SESSION && step !== STEP.LOGIN && step !== STEP.LOADING;
+  const navProps = { onProfileClick: () => setShowProfile(true), onNotificationsClick: () => { if (sessionComplete) setStep(STEP.NOTIFICATIONS); }, onNotifications: () => { if (sessionComplete) setStep(STEP.NOTIFICATIONS); }, notificationCount };
   const clearBabyData = () => {
     const { babyId, babyName, deviceTestId, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, ...rest } = record;
     setRecord({ ...rest, babyId: generateBabyId() });
