@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.6.1.2';
+const APP_VERSION = 'v8.6.2';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -71,6 +71,13 @@ const MAX_ATTEMPTS_35 = 3;  // attempts allowed at 35 dB
 const MAX_ATTEMPTS_50 = 2;  // attempts allowed at 50 dB
 const MAX_ATTEMPTS_70 = 1;  // attempts allowed at 70 dB
 const MAX_ATTEMPTS_90 = 1;  // attempts allowed at 90 dB
+
+// 🔊 OAE SNR PASS THRESHOLDS — minimum dB SNR for a frequency to count as passing
+// DPOAE threshold applies to all DPOAE protocols
+// TEOAE thresholds are protocol-specific (8 sec and 32 sec)
+const DPOAE_SNR_THRESHOLD  = 6.0;  // dB — applies to all DPOAE protocols
+const TEOAE_8S_THRESHOLD   = 6.0;  // dB — TEOAE 8 sec protocol
+const TEOAE_32S_THRESHOLD  = 6.0;  // dB — TEOAE 32 sec protocol
 
 // 📷 PHOTO QUALITY SETTINGS - Adjust these as needed
 const PHOTO_MAX_WIDTH = 1920;       // Max width in pixels
@@ -1102,8 +1109,24 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                         return m ? `${m[1].toUpperCase()}, Test attempt ${m[2]}` : raw;
                       };
 
-                      const earCard = (label, verdict, rec, comment) => {
-                        if (!verdict && !rec) return null;
+                      // Parse photo notes into a map: ear ('L'|'R') → array of { label, val }
+                      const notesByEar = { L: [], R: [] };
+                      photoNotes.forEach(note => {
+                        const colonIdx = note.indexOf(':');
+                        const rawKey = colonIdx > -1 ? note.slice(0, colonIdx).trim() : note;
+                        const val    = colonIdx > -1 ? note.slice(colonIdx + 1).trim() : '';
+                        const earMatch = rawKey.match(/^([LR])_/);
+                        const ear = earMatch ? earMatch[1] : null;
+                        if (ear) {
+                          const m = rawKey.match(/^[LR]_(\d+(?:\.\d+)?(?:k)?dB)_(\d+)/i);
+                          const label = m ? `${m[1].toUpperCase()} — attempt ${m[2]}` : rawKey;
+                          notesByEar[ear].push({ label, val });
+                        }
+                      });
+
+                      const earCard = (label, earKey, verdict, rec, comment) => {
+                        const notes = notesByEar[earKey] || [];
+                        if (!verdict && !rec && notes.length === 0) return null;
                         return React.createElement('div', { className: 'bg-white rounded-2xl border border-gray-100 shadow-sm p-4' },
                           React.createElement('div', { className: 'flex items-center justify-between mb-3' },
                             React.createElement('span', { className: 'text-sm font-semibold text-gray-800' }, label),
@@ -1113,30 +1136,25 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                             React.createElement('p', { className: 'text-xs text-gray-400 mb-0.5' }, t('audiologistRecommendation')),
                             React.createElement('p', { className: 'text-sm text-gray-700 font-medium' }, rec)
                           ),
-                          comment && React.createElement('div', {},
+                          comment && React.createElement('div', { className: 'mb-3' },
                             React.createElement('p', { className: 'text-xs text-gray-400 mb-0.5' }, t('audiologistComments')),
                             React.createElement('p', { className: 'text-xs text-gray-600 bg-gray-50 rounded-lg p-2' }, comment)
+                          ),
+                          notes.length > 0 && React.createElement('div', { className: 'border-t border-gray-100 pt-3 space-y-3' },
+                            React.createElement('p', { className: 'text-xs font-semibold text-gray-400' }, 'Photo notes'),
+                            notes.map((n, ni) =>
+                              React.createElement('div', { key: ni, className: 'border-l-2 border-gray-200 pl-3' },
+                                React.createElement('p', { className: 'text-xs font-semibold text-gray-700 mb-0.5' }, n.label),
+                                n.val && React.createElement('p', { className: 'text-xs text-gray-500' }, n.val)
+                              )
+                            )
                           )
                         );
                       };
 
                       return React.createElement('div', { className: 'space-y-3' },
-                        earCard('Left Ear', leftVerdict, leftRec, leftComment),
-                        earCard('Right Ear', rightVerdict, rightRec, rightComment),
-                        photoNotes.length > 0 && React.createElement('div', { className: 'bg-white rounded-2xl border border-gray-100 shadow-sm p-4' },
-                          React.createElement('p', { className: 'text-xs font-semibold text-gray-500 mb-2' }, 'Photo Notes'),
-                          React.createElement('div', { className: 'space-y-1' },
-                            photoNotes.map((note, ni) => {
-                              const colonIdx = note.indexOf(':');
-                              const rawKey = colonIdx > -1 ? note.slice(0, colonIdx).trim() : note;
-                              const val    = colonIdx > -1 ? note.slice(colonIdx + 1).trim() : '';
-                              return React.createElement('div', { key: ni, className: 'flex gap-2 text-xs' },
-                                React.createElement('span', { className: 'text-gray-400 flex-shrink-0' }, formatPhotoLabel(rawKey) + ':'),
-                                React.createElement('span', { className: 'text-gray-700' }, val)
-                              );
-                            })
-                          )
-                        )
+                        earCard('Left ear', 'L', leftVerdict, leftRec, leftComment),
+                        earCard('Right ear', 'R', rightVerdict, rightRec, rightComment)
                       );
                     })()
                   )
@@ -1247,6 +1265,7 @@ React.createElement('div', {},
     spellCheck: false,
     className: `w-full py-3 px-4 bg-secondary rounded-xl border-2 ${errors.deviceTestId ? 'border-red-500' : 'border-primary/40'} focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors placeholder-gray-400`
   }),
+  prefilled && React.createElement('p', { className: 'text-xs text-gray-400 ml-1 mt-1' }, 'Pre-filled from previous record. Edit directly if needed.'),
   errors.deviceTestId && React.createElement('span', { className: 'text-xs text-red-500 ml-1 mt-1 block' }, errors.deviceTestId)
 ),
           
@@ -1388,11 +1407,38 @@ const TestSelectionScreen = ({ user, onBack, onSelectAABR, onSelectOAE, onProfil
 };
 
 // AABR Entry Screen - multi-attempt with per-attempt impedance
+// Reusable confirmation modal for OAE/AABR override and SNR warnings
+const OAEConfirmModal = ({ message, subMessage, confirmLabel, cancelLabel, onConfirm, onCancel, danger = false }) => {
+  return React.createElement('div', {
+    className: 'fixed inset-0 bg-black/50 flex items-end justify-center z-50 p-4',
+    onClick: onCancel
+  },
+    React.createElement('div', {
+      className: 'bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl mb-2',
+      onClick: e => e.stopPropagation()
+    },
+      React.createElement('p', { className: 'text-base font-semibold text-gray-800 mb-2' }, message),
+      subMessage && React.createElement('p', { className: 'text-sm text-gray-500 mb-5' }, subMessage),
+      React.createElement('div', { className: 'flex gap-3' },
+        React.createElement('button', {
+          onClick: onCancel,
+          className: 'flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors'
+        }, cancelLabel || 'Go back'),
+        React.createElement('button', {
+          onClick: onConfirm,
+          className: `flex-1 py-3 px-4 rounded-xl font-medium transition-colors ${danger ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-primary text-white hover:bg-primary/90'}`
+        }, confirmLabel || 'Continue')
+      )
+    )
+  );
+};
+
 const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('left');
   const [showProtocol, setShowProtocol] = useState(false);
   const [errors, setErrors] = useState({});
+  const [aabrConfirmModal, setAabrConfirmModal] = useState(null);
 
   const DB_LEVELS = ['35dB', '50dB', '70dB', '90dB'];
   const MAX_ATTEMPTS = { '35dB': MAX_ATTEMPTS_35, '50dB': MAX_ATTEMPTS_50, '70dB': MAX_ATTEMPTS_70, '90dB': MAX_ATTEMPTS_90 };
@@ -1606,13 +1652,11 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     const hasRight = earHasAnyResult('right');
     let overrideNote = '';
     if (hasLeft && !hasRight) {
-      if (!confirm('Only LEFT ear has been tested. Tap OK to override.')) return;
-      if (!confirm('Are you sure? The record will note only LEFT ear was tested.')) return;
-      overrideNote = ' [Test was overridden - healthcare worker chose to test only LEFT ear]';
+      setAabrConfirmModal({ ear: 'left', overrideNote: ' [Test was overridden - healthcare worker chose to test only LEFT ear]' });
+      return;
     } else if (!hasLeft && hasRight) {
-      if (!confirm('Only RIGHT ear has been tested. Tap OK to override.')) return;
-      if (!confirm('Are you sure? The record will note only RIGHT ear was tested.')) return;
-      overrideNote = ' [Test was overridden - healthcare worker chose to test only RIGHT ear]';
+      setAabrConfirmModal({ ear: 'right', overrideNote: ' [Test was overridden - healthcare worker chose to test only RIGHT ear]' });
+      return;
     }
     const pendingPhotos = collectPendingPhotos();
     const deviceTestId = initialData.deviceTestId || 'unknown';
@@ -1876,6 +1920,37 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
     ),
 
     React.createElement(StickyBottom, {}, React.createElement(Button, { onClick: handleNext }, t('next'))),
+    aabrConfirmModal && React.createElement(OAEConfirmModal, {
+      message: aabrConfirmModal.ear === 'left' ? 'Only left ear tested' : 'Only right ear tested',
+      subMessage: aabrConfirmModal.ear === 'left'
+        ? 'The right ear has not been tested. If you proceed, the record will note that only the left ear was tested.'
+        : 'The left ear has not been tested. If you proceed, the record will note that only the right ear was tested.',
+      confirmLabel: 'Yes, continue',
+      cancelLabel: 'Go back',
+      onConfirm: () => {
+        setAabrConfirmModal(null);
+        const pendingPhotos = collectPendingPhotos();
+        const deviceTestId = initialData.deviceTestId || 'unknown';
+        onNext({
+          testType: 'AABR',
+          _pendingPhotos: pendingPhotos,
+          _deviceTestId: deviceTestId,
+          impedanceVtxGnd: formatImpedanceCol('vtx'),
+          impedanceGndRef: formatImpedanceCol('gnd'),
+          impedanceRefVtx: formatImpedanceCol('ref'),
+          leftResult35dB: formatResultCol('left', '35dB'),
+          leftResult50dB: formatResultCol('left', '50dB'),
+          leftResult70dB: formatResultCol('left', '70dB'),
+          leftResult90dB: formatResultCol('left', '90dB'),
+          rightResult35dB: formatResultCol('right', '35dB'),
+          rightResult50dB: formatResultCol('right', '50dB'),
+          rightResult70dB: formatResultCol('right', '70dB'),
+          rightResult90dB: formatResultCol('right', '90dB'),
+          aabrOverrideNote: aabrConfirmModal.overrideNote
+        });
+      },
+      onCancel: () => setAabrConfirmModal(null)
+    }),
     React.createElement(VersionWatermark)
   );
 };
@@ -1917,7 +1992,8 @@ const OAEProtocolScreen = ({ user, oaeType, onBack, onNext, onProfileClick, onNo
     React.createElement(VersionWatermark)
   );
 };
-// DPOAE Entry Screen (keeping v2 logic with override)
+
+
 const DPOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('left');
@@ -1927,6 +2003,7 @@ const DPOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfi
   const [leftSNR, setLeftSNR] = useState(frequencies.reduce((acc, f) => ({ ...acc, [f]: '0.0' }), {}));
   const [rightSNR, setRightSNR] = useState(frequencies.reduce((acc, f) => ({ ...acc, [f]: '0.0' }), {}));
   const [errors, setErrors] = useState({});
+  const [confirmModal, setConfirmModal] = useState(null); // { message, subMessage, onConfirm }
   const snrOptions = []; for (let i = 0; i <= 300; i++) { snrOptions.push((i / 10).toFixed(1)); } snrOptions.push('>30.0');
   const validate = () => {
   const newErrors = {};
@@ -1944,40 +2021,43 @@ const DPOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfi
   setErrors(newErrors);
   return Object.keys(newErrors).length === 0;
 };
+  const proceedToNext = (overrideNote = '') => {
+    onNext({ testType: 'OAE', oaeLeftResult: leftResult, oaeRightResult: rightResult, snr1_5kLeft: leftSNR['1.5k'] || '', snr2kLeft: leftSNR['2k'] || '', snr3kLeft: leftSNR['3k'] || '', snr4kLeft: leftSNR['4k'] || '', snr5kLeft: leftSNR['5k'] || '', snr6kLeft: leftSNR['6k'] || '', snr1_5kRight: rightSNR['1.5k'] || '', snr2kRight: rightSNR['2k'] || '', snr3kRight: rightSNR['3k'] || '', snr4kRight: rightSNR['4k'] || '', snr5kRight: rightSNR['5k'] || '', snr6kRight: rightSNR['6k'] || '', oaeOverrideNote: overrideNote });
+  };
+
   const handleNext = () => {
-    if (validate()) {
-      const leftSnrValues = Object.values(leftSNR).filter(v => v && v !== '0.0' && v !== '>30.0').map(v => parseFloat(v));
-	  const rightSnrValues = Object.values(rightSNR).filter(v => v && v !== '0.0' && v !== '>30.0').map(v => parseFloat(v));
-      if (leftResult === 'PASS' && leftSnrValues.length > 0) {
-  const lowCount = leftSnrValues.filter(v => v < 6.0).length;
-  const requiredGood = Math.ceil(frequencies.length / 2); // 3 for 5 freqs, 2 for 3 freqs
-  const goodCount = leftSnrValues.filter(v => v >= 6.0).length;
-  if (goodCount < requiredGood) {
-    if (!confirm(`Left ear marked as PASS but only ${goodCount} out of ${frequencies.length} SNR values are above 6.0 dB (need at least ${requiredGood}). Continue?`)) return;
-  }
-}
-if (rightResult === 'PASS' && rightSnrValues.length > 0) {
-  const lowCount = rightSnrValues.filter(v => v < 6.0).length;
-  const requiredGood = Math.ceil(frequencies.length / 2); // 3 for 5 freqs, 2 for 3 freqs
-  const goodCount = rightSnrValues.filter(v => v >= 6.0).length;
-  if (goodCount < requiredGood) {
-    if (!confirm(`Right ear marked as PASS but only ${goodCount} out of ${frequencies.length} SNR values are above 6.0 dB (need at least ${requiredGood}). Continue?`)) return;
-  }
-}
-      const hasLeftData = leftResult || Object.values(leftSNR).some(v => v && v !== '0.0');
-      const hasRightData = rightResult || Object.values(rightSNR).some(v => v && v !== '0.0');
-      let overrideNote = '';
-      if (hasLeftData && !hasRightData) {
-        if (!confirm('Only LEFT ear has been tested. Test the other ear or override this message.\n\nClick OK to override, Cancel to go back.')) return;
-        if (!confirm('Are you sure you want to override? If you proceed, the record will state that you chose to test only one ear.\n\nClick OK to confirm, Cancel to go back.')) return;
-        overrideNote = ' [Test was overridden - healthcare worker chose to test only LEFT ear]';
-      } else if (!hasLeftData && hasRightData) {
-        if (!confirm('Only RIGHT ear has been tested. Test the other ear or override this message.\n\nClick OK to override, Cancel to go back.')) return;
-        if (!confirm('Are you sure you want to override? If you proceed, the record will state that you chose to test only one ear.\n\nClick OK to confirm, Cancel to go back.')) return;
-        overrideNote = ' [Test was overridden - healthcare worker chose to test only RIGHT ear]';
-      }
-      onNext({ testType: 'OAE', oaeLeftResult: leftResult, oaeRightResult: rightResult, snr1_5kLeft: leftSNR['1.5k'] || '', snr2kLeft: leftSNR['2k'] || '', snr3kLeft: leftSNR['3k'] || '', snr4kLeft: leftSNR['4k'] || '', snr5kLeft: leftSNR['5k'] || '', snr6kLeft: leftSNR['6k'] || '', snr1_5kRight: rightSNR['1.5k'] || '', snr2kRight: rightSNR['2k'] || '', snr3kRight: rightSNR['3k'] || '', snr4kRight: rightSNR['4k'] || '', snr5kRight: rightSNR['5k'] || '', snr6kRight: rightSNR['6k'] || '', oaeOverrideNote: overrideNote });
+    if (!validate()) return;
+    const leftSnrValues = Object.values(leftSNR).filter(v => v && v !== '0.0' && v !== '>30.0').map(v => parseFloat(v));
+    const rightSnrValues = Object.values(rightSNR).filter(v => v && v !== '0.0' && v !== '>30.0').map(v => parseFloat(v));
+    const requiredGood = Math.ceil(frequencies.length / 2);
+    const leftGood = leftSnrValues.filter(v => v >= DPOAE_SNR_THRESHOLD).length;
+    const rightGood = rightSnrValues.filter(v => v >= DPOAE_SNR_THRESHOLD).length;
+    const hasLeftData = leftResult || Object.values(leftSNR).some(v => v && v !== '0.0');
+    const hasRightData = rightResult || Object.values(rightSNR).some(v => v && v !== '0.0');
+
+    const checks = [];
+    if (leftResult === 'PASS' && leftSnrValues.length > 0 && leftGood < requiredGood) {
+      checks.push({ message: 'Left ear SNR warning', subMessage: `Left ear is marked PASS but only ${leftGood} of ${frequencies.length} frequencies are above ${DPOAE_SNR_THRESHOLD} dB (need at least ${requiredGood}). Are you sure you want to continue?`, ear: 'snr_left' });
     }
+    if (rightResult === 'PASS' && rightSnrValues.length > 0 && rightGood < requiredGood) {
+      checks.push({ message: 'Right ear SNR warning', subMessage: `Right ear is marked PASS but only ${rightGood} of ${frequencies.length} frequencies are above ${DPOAE_SNR_THRESHOLD} dB (need at least ${requiredGood}). Are you sure you want to continue?`, ear: 'snr_right' });
+    }
+    if (hasLeftData && !hasRightData) {
+      checks.push({ message: 'Only left ear tested', subMessage: 'The right ear has not been tested. If you proceed, the record will note that only the left ear was tested.', overrideNote: ' [Test was overridden - healthcare worker chose to test only LEFT ear]' });
+    } else if (!hasLeftData && hasRightData) {
+      checks.push({ message: 'Only right ear tested', subMessage: 'The left ear has not been tested. If you proceed, the record will note that only the right ear was tested.', overrideNote: ' [Test was overridden - healthcare worker chose to test only RIGHT ear]' });
+    }
+
+    const runChecks = (remaining, overrideNote) => {
+      if (remaining.length === 0) { proceedToNext(overrideNote); return; }
+      const next = remaining[0];
+      setConfirmModal({
+        message: next.message,
+        subMessage: next.subMessage,
+        onConfirm: () => { setConfirmModal(null); runChecks(remaining.slice(1), next.overrideNote || overrideNote); }
+      });
+    };
+    runChecks(checks, '');
   };
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: `DPOAE - ${protocol}`, onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
@@ -2026,20 +2106,32 @@ activeTab === 'right' && React.createElement('div', { className: 'space-y-4' },
       )
     ),
     React.createElement(StickyBottom, {}, React.createElement(Button, { onClick: handleNext }, t('next'))),
+    confirmModal && React.createElement(OAEConfirmModal, {
+      message: confirmModal.message,
+      subMessage: confirmModal.subMessage,
+      confirmLabel: 'Yes, continue',
+      cancelLabel: 'Go back',
+      onConfirm: confirmModal.onConfirm,
+      onCancel: () => setConfirmModal(null)
+    }),
     React.createElement(VersionWatermark)
   );
 };
+
+
 
 // TEOAE Entry Screen (same structure as DPOAE)
 const TEOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('left');
   const frequencies = ['1.5k', '2k', '3k', '4k', '6k'];
+  const teoaeThreshold = protocol === '8 sec' ? TEOAE_8S_THRESHOLD : TEOAE_32S_THRESHOLD;
   const [leftResult, setLeftResult] = useState('');
   const [rightResult, setRightResult] = useState('');
   const [leftSNR, setLeftSNR] = useState(frequencies.reduce((acc, f) => ({ ...acc, [f]: '0.0' }), {}));
   const [rightSNR, setRightSNR] = useState(frequencies.reduce((acc, f) => ({ ...acc, [f]: '0.0' }), {}));
   const [errors, setErrors] = useState({});
+  const [confirmModal, setConfirmModal] = useState(null);
   const snrOptions = []; for (let i = 0; i <= 300; i++) { snrOptions.push((i / 10).toFixed(1)); } snrOptions.push('>30.0');
   const validate = () => {
   const newErrors = {};
@@ -2057,41 +2149,44 @@ const TEOAEEntryScreen = ({ user, record = {}, protocol, onBack, onNext, onProfi
   setErrors(newErrors);
   return Object.keys(newErrors).length === 0;
 };
+  const proceedToNext = (overrideNote = '') => {
+    onNext({ testType: 'OAE', oaeLeftResult: leftResult, oaeRightResult: rightResult, snr1_5kLeft: leftSNR['1.5k'] || '', snr2kLeft: leftSNR['2k'] || '', snr3kLeft: leftSNR['3k'] || '', snr4kLeft: leftSNR['4k'] || '', snr6kLeft: leftSNR['6k'] || '', snr1_5kRight: rightSNR['1.5k'] || '', snr2kRight: rightSNR['2k'] || '', snr3kRight: rightSNR['3k'] || '', snr4kRight: rightSNR['4k'] || '', snr6kRight: rightSNR['6k'] || '', oaeOverrideNote: overrideNote });
+  };
+
   const handleNext = () => {
-  if (validate()) {
+    if (!validate()) return;
     const leftSnrValues = Object.values(leftSNR).filter(v => v && v !== '0.0' && v !== '>30.0').map(v => parseFloat(v));
     const rightSnrValues = Object.values(rightSNR).filter(v => v && v !== '0.0' && v !== '>30.0').map(v => parseFloat(v));
-    if (leftResult === 'PASS' && leftSnrValues.length > 0) {
-  const lowCount = leftSnrValues.filter(v => v < 6.0).length;
-  const requiredGood = Math.ceil(frequencies.length / 2); // 3 for 5 freqs, 2 for 3 freqs
-  const goodCount = leftSnrValues.filter(v => v >= 6.0).length;
-  if (goodCount < requiredGood) {
-    if (!confirm(`Left ear marked as PASS but only ${goodCount} out of ${frequencies.length} SNR values are above 6.0 dB (need at least ${requiredGood}). Continue?`)) return;
-  }
-}
-if (rightResult === 'PASS' && rightSnrValues.length > 0) {
-  const lowCount = rightSnrValues.filter(v => v < 6.0).length;
-  const requiredGood = Math.ceil(frequencies.length / 2); // 3 for 5 freqs, 2 for 3 freqs
-  const goodCount = rightSnrValues.filter(v => v >= 6.0).length;
-  if (goodCount < requiredGood) {
-    if (!confirm(`Right ear marked as PASS but only ${goodCount} out of ${frequencies.length} SNR values are above 6.0 dB (need at least ${requiredGood}). Continue?`)) return;
-  }
-}
+    const requiredGood = Math.ceil(frequencies.length / 2);
+    const leftGood = leftSnrValues.filter(v => v >= teoaeThreshold).length;
+    const rightGood = rightSnrValues.filter(v => v >= teoaeThreshold).length;
     const hasLeftData = leftResult || Object.values(leftSNR).some(v => v && v !== '0.0');
     const hasRightData = rightResult || Object.values(rightSNR).some(v => v && v !== '0.0');
-    let overrideNote = '';
-    if (hasLeftData && !hasRightData) {
-      if (!confirm('Only LEFT ear has been tested. Test the other ear or override this message.\n\nClick OK to override, Cancel to go back.')) return;
-      if (!confirm('Are you sure you want to override? If you proceed, the record will state that you chose to test only one ear.\n\nClick OK to confirm, Cancel to go back.')) return;
-      overrideNote = ' [Test was overridden - healthcare worker chose to test only LEFT ear]';
-    } else if (!hasLeftData && hasRightData) {
-      if (!confirm('Only RIGHT ear has been tested. Test the other ear or override this message.\n\nClick OK to override, Cancel to go back.')) return;
-      if (!confirm('Are you sure you want to override? If you proceed, the record will state that you chose to test only one ear.\n\nClick OK to confirm, Cancel to go back.')) return;
-      overrideNote = ' [Test was overridden - healthcare worker chose to test only RIGHT ear]';
+
+    const checks = [];
+    if (leftResult === 'PASS' && leftSnrValues.length > 0 && leftGood < requiredGood) {
+      checks.push({ message: 'Left ear SNR warning', subMessage: `Left ear is marked PASS but only ${leftGood} of ${frequencies.length} frequencies are above ${teoaeThreshold} dB (need at least ${requiredGood}). Are you sure you want to continue?` });
     }
-    onNext({ testType: 'OAE', oaeLeftResult: leftResult, oaeRightResult: rightResult, snr1_5kLeft: leftSNR['1.5k'] || '', snr2kLeft: leftSNR['2k'] || '', snr3kLeft: leftSNR['3k'] || '', snr4kLeft: leftSNR['4k'] || '', snr6kLeft: leftSNR['6k'] || '', snr1_5kRight: rightSNR['1.5k'] || '', snr2kRight: rightSNR['2k'] || '', snr3kRight: rightSNR['3k'] || '', snr4kRight: rightSNR['4k'] || '', snr6kRight: rightSNR['6k'] || '', oaeOverrideNote: overrideNote });
-  }
-};
+    if (rightResult === 'PASS' && rightSnrValues.length > 0 && rightGood < requiredGood) {
+      checks.push({ message: 'Right ear SNR warning', subMessage: `Right ear is marked PASS but only ${rightGood} of ${frequencies.length} frequencies are above ${teoaeThreshold} dB (need at least ${requiredGood}). Are you sure you want to continue?` });
+    }
+    if (hasLeftData && !hasRightData) {
+      checks.push({ message: 'Only left ear tested', subMessage: 'The right ear has not been tested. If you proceed, the record will note that only the left ear was tested.', overrideNote: ' [Test was overridden - healthcare worker chose to test only LEFT ear]' });
+    } else if (!hasLeftData && hasRightData) {
+      checks.push({ message: 'Only right ear tested', subMessage: 'The left ear has not been tested. If you proceed, the record will note that only the right ear was tested.', overrideNote: ' [Test was overridden - healthcare worker chose to test only RIGHT ear]' });
+    }
+
+    const runChecks = (remaining, overrideNote) => {
+      if (remaining.length === 0) { proceedToNext(overrideNote); return; }
+      const next = remaining[0];
+      setConfirmModal({
+        message: next.message,
+        subMessage: next.subMessage,
+        onConfirm: () => { setConfirmModal(null); runChecks(remaining.slice(1), next.overrideNote || overrideNote); }
+      });
+    };
+    runChecks(checks, '');
+  };
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: `TEOAE - ${protocol}`, onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(BabyInfoBanner, { record }),
@@ -2139,11 +2234,18 @@ activeTab === 'right' && React.createElement('div', { className: 'space-y-4' },
       )
     ),
     React.createElement(StickyBottom, {}, React.createElement(Button, { onClick: handleNext }, t('next'))),
+    confirmModal && React.createElement(OAEConfirmModal, {
+      message: confirmModal.message,
+      subMessage: confirmModal.subMessage,
+      confirmLabel: 'Yes, continue',
+      cancelLabel: 'Go back',
+      onConfirm: confirmModal.onConfirm,
+      onCancel: () => setConfirmModal(null)
+    }),
     React.createElement(VersionWatermark)
   );
 };
 
-// Existing Baby Lookup Screen
 const ExistingBabyLookupScreen = ({ user, onBack, onFound, onProfileClick, onNotificationsClick, notificationCount }) => {
   const { t } = useTranslation();
   const [searchBy, setSearchBy] = useState('uniqueId');
