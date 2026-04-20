@@ -48,14 +48,14 @@ const parseRows = (rawRows, ngoFilter) => rawRows
   .filter(r => r[2] && r[2] !== 'Operator ID' && (!ngoFilter || r[3] === ngoFilter))
   .map(r => ({
     ts: new Date(r[0]), opName: r[1]||'', opId: r[2]||'', ngo: r[3]||'',
-    hospital: r[4]||'', device: r[5]||'', babyId: String(r[8]||''),
-    gender: r[11]||'', gestAge: Number(r[12])||0, riskFactors: r[13]||'',
-    testType: r[17]||'',
-    leftEar:  [r[21],r[22],r[23],r[24]],
-    rightEar: [r[25],r[26],r[27],r[28]],
-    oaeTestType: r[29]||'', oaeLeft: r[31]||'', oaeRight: r[32]||'',
-    rec: r[45]||'', cleanRec: cleanRec(r[45]),
-    testStart: r[46]||'', submitTime: r[47]||''
+    hospital: r[4]||'', device: r[5]||'', babyId: String(r[9]||''),
+    gender: r[12]||'', gestAge: Number(r[13])||0, riskFactors: r[14]||'',
+    testType: r[18]||'',
+    leftEar:  [r[22],r[23],r[24],r[25]],
+    rightEar: [r[26],r[27],r[28],r[29]],
+    oaeTestType: r[30]||'', oaeLeft: r[32]||'', oaeRight: r[33]||'',
+    rec: r[46]||'', cleanRec: cleanRec(r[46]),
+    testStart: r[47]||'', submitTime: r[48]||''
   }));
 
 // ── AABR CLASSIFICATION: lowest valid dB per ear ──────────────────────────────
@@ -63,7 +63,12 @@ const parseRows = (rawRows, ngoFilter) => rawRows
 // We find the lowest dB slot that has PASS or REFER (ignoring REDO and empty)
 const earOutcome = slots => {
   for (let i = 0; i < slots.length; i++) {
-    if (slots[i] === 'PASS' || slots[i] === 'REFER') return slots[i];
+    const raw = (slots[i] || '').toString().replace(/^AO\[?/, '').replace(/\]$/, '');
+    // Multi-attempt: e.g. "REDO,REFER,PASS" — use last non-REDO result
+    const attempts = raw.split(',').map(s => s.trim()).filter(Boolean);
+    for (let j = attempts.length - 1; j >= 0; j--) {
+      if (attempts[j] === 'PASS' || attempts[j] === 'REFER') return attempts[j];
+    }
   }
   return null;
 };
@@ -93,8 +98,13 @@ const classifyOAE = row => {
 };
 
 // ── SLOT-LEVEL HELPERS ────────────────────────────────────────────────────────
-const countAttemptedSlots = row => [...row.leftEar, ...row.rightEar].filter(v => v === 'PASS' || v === 'REFER' || v === 'REDO').length;
-const countRedoSlots      = row => [...row.leftEar, ...row.rightEar].filter(v => v === 'REDO').length;
+const expandSlot = v => {
+  if (!v) return [];
+  const raw = v.toString().replace(/^AO\[?/, '').replace(/\]$/, '');
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+};
+const countAttemptedSlots = row => [...row.leftEar, ...row.rightEar].flatMap(expandSlot).filter(v => v === 'PASS' || v === 'REFER' || v === 'REDO').length;
+const countRedoSlots      = row => [...row.leftEar, ...row.rightEar].flatMap(expandSlot).filter(v => v === 'REDO').length;
 
 const screeningDurationMins = row => {
   if (!row.testStart || !row.submitTime) return null;
