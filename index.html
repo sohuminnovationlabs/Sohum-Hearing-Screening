@@ -48,7 +48,7 @@ const TEST_DATA = {
 
 
 // 🔧 VERSION - Update this single line for new releases
-const APP_VERSION = 'v8.6.3';
+const APP_VERSION = 'v8.6.4';
 
 // 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
@@ -140,6 +140,9 @@ const getSmartLocation = () => {
     );
   });
 };
+const SOHUM_NGO_NAME        = 'Sohum Innovation Lab';
+const SOHUM_ASSIGNMENTS_GID = '1239817289';
+
 const fetchMasterData = async () => {
   try {
     const baseUrl = `https://docs.google.com/spreadsheets/d/${MASTER_SHEET_ID}/gviz/tq?tqx=out:json`;
@@ -158,6 +161,24 @@ const fetchMasterData = async () => {
   } catch (error) {
     console.error('Error fetching master data:', error);
     throw error;
+  }
+};
+
+const fetchSohumAssignments = async (username) => {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${MASTER_SHEET_ID}/gviz/tq?tqx=out:json&gid=${SOHUM_ASSIGNMENTS_GID}`;
+    const res  = await fetch(url);
+    const text = await res.text();
+    const json = JSON.parse(text.substring(47).slice(0, -2));
+    const rows = json.table.rows.map(row => row.c.map(cell => cell ? cell.v : ''));
+    const match = rows.find(r => r[0] && r[0].toString().trim() === username);
+    if (!match) return null;
+    const hospitals = (match[1] || '').toString().split(',').map(s => s.trim()).filter(Boolean);
+    const devices   = (match[2] || '').toString().split(',').map(s => s.trim()).filter(Boolean);
+    return { hospitals, devices };
+  } catch (e) {
+    console.warn('fetchSohumAssignments failed:', e);
+    return null;
   }
 };
 
@@ -2931,13 +2952,25 @@ const App = () => {
     setRecord({ ...rest, babyId: generateBabyId() });
     setStep(STEP.BABY);
   };
-  const handleLogin = (userData) => {
+  const handleLogin = async (userData) => {
     setUser(userData);
-    setStep(STEP.SESSION);
     fetchAllLogData().then(data => setLogData(data));
     fetchNotifCount(userData.hwId);
     if (notifPollRef.current) clearInterval(notifPollRef.current);
     notifPollRef.current = setInterval(() => fetchNotifCount(userData.hwId), 300000);
+
+    if (userData.ngo === SOHUM_NGO_NAME) {
+      const assignment = await fetchSohumAssignments(userData.hwId);
+      if (assignment) {
+        setMasterData(prev => ({
+          ...prev,
+          hospitals: assignment.hospitals.map(h => ['Sohum Innovation Lab', h]),
+          devices:   assignment.devices.map(d   => ['Sohum Innovation Lab', d])
+        }));
+      }
+    }
+
+    setStep(STEP.SESSION);
   };
   const handleSubmit = async (data) => {
     const { photoBase64, ...rest } = data;
