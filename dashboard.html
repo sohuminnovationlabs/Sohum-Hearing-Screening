@@ -1835,24 +1835,22 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
     h(AppHeader,{title:'Dashboard',subtitle:`Welcome, ${user.name}`,
       topLabel: user.role==='admin' ? 'Sohum Innovation Labs' : user.ngo,
       onLogout,userName:user.name},
-      h('div',{style:{display:'flex',gap:8,marginTop:12,alignSelf:'flex-start',position:'relative',alignItems:'center'}},
+      h('div',{style:{display:'flex',gap:8,marginTop:12,alignSelf:'flex-start',position:'relative',alignItems:'center',flexWrap:'wrap'}},
         h('button',{onClick:()=>setShowExportModal(true),style:{background:'rgba(255,255,255,0.15)',
-          border:'1px solid rgba(255,255,255,0.3)',color:'#fff',borderRadius:8,padding:'5px 14px',
-          fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},
+          border:'1px solid rgba(255,255,255,0.3)',color:'#fff',borderRadius:8,padding:'7px 16px',
+          fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',height:34}},
           '⬇ Export CSV'),
+
         h('div',{style:{position:'relative'}},
           h('button',{onClick:()=>setShowViewMenu(m=>!m),style:{background:'rgba(255,255,255,0.15)',
             border:'1px solid rgba(255,255,255,0.3)',color:'#fff',borderRadius:8,padding:'7px 16px',
-            fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},
+            fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',height:34}},
             '👁 View'),
-        h('button',{onClick:()=>{ const isDark=document.body.classList.toggle('dark-mode'); document.body.style.background=isDark?'#0d1117':'#f0f4f8'; document.getElementById('root').style.background=isDark?'#0d1117':'#f0f4f8'; },style:{background:'rgba(255,255,255,0.15)',
-          border:'1px solid rgba(255,255,255,0.3)',color:'#fff',borderRadius:8,padding:'7px 12px',
-          fontSize:15,cursor:'pointer',fontFamily:'inherit',height:34,lineHeight:1}},'🌙')
 
           showViewMenu && h('div',{className:'dm-view-menu',style:{position:'fixed',top:120,right:20,background:'#fff',borderRadius:12,
             boxShadow:'0 8px 32px rgba(0,0,0,0.18)',padding:'8px 0',zIndex:500,minWidth:240,maxHeight:'calc(100vh - 140px)',overflowY:'auto',border:`1px solid ${C.slate200}`}},
             CARD_KEYS.map(k => h('div',{key:k,onClick:e=>{e.stopPropagation();toggleVis(k);},
-              style:{display:'flex',alignItems:'center',gap:10,padding:'7px 14px',cursor:'pointer',fontSize:12,color:C.slate700},
+              style:{display:'flex',alignItems:'center',gap:10,padding:'8px 14px',cursor:'pointer',fontSize:13,color:C.slate700},
               onMouseEnter:ev=>ev.currentTarget.style.background=C.slate50,
               onMouseLeave:ev=>ev.currentTarget.style.background='transparent'},
               h('div',{style:{width:16,height:16,borderRadius:4,flexShrink:0,
@@ -1864,9 +1862,12 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
               CARD_LABELS[k]
             ))
           )
-        )
-      ),
-      
+        ),
+
+        h('button',{onClick:()=>{ const isDark=document.body.classList.toggle('dark-mode'); document.body.style.background=isDark?'#0d1117':'#f0f4f8'; document.getElementById('root').style.background=isDark?'#0d1117':'#f0f4f8'; },style:{background:'rgba(255,255,255,0.15)',
+          border:'1px solid rgba(255,255,255,0.3)',color:'#fff',borderRadius:8,padding:'7px 12px',
+          fontSize:15,cursor:'pointer',fontFamily:'inherit',height:34,lineHeight:1}},'🌙')
+      )
     ),
 
     h('div',{style:{padding:'14px 20px 0'}},
