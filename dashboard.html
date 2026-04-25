@@ -123,7 +123,7 @@ const { createRoot } = ReactDOM;
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 
-const DASHBOARD_VERSION = '1.0-online';
+const DASHBOARD_VERSION = '1.7';
 
 
 
@@ -2093,7 +2093,8 @@ const EntityDetailScreen = ({type,entityKey,rows,onBack}) => {
 };
 
 // ── AUDIOLOGIST QUEUE SCREEN ──────────────────────────────────────────────────
-const AudQueueScreen = ({allRows,onBack,scriptUrl}) => {
+const AudQueueScreen = ({allRows,onBack,scriptUrl,audiologists=[],onReassigned}) => {
+
   const [expandedAud, setExpandedAud] = useState(null);
   const [reassigning, setReassigning] = useState(null);
   const [targetAud,   setTargetAud]   = useState('');
@@ -2102,9 +2103,13 @@ const AudQueueScreen = ({allRows,onBack,scriptUrl}) => {
   const s = useMemo(() => calcStats(allRows), [allRows]);
   const queueMap = s.audQueueMap;
   const allAuds  = Object.keys(queueMap).sort();
+  const availableAuds = audiologists.length
+    ? audiologists
+    : allAuds.map(username => ({ username, name: username }));
+
 
   const handleReassign = (screeningId, currentAud) => {
-    setReassigning(screeningId);
+    setReassigning({ screeningId, currentAud });
     setTargetAud('');
     setMsg('');
   };
@@ -2112,15 +2117,31 @@ const AudQueueScreen = ({allRows,onBack,scriptUrl}) => {
   const submitReassign = () => {
     if (!targetAud) { setMsg('Select a target audiologist.'); return; }
     if (DATA_MODE === 'offline') { setMsg('Offline mode — reassignment not persisted.'); setReassigning(null); return; }
+
     fetch(scriptUrl, {
       method:'POST',
       headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({action:'reassignCase',screeningId:reassigning,newAudiologist:targetAud,adminUsername:'admin'})
+      body: JSON.stringify({
+        action:'reassignCase',
+        screeningId:reassigning.screeningId,
+        newAudiologist:targetAud,
+        adminUsername:'admin'
+      })
     }).then(r=>r.json()).then(d=>{
-      setMsg(d.status==='success'?`Reassigned to ${targetAud}`:`Error: ${d.message}`);
+      if (d.status === 'success') {
+        setMsg(`Reassigned to ${targetAud}`);
+        if (onReassigned) onReassigned();
+      } else {
+        setMsg(`Error: ${d.message}`);
+      }
       setReassigning(null);
-    }).catch(()=>{ setMsg('Network error'); setReassigning(null); });
+      setTargetAud('');
+    }).catch(()=>{
+      setMsg('Network error');
+      setReassigning(null);
+    });
   };
+
 
   return h('div',{className:'fade-in',style:{minHeight:'100vh',paddingBottom:60}},
     h(AppHeader,{title:'Audiologist Queue',topLabel:'Admin View',subtitle:'Case management and reassignment'}),
@@ -2138,7 +2159,33 @@ const AudQueueScreen = ({allRows,onBack,scriptUrl}) => {
 
       allAuds.length === 0 && h('div',{style:{textAlign:'center',color:C.slate400,fontSize:13,padding:'32px 0'}},'No audiologist assignments in the selected data range.'),
 
-      allAuds.map(aud => {
+      reassigning && h('div',{
+        style:{
+          position:'fixed',inset:0,background:'rgba(15,23,42,0.45)',zIndex:99999,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:18
+        }
+      },
+        h('div',{style:{background:C.white,borderRadius:16,padding:16,width:'100%',maxWidth:420,boxShadow:'0 18px 50px rgba(15,23,42,0.25)'}},
+          h('div',{style:{fontSize:16,fontWeight:700,color:C.slate800,marginBottom:4}},'Reassign Case'),
+          h('div',{style:{fontSize:11,color:C.slate500,marginBottom:12}},reassigning.screeningId),
+          h('div',{style:{display:'flex',flexDirection:'column',gap:8,maxHeight:300,overflowY:'auto',marginBottom:14}},
+            availableAuds
+              .filter(a => a.username !== reassigning.currentAud)
+              .map(a => h('label',{key:a.username,style:{display:'flex',alignItems:'center',gap:10,padding:'9px 10px',border:`1px solid ${targetAud===a.username?C.primary:C.slate200}`,borderRadius:10,cursor:'pointer',background:targetAud===a.username?C.accentL:C.white}},
+                h('input',{type:'radio',name:'targetAudiologist',checked:targetAud===a.username,onChange:()=>setTargetAud(a.username)}),
+                h('div',{},
+                  h('div',{style:{fontSize:13,fontWeight:600,color:C.slate800}},a.name || a.username),
+                  h('div',{style:{fontSize:10,color:C.slate400}},a.username)
+                )
+              ))
+          ),
+          h('div',{style:{display:'flex',gap:8}},
+            h('button',{onClick:submitReassign,style:{flex:1,background:C.primary,color:'#fff',border:'none',borderRadius:10,padding:'10px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},'Confirm'),
+            h('button',{onClick:()=>{setReassigning(null);setTargetAud('');},style:{flex:1,background:C.slate200,color:C.slate600,border:'none',borderRadius:10,padding:'10px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},'Cancel')
+          )
+        )
+      )
+
         const q = queueMap[aud];
         const isExpanded = expandedAud === aud;
         return h(Card,{key:aud,style:{marginBottom:10}},
@@ -2161,14 +2208,18 @@ const AudQueueScreen = ({allRows,onBack,scriptUrl}) => {
           isExpanded && h('div',{style:{marginTop:12}},
             h(Divider,{my:0}),
             h('div',{style:{marginTop:10}},
-              q.cases.sort((a,b) => {
+q.cases.sort((a,b) => {
   if(a.urgent && !b.urgent) return -1;
   if(!a.urgent && b.urgent) return 1;
+
   const statusOrder = {pending:0,photo_requested:1,photo_received:2,completed:3};
-  const statusDiff = (statusOrder[a.reviewStatus]||9) - (statusOrder[b.reviewStatus]||9);
-  if (statusDiff !== 0) return statusDiff;
+  const aRank = statusOrder[a.reviewStatus] ?? 9;
+  const bRank = statusOrder[b.reviewStatus] ?? 9;
+  if (aRank !== bRank) return aRank - bRank;
+
   return new Date(b.assignedAt || b.ts || 0) - new Date(a.assignedAt || a.ts || 0);
 }).map(c => h('div',{key:c.screenId,style:{borderRadius:10,border:`1px solid ${C.slate200}`,padding:'10px 12px',marginBottom:8,background:c.urgent?'#fff7ed':C.white}},
+
 
                 h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}},
                   h('div',{style:{flex:1}},
@@ -2185,18 +2236,7 @@ const AudQueueScreen = ({allRows,onBack,scriptUrl}) => {
                     style:{background:C.accentL,color:C.accent,border:'none',borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0,fontFamily:'inherit',marginLeft:8}
                   },'Reassign')
                 ),
-                reassigning === c.screenId && h('div',{style:{marginTop:8,padding:'8px',background:C.slate50,borderRadius:8}},
-                  h('div',{style:{fontSize:11,fontWeight:600,color:C.slate700,marginBottom:6}},'Reassign to:'),
-                  h('select',{value:targetAud,onChange:e=>setTargetAud(e.target.value),
-                    style:{width:'100%',background:C.white,border:`1px solid ${C.slate300}`,borderRadius:6,padding:'6px 8px',fontSize:12,fontFamily:'inherit',marginBottom:8}},
-                    h('option',{value:''},'Select audiologist'),
-                    allAuds.filter(a=>a!==aud).map(a=>h('option',{key:a,value:a},a))
-                  ),
-                  h('div',{style:{display:'flex',gap:6}},
-                    h('button',{onClick:submitReassign,style:{flex:1,background:C.primary,color:'#fff',border:'none',borderRadius:8,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},'Confirm'),
-                    h('button',{onClick:()=>setReassigning(null),style:{flex:1,background:C.slate200,color:C.slate600,border:'none',borderRadius:8,padding:'7px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},'Cancel')
-                  )
-                )
+                
               ))
             )
           )
@@ -2244,7 +2284,7 @@ const LoginScreen = ({onLogin}) => {
           h('button',{onClick:attempt,style:{width:'100%',background:`linear-gradient(135deg, ${C.primary} 0%, ${C.primary2} 100%)`,color:'#fff',border:'none',borderRadius:12,padding:'14px',fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(26,58,92,0.3)'}},'Sign In')
         )
       ),
-      h('div',{style:{marginTop:12,textAlign:'center',fontSize:11,color:C.slate400}},`Sohum Dashboard · v${DASHBOARD_VERSION} · Offline Mode`)
+      h('div',{style:{marginTop:12,textAlign:'center',fontSize:11,color:C.slate400}},`Sohum Dashboard · v${DASHBOARD_VERSION} · Online Mode`)
     )
   );
 };
@@ -2266,6 +2306,8 @@ const App = () => {
   const [rawData,       setRawData]       = useState(null);
   const [loadError,     setLoadError]     = useState(null);
   const [audNameMap,    setAudNameMap]    = useState({});
+  const [audiologists,  setAudiologists]  = useState([]);
+
 
   // ── Server-side login ──────────────────────────────────────────
   const handleLogin = async (username, password) => {
@@ -2308,6 +2350,8 @@ const App = () => {
         const map = {};
         audJson.data.forEach(a => { map[a.username] = a.name; });
         setAudNameMap(map);
+        setAudiologists(audJson.data);
+
       }
     }).catch(err => {
       setLoadError('Network error: ' + err.message);
@@ -2372,7 +2416,19 @@ const App = () => {
     h(BackBtn,{onClick:()=>setScreen('overview')}),
     h(AudiologyPerformance,{allRows,audNameMap})
   )) :
-screen==='audqueue' ? h(AudQueueScreen,{allRows,onBack:()=>setScreen('overview'),scriptUrl:SCRIPT_URL}) :
+screen==='audqueue' ? h(AudQueueScreen,{
+  allRows,
+  audiologists,
+  onBack:()=>setScreen('overview'),
+  scriptUrl:SCRIPT_URL,
+  onReassigned:()=>fetch(`${SCRIPT_URL}?action=getDashboardData`).then(r=>r.json()).then(d=>{
+    if (d.status === 'success') {
+      window._reviewsData = d.reviews;
+      setRawData({ main:d.main, reviews:d.reviews });
+    }
+  })
+}) :
+
     null
   );
 };
