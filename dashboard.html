@@ -1807,7 +1807,8 @@ const OAESignalQualityCard = ({rows}) => {
 // ── OVERVIEW SCREEN ───────────────────────────────────────────────────────────
 const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
   dateFrom,dateTo,setDateFrom,setDateTo,activePreset,setActivePreset,
-  filterNGO,setFilterNGO,filterHosp,setFilterHosp,filterHCW,setFilterHCW,filterDevice,setFilterDevice}) => {
+  filterNGO,setFilterNGO,filterHosp,setFilterHosp,filterHCW,setFilterHCW,filterDevice,setFilterDevice,
+  audNameMap={}}) => {
 
   const s = useMemo(() => calcStats(rows), [rows]);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -2353,6 +2354,7 @@ const App = () => {
     h(Watermark),
     screen==='login'    ? h(LoginScreen,{onLogin:handleLogin}) :
     screen==='overview' ? h(OverviewScreen,{user,rows,allRows,...sharedDateProps,...sharedFilterProps,
+      audNameMap,
       onLogout:()=>{setUser(null);setScreen('login');},
       onDrill:type=>{ if(type==='audiologist'){setScreen('audperf');}else{setDrillType(type);setScreen('drill');} },
       onAudQueue:()=>setScreen('audqueue')}) :
