@@ -1954,10 +1954,141 @@ const OAESignalQualityCard = ({rows}) => {
 
 
 // ── OVERVIEW SCREEN ───────────────────────────────────────────────────────────
+const parseAppointments = (rawData) => {
+  if (!rawData || rawData.length <= 1) return [];
+  return rawData.slice(1).filter(r => r[0]).map(r => ({
+    appointmentId:r[0]||'', hospitalName:r[1]||'', hospitalUsername:r[2]||'', hcwUsername:r[3]||'',
+    babyName:r[4]||'', babyDob:normDate(r[5]), parentPhone:r[6]||'', appointmentDate:normDate(r[7]),
+    appointmentTime:normTime(r[8]), slotDuration:parseInt(r[9]||0)||0, status:(r[10]||'').toString().trim(),
+    bookedAt:r[11]||'', notes:r[12]||'', calEventId:r[13]||'', rescheduledFrom:r[14]||''
+  })).filter(a => a.appointmentDate);
+};
+
+const normDate = (v) => {
+  if (!v) return '';
+  const s = v.toString().trim().replace(/^'/,'');
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const d = new Date(s);
+  if (isNaN(d)) return s;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+
+const normTime = (v) => {
+  if (v === null || v === undefined || v === '') return '';
+  const s = v.toString().trim().replace(/^'/,'');
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  if (m) return `${m[1].padStart(2,'0')}:${m[2]}`;
+  const d = new Date(s);
+  if (!isNaN(d)) return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return s;
+};
+
+const apptDateObj = (dateStr) => {
+  const [y,m,d] = (dateStr || '').split('-').map(Number);
+  const dt = new Date(y || 2000, (m || 1) - 1, d || 1);
+  dt.setHours(0,0,0,0);
+  return dt;
+};
+
+const filterAppointments = (appointments,dateFrom,dateTo,filterHosp,filterHCW) =>
+  appointments.filter(a => {
+    const d = apptDateObj(a.appointmentDate);
+    return d >= dateFrom && d <= dateTo && (!filterHosp || a.hospitalName === filterHosp) && (!filterHCW || a.hcwUsername === filterHCW);
+  });
+
+const calcAppointmentStats = (appointments) => {
+  const byHospital = {}, byHCW = {}, byStatus = {};
+  appointments.forEach(a => {
+    if (!byHospital[a.hospitalName]) byHospital[a.hospitalName] = {total:0,booked:0,cancelled:0,noShow:0,rows:[]};
+    if (!byHCW[a.hcwUsername]) byHCW[a.hcwUsername] = {total:0,booked:0,cancelled:0,noShow:0,rows:[]};
+    [byHospital[a.hospitalName], byHCW[a.hcwUsername]].forEach(g => {
+      g.total++; g.rows.push(a);
+      if (a.status === 'cancelled') g.cancelled++;
+      else if (a.status === 'no_show') g.noShow++;
+      else g.booked++;
+    });
+    byStatus[a.status || 'unknown'] = (byStatus[a.status || 'unknown'] || 0) + 1;
+  });
+  return {total:appointments.length,active:appointments.filter(a=>a.status!=='cancelled'&&a.status!=='no_show').length,cancelled:byStatus.cancelled||0,noShow:byStatus.no_show||0,completed:byStatus.completed||0,byHospital,byHCW,byStatus};
+};
+
+const AppointmentMetricsCard = ({appointments,onOpen}) => {
+  const s = calcAppointmentStats(appointments);
+  return h(Card,{style:{marginBottom:12},onClick:onOpen},
+    h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginBottom:12}},
+      h('div',{},h(SectionLabel,{style:{marginBottom:2}},'Appointment Scheduling'),h('div',{style:{fontSize:11,color:C.slate400}},'Bookings in the current dashboard filter')),
+      h('div',{style:{width:38,height:38,borderRadius:10,background:C.primary,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800}},s.total)
+    ),
+    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}},
+      h(KpiCard,{value:s.total,label:'Bookings'}), h(KpiCard,{value:s.active,label:'Active',color:C.green}),
+      h(KpiCard,{value:s.cancelled,label:'Cancelled',color:C.slate500}), h(KpiCard,{value:s.noShow,label:'No-show',color:C.red})
+    ),
+    h('div',{style:{fontSize:11,color:C.primary,fontWeight:700,marginTop:10}},'Open breakdown and reassignments')
+  );
+};
+
+const AppointmentAdminScreen = ({appointments,dateFrom,dateTo,filterHosp,filterHCW,scriptUrl,onBack,onChanged}) => {
+  const [reassigning,setReassigning] = useState(null);
+  const [hcwOptions,setHcwOptions] = useState([]);
+  const [targetHCW,setTargetHCW] = useState('');
+  const [msg,setMsg] = useState('');
+  const filtered = useMemo(()=>filterAppointments(appointments,dateFrom,dateTo,filterHosp,filterHCW),[appointments,dateFrom,dateTo,filterHosp,filterHCW]);
+  const s = useMemo(()=>calcAppointmentStats(filtered),[filtered]);
+  const activeRows = filtered.slice().sort((a,b)=>(a.appointmentDate+a.appointmentTime).localeCompare(b.appointmentDate+b.appointmentTime));
+  const openReassign = async (appt) => {
+    setMsg(''); setReassigning(appt); setTargetHCW('');
+    try { const res = await fetch(`${scriptUrl}?action=getHCWListForHospital&hospitalName=${encodeURIComponent(appt.hospitalName)}`); const json = await res.json(); setHcwOptions(json.status==='success'?(json.data||[]):[]); }
+    catch(e) { setHcwOptions([]); setMsg('Unable to load HCW list.'); }
+  };
+  const submitReassign = async () => {
+    if (!reassigning || !targetHCW) return;
+    setMsg('Updating assignment...');
+    try {
+      const res = await fetch(scriptUrl,{method:'POST',body:JSON.stringify({action:'reassignAppointment',appointmentId:reassigning.appointmentId,newHcwUsername:targetHCW,adminUsername:'dashboard'})});
+      const json = await res.json();
+      if (json.status === 'success') { setMsg('Appointment reassigned.'); setReassigning(null); setTargetHCW(''); onChanged&&onChanged(); }
+      else setMsg(json.message || 'Reassignment failed.');
+    } catch(e) { setMsg('Network error while reassigning.'); }
+  };
+  const groupCard = (title,map) => h(Card,{style:{marginBottom:12}},h(SectionLabel,{},title),
+    Object.entries(map).sort((a,b)=>b[1].total-a[1].total).map(([key,info]) =>
+      h('div',{key,style:{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:`1px solid ${C.slate100}`}},
+        h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontSize:13,fontWeight:700,color:C.slate800,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},key||'Unassigned'),h('div',{style:{fontSize:10,color:C.slate400}},`${info.booked} active · ${info.cancelled} cancelled · ${info.noShow} no-show`)),
+        h('div',{style:{fontSize:18,fontWeight:800,color:C.primary}},info.total)
+      )
+    )
+  );
+  return h('div',{className:'fade-in',style:{minHeight:'100vh',paddingBottom:60}},
+    h(AppHeader,{title:'Appointment Management',topLabel:'Admin View',onBack}),
+    h('div',{style:{padding:'14px 14px 0'}},
+      h(BackBtn,{onClick:onBack}),
+      msg && h('div',{style:{fontSize:12,color:msg.includes('failed')||msg.includes('error')||msg.includes('Unable')?C.red:C.green,marginBottom:10}},msg),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:12}},h(KpiCard,{value:s.total,label:'Bookings'}),h(KpiCard,{value:s.active,label:'Active',color:C.green}),h(KpiCard,{value:s.cancelled,label:'Cancelled',color:C.slate500}),h(KpiCard,{value:s.noShow,label:'No-show',color:C.red})),
+      h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'start'}},groupCard('By Hospital',s.byHospital),groupCard('By HCW',s.byHCW)),
+      h(SectionLabel,{style:{paddingLeft:2}},'Appointment Queue'),
+      activeRows.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No appointments in the selected filter.'),
+      activeRows.map(a=>h(Card,{key:a.appointmentId,style:{marginBottom:10}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'flex-start'}},
+        h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},`${a.appointmentDate} · ${a.appointmentTime}`),h('div',{style:{fontSize:12,color:C.slate600,marginTop:3}},`${a.hospitalName} · ${a.babyName||'Walk-in slot'}`),h('div',{style:{fontSize:11,color:C.slate400,marginTop:3}},`HCW: ${a.hcwUsername} · ${a.status}`)),
+        h('button',{onClick:()=>openReassign(a),disabled:a.status==='cancelled',style:{background:C.primary,color:'#fff',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:a.status==='cancelled'?'default':'pointer',opacity:a.status==='cancelled'?0.5:1,fontFamily:'inherit'}},'Reassign')
+      ))),
+      reassigning && h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.42)',zIndex:800,display:'flex',alignItems:'flex-end',justifyContent:'center'},onClick:e=>{if(e.target===e.currentTarget)setReassigning(null);}},
+        h('div',{style:{background:C.white,borderRadius:'18px 18px 0 0',padding:18,width:'100%',maxWidth:520,boxShadow:'0 -4px 28px rgba(0,0,0,0.18)'}},
+          h('div',{style:{fontSize:15,fontWeight:800,color:C.slate800,marginBottom:4}},'Reassign Appointment'),
+          h('div',{style:{fontSize:12,color:C.slate500,marginBottom:12}},`${reassigning.hospitalName} · ${reassigning.appointmentDate} ${reassigning.appointmentTime}`),
+          h('select',{value:targetHCW,onChange:e=>setTargetHCW(e.target.value),style:{width:'100%',background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,marginBottom:12,fontFamily:'inherit'}},
+            h('option',{value:''},'Select HCW'), hcwOptions.filter(hcw=>hcw.username!==reassigning.hcwUsername).map(hcw=>h('option',{key:hcw.username,value:hcw.username},`${hcw.workerName} (${hcw.username})`))
+          ),
+          h('div',{style:{display:'flex',gap:8}},h('button',{onClick:submitReassign,disabled:!targetHCW,style:{flex:1,background:C.primary,color:'#fff',border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:targetHCW?'pointer':'default',opacity:targetHCW?1:0.55,fontFamily:'inherit'}},'Confirm'),h('button',{onClick:()=>setReassigning(null),style:{flex:1,background:C.slate200,color:C.slate600,border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}},'Cancel'))
+        )
+      )
+    )
+  );
+};
+
 const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
   dateFrom,dateTo,setDateFrom,setDateTo,activePreset,setActivePreset,
   filterNGO,setFilterNGO,filterHosp,setFilterHosp,filterHCW,setFilterHCW,filterDevice,setFilterDevice,
-  audNameMap={}}) => {
+  audNameMap={},appointments=[],onAppointments}) => {
 
   const s = useMemo(() => calcStats(rows), [rows]);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -2043,6 +2174,7 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
         )
       ),
       // Full-width cards
+      user.role === 'admin' && h(AppointmentMetricsCard,{appointments,onOpen:onAppointments}),
       vis.deviceQuality && h(AdvancedRedoCard,{s,isAdmin:user.role==='admin'}),
       vis.oaeSignal && h(OAESignalQualityCard,{rows}),
 
@@ -2076,6 +2208,16 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
             h('div',{style:{fontSize:11,color:C.slate400,marginTop:1}},`${s.revPending} pending · ${s.revPhotoReq} awaiting photo · ${s.revCompleted} completed`)
           ),
           s.revPending > 0 && h('div',{style:{background:C.orange,color:'#fff',borderRadius:99,fontSize:11,fontWeight:700,padding:'2px 8px'}},s.revPending),
+          h('svg',{xmlns:'http://www.w3.org/2000/svg',width:16,height:16,viewBox:'0 0 24 24',fill:'none',stroke:C.slate300,strokeWidth:2},h('path',{d:'m9 18 6-6-6-6'}))
+        )
+      ),
+      user.role === 'admin' && h(Card,{style:{marginBottom:10},onClick:onAppointments},
+        h('div',{style:{display:'flex',alignItems:'center',gap:12}},
+          h('div',{style:{width:42,height:42,borderRadius:12,background:C.tealL,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}},'Cal'),
+          h('div',{style:{flex:1}},
+            h('div',{style:{fontSize:13,fontWeight:600,color:C.slate800}},'Appointment Queue Management'),
+            h('div',{style:{fontSize:11,color:C.slate400,marginTop:1}},'View bookings by hospital and HCW, then reassign')
+          ),
           h('svg',{xmlns:'http://www.w3.org/2000/svg',width:16,height:16,viewBox:'0 0 24 24',fill:'none',stroke:C.slate300,strokeWidth:2},h('path',{d:'m9 18 6-6-6-6'}))
         )
       ),
@@ -2516,7 +2658,7 @@ const App = () => {
     ]).then(([dataJson, audJson]) => {
       if (dataJson.status === 'success') {
         window._reviewsData = dataJson.reviews;
-        setRawData({ main: dataJson.main, reviews: dataJson.reviews });
+        setRawData({ main: dataJson.main, reviews: dataJson.reviews, appointments: dataJson.appointments || [[]] });
       } else {
         setLoadError(dataJson.message || 'Failed to load data');
       }
@@ -2533,8 +2675,10 @@ const App = () => {
   }, [user]);
 
   const rawMain = rawData?.main || [];
+  const rawAppointments = rawData?.appointments || [[]];
 
   const allRows = useMemo(() => parseRows(rawMain, user?.ngo || null), [rawData, user]);
+  const allAppointments = useMemo(() => parseAppointments(rawAppointments), [rawData]);
 
   const rows = useMemo(() => {
     let filtered = allRows.filter(r => r.ts >= dateFrom && r.ts <= dateTo);
@@ -2544,6 +2688,18 @@ const App = () => {
     if (filterDevice) filtered = filtered.filter(r => r.device === filterDevice);
     return filtered;
   }, [allRows, dateFrom, dateTo, filterNGO, filterHosp, filterHCW, filterDevice]);
+
+  const appointments = useMemo(() =>
+    filterAppointments(allAppointments, dateFrom, dateTo, filterHosp, filterHCW),
+    [allAppointments, dateFrom, dateTo, filterHosp, filterHCW]
+  );
+
+  const refreshDashboardData = () => fetch(`${SCRIPT_URL}?action=getDashboardData`).then(r=>r.json()).then(d=>{
+    if (d.status === 'success') {
+      window._reviewsData = d.reviews;
+      setRawData({ main:d.main, reviews:d.reviews, appointments:d.appointments || [[]] });
+    }
+  });
 
   const Watermark = () => h('div',{style:{position:'fixed',bottom:10,left:'50%',transform:'translateX(-50%)',
     background:'rgba(26,58,92,0.12)',color:C.slate400,fontSize:9,padding:'3px 10px',borderRadius:999,
@@ -2575,10 +2731,11 @@ const App = () => {
     h(Watermark),
     screen==='login'    ? h(LoginScreen,{onLogin:handleLogin}) :
     screen==='overview' ? h(OverviewScreen,{user,rows,allRows,...sharedDateProps,...sharedFilterProps,
-      audNameMap,
+      audNameMap,appointments,
       onLogout:()=>{setUser(null);setScreen('login');},
       onDrill:type=>{ if(type==='audiologist'){setScreen('audperf');}else{setDrillType(type);setScreen('drill');} },
-      onAudQueue:()=>setScreen('audqueue')}) :
+      onAudQueue:()=>setScreen('audqueue'),
+      onAppointments:()=>setScreen('appointments')}) :
     screen==='drill'    ? h(DrillListScreen,{user,type:drillType,rows,
       onBack:()=>setScreen('overview'),
       onSelect:(type,key,erows)=>{setDrillType(type);setEntityKey(key);setEntityRows(erows);setScreen('detail');}}) :
@@ -2595,12 +2752,14 @@ screen==='audqueue' ? h(AudQueueScreen,{
   audiologists,
   onBack:()=>setScreen('overview'),
   scriptUrl:SCRIPT_URL,
-  onReassigned:()=>fetch(`${SCRIPT_URL}?action=getDashboardData`).then(r=>r.json()).then(d=>{
-    if (d.status === 'success') {
-      window._reviewsData = d.reviews;
-      setRawData({ main:d.main, reviews:d.reviews });
-    }
-  })
+  onReassigned:refreshDashboardData
+}) :
+screen==='appointments' ? h(AppointmentAdminScreen,{
+  appointments: allAppointments,
+  dateFrom,dateTo,filterHosp,filterHCW,
+  scriptUrl:SCRIPT_URL,
+  onBack:()=>setScreen('overview'),
+  onChanged:refreshDashboardData
 }) :
 
     null
