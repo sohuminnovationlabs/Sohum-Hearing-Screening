@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Sohum — Book a Screening</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: '#202B5D', secondary: '#F3F4F6' },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { margin: 0; background-color: #f9fafb; display: flex; justify-content: center; min-height: 100vh; font-family: 'Inter', system-ui, sans-serif; }
+    #root { width: 100%; max-width: 480px; background-color: white; min-height: 100vh; box-shadow: 0 0 20px rgba(0,0,0,0.05); position: relative; overflow-x: hidden; }
+    ::-webkit-scrollbar { width: 0px; background: transparent; }
+    .slot-btn { transition: all 0.15s ease; }
+    .slot-btn:active { transform: scale(0.97); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.25s ease forwards; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.8s linear infinite; }
+  </style>
+  <script type="importmap">
+  { "imports": { "react-dom/": "https://esm.sh/react-dom@^19.0.0/", "react/": "https://esm.sh/react@^19.0.0/", "react": "https://esm.sh/react@^19.0.0" } }
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+import React, { useState, useEffect, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+
+// ─── Config ───────────────────────────────────────────────────────
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjlCbyObnNHpOj3g3MUnD8o79y0xH8AJeBCxz2SN_uxDGSAA44E1hXBDM2Gf0jHimO/exec';
+const APP_VERSION = 'hospital-v1.0.0';
+
+// ─── API helpers ──────────────────────────────────────────────────
+const apiGet = async (params) => {
+  const url = new URL(SCRIPT_URL);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString());
+  return res.json();
+};
+
+const apiPost = async (body) => {
+  const res = await fetch(SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return res.json();
+};
+
+// ─── Utility ──────────────────────────────────────────────────────
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d} ${months[parseInt(m)-1]} ${y}`;
+};
+
+const formatTime12 = (timeStr) => {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2,'0')} ${ampm}`;
+};
+
+const getDayName = (dateStr) => {
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  return days[new Date(dateStr + 'T00:00:00').getDay()];
+};
+
+// Generate next 14 days, Mon–Sat only
+const getBookableDates = (windowDays = 14) => {
+  const dates = [];
+  const today = new Date(); today.setHours(0,0,0,0);
+  for (let i = 0; i < windowDays + 14; i++) {
+    const d = new Date(today.getTime() + i * 86400000);
+    if (d.getDay() !== 0) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      dates.push(`${y}-${m}-${day}`);
+    }
+    if (dates.length >= windowDays) break;
+  }
+  return dates;
+};
+
+const statusColor = (s) => {
+  if (s === 'booked')      return 'bg-blue-50 text-blue-700 border-blue-200';
+  if (s === 'completed')   return 'bg-green-50 text-green-700 border-green-200';
+  if (s === 'rescheduled') return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+  if (s === 'no_show')     return 'bg-red-50 text-red-700 border-red-200';
+  if (s === 'cancelled')   return 'bg-gray-100 text-gray-500 border-gray-200';
+  return 'bg-gray-100 text-gray-600 border-gray-200';
+};
+
+const statusLabel = (s) => {
+  const map = { booked:'Confirmed', completed:'Completed', rescheduled:'Rescheduled', no_show:'No Show', cancelled:'Cancelled' };
+  return map[s] || s;
+};
+
+// ─── Base components (matches HCW app style exactly) ─────────────
+const Card = ({ children, className = '', onClick }) =>
+  React.createElement('div', {
+    onClick,
+    className: `bg-white rounded-2xl shadow-sm border border-gray-100 p-5 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99]' : ''} ${className}`
+  }, children);
+
+const Button = ({ children, onClick, variant = 'primary', disabled = false, loading = false, size = 'normal' }) =>
+  React.createElement('button', {
+    onClick, disabled: disabled || loading,
+    className: `w-full font-medium transition-all flex items-center justify-center gap-2
+      ${size === 'sm' ? 'py-2.5 px-4 text-sm rounded-xl' : 'py-3.5 px-6 rounded-xl'}
+      ${variant === 'primary' ? 'bg-primary text-white hover:bg-primary/90 disabled:bg-gray-300' : ''}
+      ${variant === 'secondary' ? 'bg-secondary text-gray-700 hover:bg-gray-300' : ''}
+      ${variant === 'danger' ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' : ''}
+      ${disabled || loading ? 'cursor-not-allowed' : 'active:scale-95'}`
+  },
+    loading && React.createElement('svg', { className: 'spinner w-4 h-4', viewBox: '0 0 24 24', fill: 'none' },
+      React.createElement('circle', { cx: '12', cy: '12', r: '10', stroke: 'currentColor', strokeWidth: '3', strokeDasharray: '30 70', strokeLinecap: 'round' })
+    ),
+    children
+  );
+
+const Input = ({ label, error, required, ...props }) =>
+  React.createElement('div', { className: 'space-y-1.5' },
+    label && React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1 block' },
+      label, required && React.createElement('span', { className: 'text-red-500' }, ' *')
+    ),
+    React.createElement('input', {
+      ...props,
+      className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400
+        focus:outline-none focus:ring-2 focus:ring-primary/20 ${props.className || ''}`
+    }),
+    error && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, error)
+  );
+
+const Header = ({ title, subtitle, onBack, rightAction }) =>
+  React.createElement('div', { className: 'bg-primary text-white pt-12 pb-6 px-6 rounded-b-[2rem] shadow-md relative' },
+    onBack && React.createElement('button', {
+      onClick: onBack,
+      className: 'absolute left-6 top-14 text-white/80 hover:text-white transition-colors flex items-center gap-1.5 text-sm font-medium'
+    },
+      React.createElement('svg', { className: 'w-4 h-4', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+        React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
+      ), 'Back'
+    ),
+    rightAction,
+    React.createElement('div', { className: 'flex items-center gap-3 mt-2' },
+      React.createElement('div', { className: 'w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0' },
+        React.createElement('svg', { className: 'w-5 h-5 text-white', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' })
+        )
+      ),
+      React.createElement('div', {},
+        React.createElement('h1', { className: 'text-xl font-bold leading-tight' }, title),
+        subtitle && React.createElement('p', { className: 'text-white/70 text-sm mt-0.5' }, subtitle)
+      )
+    )
+  );
+
+const Toast = ({ message, type = 'success', onDismiss }) =>
+  React.createElement('div', {
+    className: `fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-[420px] w-[92%] rounded-2xl shadow-xl px-5 py-4 flex items-start gap-3 fade-in
+      ${type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`
+  },
+    React.createElement('span', { className: 'text-lg leading-none mt-0.5' }, type === 'success' ? '✓' : '✕'),
+    React.createElement('p', { className: 'flex-1 text-sm font-medium leading-snug' }, message),
+    React.createElement('button', { onClick: onDismiss, className: 'text-white/70 hover:text-white text-lg leading-none' }, '×')
+  );
+
+const Spinner = () =>
+  React.createElement('div', { className: 'flex flex-col items-center justify-center py-16 gap-3' },
+    React.createElement('svg', { className: 'spinner w-8 h-8 text-primary', viewBox: '0 0 24 24', fill: 'none' },
+      React.createElement('circle', { cx: '12', cy: '12', r: '10', stroke: 'currentColor', strokeWidth: '3', strokeDasharray: '30 70', strokeLinecap: 'round' })
+    ),
+    React.createElement('p', { className: 'text-sm text-gray-500' }, 'Loading...')
+  );
+
+// ─── SCREEN: Login ────────────────────────────────────────────────
+const LoginScreen = ({ onLogin }) => {
+  const [form, setForm] = useState({ username: '', password: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async () => {
+    if (!form.username || !form.password) return;
+    setLoading(true); setError('');
+    try {
+      const data = await apiGet({ action: 'validateHospitalLogin', username: form.username, password: form.password });
+      if (data.status === 'success') {
+        onLogin({ hospitalName: data.hospitalName, hospitalUsername: data.hospitalUsername, email: data.email, assignedHCWs: data.assignedHCWs || [] });
+      } else {
+        setError(data.message || 'Invalid username or password.');
+      }
+    } catch {
+      setError('Unable to connect. Please check your internet connection and try again.');
+    }
+    setLoading(false);
+  };
+
+  return React.createElement('div', { className: 'min-h-screen flex flex-col' },
+    React.createElement('div', { className: 'bg-primary text-white pt-16 pb-10 px-6 rounded-b-[2.5rem] shadow-lg' },
+      React.createElement('div', { className: 'flex items-center gap-3 mb-6' },
+        React.createElement('div', { className: 'w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center' },
+          React.createElement('svg', { className: 'w-7 h-7 text-white', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+            React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' })
+          )
+        ),
+        React.createElement('div', {},
+          React.createElement('h1', { className: 'text-2xl font-bold' }, 'Sohum Screening'),
+          React.createElement('p', { className: 'text-white/70 text-sm' }, 'Hospital Appointment Portal')
+        )
+      ),
+      React.createElement('p', { className: 'text-white/80 text-sm leading-relaxed' },
+        'Book neonatal hearing screening appointments for your patients. Sign in with your hospital credentials to get started.'
+      )
+    ),
+    React.createElement('div', { className: 'flex-1 px-6 py-8' },
+      React.createElement(Card, {},
+        React.createElement('h2', { className: 'text-lg font-semibold text-gray-800 mb-5' }, 'Sign In'),
+        React.createElement('div', { className: 'space-y-4' },
+          React.createElement(Input, {
+            label: 'Username', placeholder: 'Enter your username', value: form.username,
+            onChange: e => setForm(p => ({ ...p, username: e.target.value })),
+            onKeyDown: e => e.key === 'Enter' && handleLogin(), required: true
+          }),
+          React.createElement(Input, {
+            label: 'Password', type: 'password', placeholder: 'Enter your password', value: form.password,
+            onChange: e => setForm(p => ({ ...p, password: e.target.value })),
+            onKeyDown: e => e.key === 'Enter' && handleLogin(), required: true
+          }),
+          error && React.createElement('div', { className: 'bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700' }, error),
+          React.createElement(Button, { onClick: handleLogin, disabled: !form.username || !form.password, loading }, 'Sign In')
+        )
+      ),
+      React.createElement('p', { className: 'text-center text-xs text-gray-400 mt-6 leading-relaxed' },
+        'Access is restricted to registered Sohum hospital partners.\nFor credential issues, contact Sohum Innovation Labs.'
+      )
+    ),
+    React.createElement('div', { className: 'text-center pb-6 text-xs text-gray-300 font-mono' }, APP_VERSION)
+  );
+};
+
+// ─── SCREEN: Home Dashboard ───────────────────────────────────────
+const HomeScreen = ({ session, onBookNew, onViewAppointments, onLogout }) => {
+  const [upcoming, setUpcoming] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await apiGet({ action: 'getHospitalAppointments', hospitalUsername: session.hospitalUsername });
+        if (data.status === 'success') {
+          const today = new Date(); today.setHours(0,0,0,0);
+          const active = data.data.filter(a => {
+            const d = new Date(a.appointmentDate + 'T00:00:00');
+            return d >= today && a.status !== 'cancelled';
+          }).slice(0, 3);
+          setUpcoming(active);
+        }
+      } catch { /* non-critical */ }
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  })();
+  const todayAppts = upcoming.filter(a => a.appointmentDate === todayStr);
+
+  return React.createElement('div', { className: 'min-h-screen pb-8' },
+    React.createElement('div', { className: 'bg-primary text-white pt-12 pb-6 px-6 rounded-b-[2rem] shadow-md relative' },
+      React.createElement('button', {
+        onClick: onLogout,
+        className: 'absolute right-6 top-14 text-white/70 hover:text-white transition-colors',
+        title: 'Sign out'
+      },
+        React.createElement('svg', { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1' })
+        )
+      ),
+      React.createElement('div', { className: 'flex items-center gap-3 mt-2' },
+        React.createElement('div', { className: 'w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center' },
+          React.createElement('span', { className: 'text-2xl' }, '🏥')
+        ),
+        React.createElement('div', {},
+          React.createElement('p', { className: 'text-white/70 text-sm' }, 'Welcome back'),
+          React.createElement('h1', { className: 'text-xl font-bold' }, session.hospitalName)
+        )
+      ),
+      todayAppts.length > 0 && React.createElement('div', { className: 'mt-5 bg-white/10 rounded-2xl px-4 py-3' },
+        React.createElement('p', { className: 'text-white/80 text-xs font-medium uppercase tracking-wide mb-1' }, "Today's Screenings"),
+        React.createElement('p', { className: 'text-white text-2xl font-bold' }, todayAppts.length),
+        React.createElement('p', { className: 'text-white/70 text-xs' }, 'appointment' + (todayAppts.length !== 1 ? 's' : '') + ' scheduled')
+      )
+    ),
+    React.createElement('div', { className: 'px-6 pt-6 space-y-4' },
+      React.createElement('div', { className: 'grid grid-cols-2 gap-3' },
+        React.createElement('button', {
+          onClick: onBookNew,
+          className: 'bg-primary text-white rounded-2xl p-5 text-left active:scale-[0.98] transition-all shadow-sm hover:bg-primary/90'
+        },
+          React.createElement('div', { className: 'w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center mb-3' },
+            React.createElement('svg', { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+            )
+          ),
+          React.createElement('p', { className: 'font-semibold text-sm leading-tight' }, 'Book New'),
+          React.createElement('p', { className: 'text-white/70 text-xs mt-0.5' }, 'Schedule a screening')
+        ),
+        React.createElement('button', {
+          onClick: onViewAppointments,
+          className: 'bg-secondary text-gray-800 rounded-2xl p-5 text-left active:scale-[0.98] transition-all shadow-sm hover:bg-gray-200 border border-gray-100'
+        },
+          React.createElement('div', { className: 'w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center mb-3' },
+            React.createElement('svg', { className: 'w-5 h-5 text-primary', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' })
+            )
+          ),
+          React.createElement('p', { className: 'font-semibold text-sm leading-tight text-gray-800' }, 'My Appointments'),
+          React.createElement('p', { className: 'text-gray-500 text-xs mt-0.5' }, 'View & manage')
+        )
+      ),
+      upcoming.length > 0 && React.createElement('div', {},
+        React.createElement('h2', { className: 'text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3' }, 'Upcoming Appointments'),
+        loading ? React.createElement(Spinner) :
+          React.createElement('div', { className: 'space-y-2' },
+            upcoming.map(a =>
+              React.createElement('div', { key: a.appointmentId, className: 'bg-gray-50 rounded-2xl px-4 py-3.5 flex items-center gap-3 border border-gray-100' },
+                React.createElement('div', { className: 'w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0' },
+                  React.createElement('span', { className: 'text-primary font-bold text-sm' },
+                    formatTime12(a.appointmentTime).split(' ')[0]
+                  )
+                ),
+                React.createElement('div', { className: 'flex-1 min-w-0' },
+                  React.createElement('p', { className: 'text-sm font-semibold text-gray-800 truncate' },
+                    a.babyName || 'Walk-in Slot'
+                  ),
+                  React.createElement('p', { className: 'text-xs text-gray-500' },
+                    `${formatDate(a.appointmentDate)} · ${formatTime12(a.appointmentTime)}`
+                  )
+                ),
+                React.createElement('span', { className: `text-xs font-medium px-2.5 py-1 rounded-full border ${statusColor(a.status)}` },
+                  statusLabel(a.status)
+                )
+              )
+            )
+          )
+      )
+    )
+  );
+};
+
+// ─── SCREEN: Book Appointment — Step 1: Select Date ───────────────
+const SelectDateScreen = ({ session, onNext, onBack }) => {
+  const dates = getBookableDates(14);
+  const [selected, setSelected] = useState('');
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dayAbbr = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+  return React.createElement('div', { className: 'min-h-screen pb-28' },
+    React.createElement(Header, { title: 'Select Date', subtitle: `Booking for ${session.hospitalName}`, onBack }),
+    React.createElement('div', { className: 'px-6 pt-6' },
+      React.createElement('p', { className: 'text-sm text-gray-500 mb-4' }, 'Appointments available Monday to Saturday. Select a date to view available time slots.'),
+      React.createElement('div', { className: 'grid grid-cols-4 gap-2' },
+        dates.map(dateStr => {
+          const d = new Date(dateStr + 'T00:00:00');
+          const isToday = dateStr === dates[0];
+          const isSelected = selected === dateStr;
+          return React.createElement('button', {
+            key: dateStr,
+            onClick: () => setSelected(dateStr),
+            className: `slot-btn rounded-2xl py-3 px-2 text-center transition-all
+              ${isSelected ? 'bg-primary text-white shadow-md' : 'bg-secondary text-gray-700 hover:bg-gray-200 border border-gray-100'}`
+          },
+            React.createElement('p', { className: `text-xs font-medium mb-1 ${isSelected ? 'text-white/70' : 'text-gray-400'}` },
+              dayAbbr[d.getDay()]
+            ),
+            React.createElement('p', { className: 'text-lg font-bold leading-none' }, d.getDate()),
+            React.createElement('p', { className: `text-xs mt-1 ${isSelected ? 'text-white/70' : 'text-gray-400'}` },
+              months[d.getMonth()]
+            ),
+            isToday && React.createElement('div', { className: `w-1.5 h-1.5 rounded-full mx-auto mt-1 ${isSelected ? 'bg-white' : 'bg-primary'}` })
+          );
+        })
+      )
+    ),
+    React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+      React.createElement('div', { className: 'max-w-[480px] mx-auto' },
+        React.createElement(Button, { onClick: () => onNext(selected), disabled: !selected },
+          selected ? `Continue — ${formatDate(selected)}` : 'Select a Date'
+        )
+      )
+    )
+  );
+};
+
+// ─── SCREEN: Book Appointment — Step 2: Select Time ──────────────
+const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
+  const [slots, setSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selected, setSelected] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true); setError('');
+      try {
+        const data = await apiGet({ action: 'getAvailableSlots', hospitalName: session.hospitalName, date: selectedDate });
+        if (data.status === 'success') {
+          setSlots(data.slots || []);
+          if ((data.slots || []).length === 0) setError(data.message || 'No slots available on this date.');
+        } else {
+          setError(data.message || 'Unable to load slots.');
+        }
+      } catch {
+        setError('Unable to connect. Please try again.');
+      }
+      setLoading(false);
+    };
+    load();
+  }, [selectedDate]);
+
+  const available = slots.filter(s => s.available);
+  const unavailable = slots.filter(s => !s.available);
+
+  return React.createElement('div', { className: 'min-h-screen pb-28' },
+    React.createElement(Header, {
+      title: 'Select Time',
+      subtitle: `${getDayName(selectedDate)}, ${formatDate(selectedDate)}`,
+      onBack
+    }),
+    React.createElement('div', { className: 'px-6 pt-6' },
+      loading ? React.createElement(Spinner) :
+      error ? React.createElement('div', { className: 'bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-800 text-center' },
+        React.createElement('p', { className: 'text-2xl mb-2' }, '📅'),
+        React.createElement('p', { className: 'font-medium' }, error)
+      ) :
+      React.createElement('div', { className: 'fade-in' },
+        React.createElement('p', { className: 'text-sm text-gray-500 mb-4' },
+          `${available.length} slot${available.length !== 1 ? 's' : ''} available`
+        ),
+        React.createElement('div', { className: 'grid grid-cols-3 gap-2 mb-6' },
+          available.map(s =>
+            React.createElement('button', {
+              key: s.time,
+              onClick: () => setSelected(s.time),
+              className: `slot-btn rounded-xl py-3.5 px-2 text-sm font-semibold text-center transition-all
+                ${selected === s.time
+                  ? 'bg-primary text-white shadow-md'
+                  : 'bg-secondary text-gray-700 hover:bg-gray-200 border border-gray-100'}`
+            },
+              React.createElement('p', { className: 'font-bold' }, formatTime12(s.time).split(' ')[0]),
+              React.createElement('p', { className: `text-xs mt-0.5 ${selected === s.time ? 'text-white/70' : 'text-gray-400'}` },
+                formatTime12(s.time).split(' ')[1]
+              )
+            )
+          )
+        ),
+        unavailable.length > 0 && React.createElement('div', {},
+          React.createElement('p', { className: 'text-xs text-gray-400 uppercase tracking-wide font-medium mb-2' }, 'Unavailable'),
+          React.createElement('div', { className: 'grid grid-cols-3 gap-2' },
+            unavailable.map(s =>
+              React.createElement('div', { key: s.time, className: 'rounded-xl py-3.5 px-2 text-sm text-center bg-gray-50 border border-gray-100 opacity-50 cursor-not-allowed' },
+                React.createElement('p', { className: 'font-bold text-gray-400' }, formatTime12(s.time).split(' ')[0]),
+                React.createElement('p', { className: 'text-xs text-gray-300 mt-0.5' }, formatTime12(s.time).split(' ')[1])
+              )
+            )
+          )
+        )
+      )
+    ),
+    !loading && !error && React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+      React.createElement('div', { className: 'max-w-[480px] mx-auto' },
+        React.createElement(Button, { onClick: () => onNext(selected), disabled: !selected },
+          selected ? `Continue — ${formatTime12(selected)}` : 'Select a Time Slot'
+        )
+      )
+    )
+  );
+};
+
+// ─── SCREEN: Book Appointment — Step 3: Baby Details (optional) ───
+const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime }) => {
+  const [babyName, setBabyName] = useState('');
+  const [babyDob, setBabyDob] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
+  const [isWalkin, setIsWalkin] = useState(false);
+
+  const isValid = isWalkin || (babyName.trim().length > 0);
+
+  return React.createElement('div', { className: 'min-h-screen pb-28' },
+    React.createElement(Header, {
+      title: 'Patient Details',
+      subtitle: `${formatDate(selectedDate)} at ${formatTime12(selectedTime)}`,
+      onBack
+    }),
+    React.createElement('div', { className: 'px-6 pt-6 space-y-5' },
+      React.createElement(Card, {},
+        React.createElement('div', { className: 'flex items-start gap-3 mb-1' },
+          React.createElement('button', {
+            onClick: () => setIsWalkin(p => !p),
+            className: `w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-all
+              ${isWalkin ? 'bg-primary border-primary' : 'border-2 border-gray-300'}`
+          },
+            isWalkin && React.createElement('svg', { className: 'w-3 h-3 text-white', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 3, d: 'M5 13l4 4L19 7' })
+            )
+          ),
+          React.createElement('div', {},
+            React.createElement('p', { className: 'text-sm font-semibold text-gray-800' }, 'Book as Walk-in Slot'),
+            React.createElement('p', { className: 'text-xs text-gray-500 mt-0.5' }, 'Reserve a slot without specifying a baby. Patient details will be entered by the HCW on arrival.')
+          )
+        )
+      ),
+      !isWalkin && React.createElement('div', { className: 'space-y-4 fade-in' },
+        React.createElement('div', { className: 'flex items-center gap-2' },
+          React.createElement('div', { className: 'h-px flex-1 bg-gray-100' }),
+          React.createElement('p', { className: 'text-xs text-gray-400 uppercase tracking-wide font-medium' }, 'Baby Information'),
+          React.createElement('div', { className: 'h-px flex-1 bg-gray-100' })
+        ),
+        React.createElement('p', { className: 'text-xs text-gray-500 -mt-1' },
+          'Adding patient details helps the healthcare worker prepare in advance and allows follow-up if the family does not attend.'
+        ),
+        React.createElement(Input, {
+          label: 'Baby\'s Name', placeholder: 'e.g. Aarav Sharma', value: babyName, required: true,
+          onChange: e => setBabyName(e.target.value)
+        }),
+        React.createElement(Input, {
+          label: 'Date of Birth', type: 'date', value: babyDob,
+          onChange: e => setBabyDob(e.target.value)
+        }),
+        React.createElement(Input, {
+          label: 'Parent / Guardian Phone', type: 'tel', placeholder: 'e.g. 9876543210', value: parentPhone,
+          onChange: e => setParentPhone(e.target.value)
+        }),
+        React.createElement('p', { className: 'text-xs text-gray-400' },
+          '* Baby\'s name is required. Date of birth and phone number are optional but recommended.'
+        )
+      )
+    ),
+    React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+      React.createElement('div', { className: 'max-w-[480px] mx-auto' },
+        React.createElement(Button, {
+          onClick: () => onNext({ babyName: isWalkin ? '' : babyName.trim(), babyDob: isWalkin ? '' : babyDob, parentPhone: isWalkin ? '' : parentPhone, isWalkin }),
+          disabled: !isValid
+        }, 'Review & Confirm')
+      )
+    )
+  );
+};
+
+// ─── SCREEN: Book Appointment — Step 4: Confirm ───────────────────
+const ConfirmScreen = ({ session, selectedDate, selectedTime, babyDetails, onConfirm, onBack }) => {
+  const [loading, setLoading] = useState(false);
+  const [notes, setNotes] = useState('');
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    await onConfirm(notes);
+    setLoading(false);
+  };
+
+  const rows = [
+    ['Hospital', session.hospitalName],
+    ['Date', `${getDayName(selectedDate)}, ${formatDate(selectedDate)}`],
+    ['Time', formatTime12(selectedTime)],
+    ['Patient', babyDetails.isWalkin ? 'Walk-in Slot' : babyDetails.babyName],
+    babyDetails.babyDob ? ['Date of Birth', formatDate(babyDetails.babyDob)] : null,
+    babyDetails.parentPhone ? ['Parent Phone', babyDetails.parentPhone] : null,
+  ].filter(Boolean);
+
+  return React.createElement('div', { className: 'min-h-screen pb-28' },
+    React.createElement(Header, { title: 'Confirm Booking', subtitle: 'Review details before submitting', onBack }),
+    React.createElement('div', { className: 'px-6 pt-6 space-y-4' },
+      React.createElement(Card, {},
+        React.createElement('h3', { className: 'text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4' }, 'Appointment Summary'),
+        React.createElement('div', { className: 'space-y-3' },
+          rows.map(([label, value]) =>
+            React.createElement('div', { key: label, className: 'flex items-start justify-between gap-4' },
+              React.createElement('span', { className: 'text-sm text-gray-500 flex-shrink-0' }, label),
+              React.createElement('span', { className: 'text-sm font-semibold text-gray-800 text-right' }, value)
+            )
+          )
+        )
+      ),
+      React.createElement('div', { className: 'space-y-1.5' },
+        React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1 block' }, 'Additional Notes'),
+        React.createElement('textarea', {
+          value: notes,
+          onChange: e => setNotes(e.target.value),
+          placeholder: 'Any special requirements or notes for the healthcare worker (optional)…',
+          rows: 3,
+          className: 'w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none text-sm'
+        })
+      ),
+      React.createElement('div', { className: 'bg-blue-50 border border-blue-100 rounded-2xl p-4' },
+        React.createElement('p', { className: 'text-xs text-blue-700 leading-relaxed' },
+          '📧 A confirmation email will be sent to your registered email address once the booking is submitted. The healthcare worker will be automatically assigned based on availability.'
+        )
+      )
+    ),
+    React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+      React.createElement('div', { className: 'max-w-[480px] mx-auto' },
+        React.createElement(Button, { onClick: handleConfirm, loading }, 'Confirm Appointment')
+      )
+    )
+  );
+};
+
+// ─── SCREEN: Booking Success ──────────────────────────────────────
+const SuccessScreen = ({ appointmentId, assignedHCWName, selectedDate, selectedTime, babyDetails, onDone }) =>
+  React.createElement('div', { className: 'min-h-screen flex flex-col items-center justify-center px-6 pb-12 text-center fade-in' },
+    React.createElement('div', { className: 'w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6' },
+      React.createElement('svg', { className: 'w-10 h-10 text-green-600', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+        React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M5 13l4 4L19 7' })
+      )
+    ),
+    React.createElement('h2', { className: 'text-2xl font-bold text-gray-800 mb-2' }, 'Appointment Confirmed!'),
+    React.createElement('p', { className: 'text-gray-500 text-sm mb-8 leading-relaxed' },
+      'A confirmation email has been sent to your registered address.'
+    ),
+    React.createElement(Card, { className: 'w-full mb-6 text-left' },
+      React.createElement('div', { className: 'space-y-3' },
+        [
+          ['Appointment ID', appointmentId],
+          ['Date', formatDate(selectedDate)],
+          ['Time', formatTime12(selectedTime)],
+          ['Patient', babyDetails.isWalkin ? 'Walk-in Slot' : babyDetails.babyName],
+          ['Assigned HCW', assignedHCWName],
+        ].map(([label, value]) =>
+          React.createElement('div', { key: label, className: 'flex items-start justify-between gap-4' },
+            React.createElement('span', { className: 'text-sm text-gray-500 flex-shrink-0' }, label),
+            React.createElement('span', { className: 'text-sm font-semibold text-gray-800 text-right' }, value)
+          )
+        )
+      )
+    ),
+    React.createElement(Button, { onClick: onDone }, 'Back to Home')
+  );
+
+// ─── SCREEN: All Appointments ─────────────────────────────────────
+const AppointmentsScreen = ({ session, onBack }) => {
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('upcoming');
+  const [toast, setToast] = useState(null);
+  const [cancelling, setCancelling] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiGet({ action: 'getHospitalAppointments', hospitalUsername: session.hospitalUsername });
+      if (data.status === 'success') setAppointments(data.data || []);
+    } catch { /* non-critical */ }
+    setLoading(false);
+  }, [session.hospitalUsername]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleCancel = async (appt) => {
+    if (!window.confirm(`Cancel appointment for ${appt.babyName || 'walk-in'} on ${formatDate(appt.appointmentDate)} at ${formatTime12(appt.appointmentTime)}?`)) return;
+    setCancelling(appt.appointmentId);
+    try {
+      const data = await apiPost({ action: 'cancelAppointment', appointmentId: appt.appointmentId, cancelledBy: session.hospitalUsername });
+      if (data.status === 'success') {
+        showToast('Appointment cancelled.');
+        load();
+      } else {
+        showToast(data.message || 'Unable to cancel.', 'error');
+      }
+    } catch {
+      showToast('Unable to connect. Please try again.', 'error');
+    }
+    setCancelling(null);
+  };
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const filtered = appointments.filter(a => {
+    const d = new Date(a.appointmentDate + 'T00:00:00');
+    if (filter === 'upcoming') return d >= today && a.status !== 'cancelled';
+    if (filter === 'past') return d < today || a.status === 'completed' || a.status === 'no_show';
+    if (filter === 'cancelled') return a.status === 'cancelled';
+    return true;
+  });
+
+  const canCancel = (appt) => {
+    if (appt.status === 'cancelled' || appt.status === 'completed') return false;
+    const [y,m,d] = appt.appointmentDate.split('-').map(Number);
+    const [h,min] = appt.appointmentTime.split(':').map(Number);
+    const start = new Date(y, m-1, d, h, min);
+    return (start - new Date()) > 2 * 60 * 60 * 1000;
+  };
+
+  return React.createElement('div', { className: 'min-h-screen pb-8' },
+    toast && React.createElement(Toast, { ...toast, onDismiss: () => setToast(null) }),
+    React.createElement(Header, { title: 'My Appointments', subtitle: session.hospitalName, onBack }),
+    React.createElement('div', { className: 'px-6 pt-5' },
+      React.createElement('div', { className: 'flex gap-2 mb-5 bg-secondary rounded-xl p-1' },
+        [['upcoming','Upcoming'],['past','Past'],['cancelled','Cancelled']].map(([val, label]) =>
+          React.createElement('button', {
+            key: val, onClick: () => setFilter(val),
+            className: `flex-1 py-2 text-sm font-medium rounded-lg transition-all
+              ${filter === val ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
+          }, label)
+        )
+      ),
+      loading ? React.createElement(Spinner) :
+      filtered.length === 0 ? React.createElement('div', { className: 'text-center py-16' },
+        React.createElement('p', { className: 'text-3xl mb-3' }, filter === 'upcoming' ? '📅' : '📋'),
+        React.createElement('p', { className: 'text-gray-500 text-sm' },
+          filter === 'upcoming' ? 'No upcoming appointments.' : `No ${filter} appointments.`
+        )
+      ) :
+      React.createElement('div', { className: 'space-y-3 fade-in' },
+        filtered.map(a =>
+          React.createElement(Card, { key: a.appointmentId },
+            React.createElement('div', { className: 'flex items-start justify-between gap-2 mb-3' },
+              React.createElement('div', {},
+                React.createElement('p', { className: 'font-semibold text-gray-800' }, a.babyName || 'Walk-in Slot'),
+                React.createElement('p', { className: 'text-xs text-gray-500 mt-0.5' }, a.appointmentId)
+              ),
+              React.createElement('span', { className: `text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 ${statusColor(a.status)}` },
+                statusLabel(a.status)
+              )
+            ),
+            React.createElement('div', { className: 'grid grid-cols-2 gap-2 mb-3' },
+              [
+                ['📅 Date', `${getDayName(a.appointmentDate)}, ${formatDate(a.appointmentDate)}`],
+                ['🕐 Time', formatTime12(a.appointmentTime)],
+                a.parentPhone ? ['📱 Phone', a.parentPhone] : null,
+                ['👤 HCW', a.hcwUsername],
+              ].filter(Boolean).map(([label, value]) =>
+                React.createElement('div', { key: label, className: 'bg-gray-50 rounded-xl px-3 py-2.5' },
+                  React.createElement('p', { className: 'text-xs text-gray-400 mb-0.5' }, label),
+                  React.createElement('p', { className: 'text-xs font-semibold text-gray-700' }, value)
+                )
+              )
+            ),
+            a.notes && React.createElement('p', { className: 'text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2 mb-3' },
+              '📝 ' + a.notes
+            ),
+            a.rescheduledFrom && React.createElement('p', { className: 'text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mb-3' },
+              `🔄 Rescheduled from ${a.rescheduledFrom}`
+            ),
+            canCancel(a) && React.createElement(Button, {
+              variant: 'danger', size: 'sm',
+              loading: cancelling === a.appointmentId,
+              onClick: () => handleCancel(a)
+            }, 'Cancel Appointment')
+          )
+        )
+      )
+    )
+  );
+};
+
+// ─── ROOT APP ─────────────────────────────────────────────────────
+const App = () => {
+  const [screen, setScreen] = useState('login');
+  const [session, setSession] = useState(null);
+  const [booking, setBooking] = useState({ date: '', time: '', babyDetails: null });
+  const [bookingResult, setBookingResult] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleLogin = (sessionData) => {
+    setSession(sessionData);
+    setScreen('home');
+  };
+
+  const handleLogout = () => {
+    setSession(null);
+    setBooking({ date: '', time: '', babyDetails: null });
+    setBookingResult(null);
+    setScreen('login');
+  };
+
+  const handleConfirmBooking = async (notes) => {
+    try {
+      const data = await apiPost({
+        action: 'bookAppointment',
+        hospitalUsername: session.hospitalUsername,
+        hospitalName: session.hospitalName,
+        appointmentDate: booking.date,
+        appointmentTime: booking.time,
+        babyName: booking.babyDetails.babyName,
+        babyDob: booking.babyDetails.babyDob,
+        parentPhone: booking.babyDetails.parentPhone,
+        notes
+      });
+      if (data.status === 'success') {
+        setBookingResult({ appointmentId: data.appointmentId, assignedHCWName: data.assignedHCWName });
+        setScreen('success');
+      } else {
+        showToast(data.message || 'Booking failed. Please try again.', 'error');
+        setScreen('confirmBooking');
+      }
+    } catch {
+      showToast('Unable to connect. Please check your connection and try again.', 'error');
+    }
+  };
+
+  return React.createElement('div', {},
+    toast && React.createElement(Toast, { ...toast, onDismiss: () => setToast(null) }),
+    screen === 'login' && React.createElement(LoginScreen, { onLogin: handleLogin }),
+    screen === 'home' && React.createElement(HomeScreen, {
+      session,
+      onBookNew: () => setScreen('selectDate'),
+      onViewAppointments: () => setScreen('appointments'),
+      onLogout: handleLogout
+    }),
+    screen === 'appointments' && React.createElement(AppointmentsScreen, {
+      session,
+      onBack: () => setScreen('home')
+    }),
+    screen === 'selectDate' && React.createElement(SelectDateScreen, {
+      session,
+      onBack: () => setScreen('home'),
+      onNext: (date) => {
+        setBooking(p => ({ ...p, date }));
+        setScreen('selectTime');
+      }
+    }),
+    screen === 'selectTime' && React.createElement(SelectTimeScreen, {
+      session,
+      selectedDate: booking.date,
+      onBack: () => setScreen('selectDate'),
+      onNext: (time) => {
+        setBooking(p => ({ ...p, time }));
+        setScreen('babyDetails');
+      }
+    }),
+    screen === 'babyDetails' && React.createElement(BabyDetailsScreen, {
+      selectedDate: booking.date,
+      selectedTime: booking.time,
+      onBack: () => setScreen('selectTime'),
+      onNext: (babyDetails) => {
+        setBooking(p => ({ ...p, babyDetails }));
+        setScreen('confirmBooking');
+      }
+    }),
+    screen === 'confirmBooking' && React.createElement(ConfirmScreen, {
+      session,
+      selectedDate: booking.date,
+      selectedTime: booking.time,
+      babyDetails: booking.babyDetails,
+      onBack: () => setScreen('babyDetails'),
+      onConfirm: handleConfirmBooking
+    }),
+    screen === 'success' && bookingResult && React.createElement(SuccessScreen, {
+      ...bookingResult,
+      selectedDate: booking.date,
+      selectedTime: booking.time,
+      babyDetails: booking.babyDetails,
+      onDone: () => {
+        setBooking({ date: '', time: '', babyDetails: null });
+        setBookingResult(null);
+        setScreen('home');
+      }
+    })
+  );
+};
+
+createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
+</body>
+</html>
