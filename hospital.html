@@ -17,8 +17,8 @@
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    body { margin: 0; background-color: #f9fafb; display: flex; justify-content: center; min-height: 100vh; font-family: 'Inter', system-ui, sans-serif; }
-    #root { width: 100%; max-width: 480px; background-color: white; min-height: 100vh; box-shadow: 0 0 20px rgba(0,0,0,0.05); position: relative; overflow-x: hidden; }
+    body { margin: 0; background: #eef2f7; display: flex; justify-content: center; min-height: 100vh; font-family: 'Inter', system-ui, sans-serif; color: #111827; }
+    #root { width: 100%; max-width: 520px; background: linear-gradient(180deg,#ffffff 0%,#f8fafc 100%); min-height: 100vh; box-shadow: 0 24px 60px rgba(32,43,93,0.14); position: relative; overflow-x: hidden; }
     ::-webkit-scrollbar { width: 0px; background: transparent; }
     .slot-btn { transition: all 0.15s ease; }
     .slot-btn:active { transform: scale(0.97); }
@@ -113,14 +113,14 @@ const statusLabel = (s) => {
 const Card = ({ children, className = '', onClick }) =>
   React.createElement('div', {
     onClick,
-    className: `bg-white rounded-2xl shadow-sm border border-gray-100 p-5 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99]' : ''} ${className}`
+    className: `bg-white rounded-lg shadow-[0_8px_24px_rgba(15,23,42,0.06)] border border-slate-100 p-5 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99]' : ''} ${className}`
   }, children);
 
 const Button = ({ children, onClick, variant = 'primary', disabled = false, loading = false, size = 'normal' }) =>
   React.createElement('button', {
     onClick, disabled: disabled || loading,
     className: `w-full font-medium transition-all flex items-center justify-center gap-2
-      ${size === 'sm' ? 'py-2.5 px-4 text-sm rounded-xl' : 'py-3.5 px-6 rounded-xl'}
+      ${size === 'sm' ? 'py-2.5 px-4 text-sm rounded-lg' : 'py-3.5 px-6 rounded-lg'}
       ${variant === 'primary' ? 'bg-primary text-white hover:bg-primary/90 disabled:bg-gray-300' : ''}
       ${variant === 'secondary' ? 'bg-secondary text-gray-700 hover:bg-gray-300' : ''}
       ${variant === 'danger' ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' : ''}
@@ -139,32 +139,34 @@ const Input = ({ label, error, required, ...props }) =>
     ),
     React.createElement('input', {
       ...props,
-      className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400
+      className: `w-full bg-slate-100 border border-transparent rounded-lg px-4 py-3.5 text-gray-800 placeholder:text-gray-400
         focus:outline-none focus:ring-2 focus:ring-primary/20 ${props.className || ''}`
     }),
     error && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, error)
   );
 
 const Header = ({ title, subtitle, onBack, rightAction }) =>
-  React.createElement('div', { className: 'bg-primary text-white pt-12 pb-6 px-6 rounded-b-[2rem] shadow-md relative' },
+  React.createElement('div', { className: 'bg-primary text-white pt-6 pb-7 px-6 rounded-b-[1.75rem] shadow-[0_18px_32px_rgba(32,43,93,0.22)] relative' },
     onBack && React.createElement('button', {
       onClick: onBack,
-      className: 'absolute left-6 top-14 text-white/80 hover:text-white transition-colors flex items-center gap-1.5 text-sm font-medium'
+      className: 'absolute left-5 top-5 w-10 h-10 rounded-lg bg-white/10 hover:bg-white/15 transition-colors flex items-center justify-center',
+      title: 'Back',
+      'aria-label': 'Back'
     },
-      React.createElement('svg', { className: 'w-4 h-4', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+      React.createElement('svg', { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
         React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
-      ), 'Back'
+      )
     ),
     rightAction,
-    React.createElement('div', { className: 'flex items-center gap-3 mt-2' },
-      React.createElement('div', { className: 'w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0' },
+    React.createElement('div', { className: `flex items-center gap-3 ${onBack ? 'pt-14' : 'pt-7'}` },
+      React.createElement('div', { className: 'w-11 h-11 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0' },
         React.createElement('svg', { className: 'w-5 h-5 text-white', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' })
         )
       ),
       React.createElement('div', {},
-        React.createElement('h1', { className: 'text-xl font-bold leading-tight' }, title),
-        subtitle && React.createElement('p', { className: 'text-white/70 text-sm mt-0.5' }, subtitle)
+        React.createElement('h1', { className: 'text-2xl font-bold leading-tight tracking-normal' }, title),
+        subtitle && React.createElement('p', { className: 'text-white/75 text-sm mt-1' }, subtitle)
       )
     )
   );
@@ -437,7 +439,6 @@ const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
   }, [selectedDate]);
 
   const available = slots.filter(s => s.available);
-  const unavailable = slots.filter(s => !s.available);
 
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, {
@@ -452,33 +453,35 @@ const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
         React.createElement('p', { className: 'font-medium' }, error)
       ) :
       React.createElement('div', { className: 'fade-in' },
-        React.createElement('p', { className: 'text-sm text-gray-500 mb-4' },
-          `${available.length} slot${available.length !== 1 ? 's' : ''} available`
-        ),
-        React.createElement('div', { className: 'grid grid-cols-3 gap-2 mb-6' },
-          available.map(s =>
-            React.createElement('button', {
-              key: s.time,
-              onClick: () => setSelected(s.time),
-              className: `slot-btn rounded-xl py-3.5 px-2 text-sm font-semibold text-center transition-all
-                ${selected === s.time
-                  ? 'bg-primary text-white shadow-md'
-                  : 'bg-secondary text-gray-700 hover:bg-gray-200 border border-gray-100'}`
-            },
-              React.createElement('p', { className: 'font-bold' }, formatTime12(s.time).split(' ')[0]),
-              React.createElement('p', { className: `text-xs mt-0.5 ${selected === s.time ? 'text-white/70' : 'text-gray-400'}` },
-                formatTime12(s.time).split(' ')[1]
-              )
-            )
+        React.createElement('div', { className: 'flex items-end justify-between gap-3 mb-4' },
+          React.createElement('div', {},
+            React.createElement('p', { className: 'text-sm font-semibold text-slate-800' },
+              `${available.length} slot${available.length !== 1 ? 's' : ''} available`
+            ),
+            React.createElement('p', { className: 'text-xs text-slate-500 mt-1' }, 'Booked slots remain visible in their original time position.')
+          ),
+          React.createElement('div', { className: 'flex items-center gap-2 text-xs text-slate-500 flex-shrink-0' },
+            React.createElement('span', { className: 'w-2.5 h-2.5 rounded-sm bg-slate-200 border border-slate-300' }),
+            'Booked'
           )
         ),
-        unavailable.length > 0 && React.createElement('div', {},
-          React.createElement('p', { className: 'text-xs text-gray-400 uppercase tracking-wide font-medium mb-2' }, 'Unavailable'),
-          React.createElement('div', { className: 'grid grid-cols-3 gap-2' },
-            unavailable.map(s =>
-              React.createElement('div', { key: s.time, className: 'rounded-xl py-3.5 px-2 text-sm text-center bg-gray-50 border border-gray-100 opacity-50 cursor-not-allowed' },
-                React.createElement('p', { className: 'font-bold text-gray-400' }, formatTime12(s.time).split(' ')[0]),
-                React.createElement('p', { className: 'text-xs text-gray-300 mt-0.5' }, formatTime12(s.time).split(' ')[1])
+        React.createElement('div', { className: 'grid grid-cols-3 gap-2.5 mb-6' },
+          slots.map(s =>
+            React.createElement('button', {
+              key: s.time,
+              onClick: () => s.available && setSelected(s.time),
+              disabled: !s.available,
+              title: s.available ? 'Available' : 'Already booked',
+              className: `slot-btn rounded-lg min-h-[74px] py-3.5 px-2 text-sm font-semibold text-center border transition-all
+                ${!s.available
+                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70'
+                  : selected === s.time
+                  ? 'bg-primary text-white shadow-md'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-sm'}`
+            },
+              React.createElement('p', { className: 'font-bold' }, formatTime12(s.time).split(' ')[0]),
+              React.createElement('p', { className: `text-xs mt-0.5 ${!s.available ? 'text-slate-400' : selected === s.time ? 'text-white/70' : 'text-slate-400'}` },
+                s.available ? formatTime12(s.time).split(' ')[1] : 'Booked'
               )
             )
           )
@@ -606,12 +609,12 @@ const ConfirmScreen = ({ session, selectedDate, selectedTime, babyDetails, onCon
           onChange: e => setNotes(e.target.value),
           placeholder: 'Any special requirements or notes for the healthcare worker (optional)…',
           rows: 3,
-          className: 'w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none text-sm'
+          className: 'w-full bg-slate-100 border border-transparent rounded-lg px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none text-sm'
         })
       ),
-      React.createElement('div', { className: 'bg-blue-50 border border-blue-100 rounded-2xl p-4' },
+      React.createElement('div', { className: 'bg-blue-50 border border-blue-100 rounded-lg p-4' },
         React.createElement('p', { className: 'text-xs text-blue-700 leading-relaxed' },
-          '📧 A confirmation email will be sent to your registered email address once the booking is submitted. The healthcare worker will be automatically assigned based on availability.'
+          'The slot is reserved immediately. Email confirmation and the calendar invite are prepared just after the booking is saved.'
         )
       )
     ),
@@ -633,7 +636,7 @@ const SuccessScreen = ({ appointmentId, assignedHCWName, selectedDate, selectedT
     ),
     React.createElement('h2', { className: 'text-2xl font-bold text-gray-800 mb-2' }, 'Appointment Confirmed!'),
     React.createElement('p', { className: 'text-gray-500 text-sm mb-8 leading-relaxed' },
-      'A confirmation email has been sent to your registered address.'
+      'The slot has been reserved. Email confirmation and the calendar invite will follow shortly.'
     ),
     React.createElement(Card, { className: 'w-full mb-6 text-left' },
       React.createElement('div', { className: 'space-y-3' },
@@ -811,11 +814,14 @@ const App = () => {
         babyName: booking.babyDetails.babyName,
         babyDob: booking.babyDetails.babyDob,
         parentPhone: booking.babyDetails.parentPhone,
-        notes
+        notes,
+        fast: true
       });
       if (data.status === 'success') {
         setBookingResult({ appointmentId: data.appointmentId, assignedHCWName: data.assignedHCWName });
         setScreen('success');
+        apiPost({ action: 'finalizeAppointment', appointmentId: data.appointmentId })
+          .catch(() => console.warn('Appointment finalization will need retry from Apps Script logs.'));
       } else {
         showToast(data.message || 'Booking failed. Please try again.', 'error');
         setScreen('confirmBooking');
