@@ -58,6 +58,24 @@ const apiPost = async (body) => {
 };
 
 // ─── Utility ──────────────────────────────────────────────────────
+const slotCache = new Map();
+const slotCacheKey = (hospitalName, date) => `${hospitalName}__${date}`;
+
+const getSlotsCached = async (hospitalName, date) => {
+  const key = slotCacheKey(hospitalName, date);
+  if (slotCache.has(key)) return slotCache.get(key);
+  const promise = apiGet({ action: 'getAvailableSlots', hospitalName, date });
+  slotCache.set(key, promise);
+  try {
+    const data = await promise;
+    slotCache.set(key, Promise.resolve(data));
+    return data;
+  } catch (err) {
+    slotCache.delete(key);
+    throw err;
+  }
+};
+
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
   const [y, m, d] = dateStr.split('-');
@@ -374,6 +392,10 @@ const SelectDateScreen = ({ session, onNext, onBack }) => {
 
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dayAbbr = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const selectDate = (dateStr) => {
+    setSelected(dateStr);
+    getSlotsCached(session.hospitalName, dateStr).catch(() => {});
+  };
 
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, { title: 'Select Date', subtitle: `Booking for ${session.hospitalName}`, onBack }),
@@ -386,7 +408,7 @@ const SelectDateScreen = ({ session, onNext, onBack }) => {
           const isSelected = selected === dateStr;
           return React.createElement('button', {
             key: dateStr,
-            onClick: () => setSelected(dateStr),
+            onClick: () => selectDate(dateStr),
             className: `slot-btn rounded-2xl py-3 px-2 text-center transition-all
               ${isSelected ? 'bg-primary text-white shadow-md' : 'bg-secondary text-gray-700 hover:bg-gray-200 border border-gray-100'}`
           },
@@ -423,7 +445,7 @@ const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
     const load = async () => {
       setLoading(true); setError('');
       try {
-        const data = await apiGet({ action: 'getAvailableSlots', hospitalName: session.hospitalName, date: selectedDate });
+        const data = await getSlotsCached(session.hospitalName, selectedDate);
         if (data.status === 'success') {
           setSlots(data.slots || []);
           if ((data.slots || []).length === 0) setError(data.message || 'No slots available on this date.');
@@ -818,6 +840,7 @@ const App = () => {
         fast: true
       });
       if (data.status === 'success') {
+        slotCache.delete(slotCacheKey(session.hospitalName, booking.date));
         setBookingResult({ appointmentId: data.appointmentId, assignedHCWName: data.assignedHCWName });
         setScreen('success');
         apiPost({ action: 'finalizeAppointment', appointmentId: data.appointmentId })
