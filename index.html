@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 
-// ðŸ§ª TEST MODE - Set to true to pre-fill baby registration form for faster testing
+// 🧪 TEST MODE - Set to true to pre-fill baby registration form for faster testing
 // Set back to false before pushing to production
 const TEST_MODE = false;
 const TEST_DATA = {
@@ -47,24 +47,24 @@ const TEST_DATA = {
 };
 
 
-// ðŸ”§ VERSION - Update this single line for new releases
+// 🔧 VERSION - Update this single line for new releases
 const APP_VERSION = 'v8.6.4';
 
-// ðŸ”¬ DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
+// 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
 
 
-// ðŸ“ PHOTO STORAGE MODE
+// 📁 PHOTO STORAGE MODE
 // Mode 1: Current naming convention - <UniqueID><Ear><AttemptNumber> e.g. 90vnjhjyuR01
 // Mode 2: New naming convention - <UniqueID>_<dB>dB_<Ear>_<AttemptNumber> e.g. 90vnjhjyu_35dB_R_01
 const PHOTO_STORAGE_MODE = 1;
 
-// ðŸ”’ AABR PROTOCOL LOCK
+// 🔒 AABR PROTOCOL LOCK
 // 1 = strict: each level must be exhausted before the next unlocks
 // 0 = free: all levels accessible from the start, attempt limits still apply
 const AABR_PROTOCOL_LOCK = 1;
 
-// ðŸŽ¯ AABR MAX ATTEMPTS PER INTENSITY LEVEL
+// 🎯 AABR MAX ATTEMPTS PER INTENSITY LEVEL
 // Adjust these numbers to change how many attempts are allowed at each level
 // e.g. change MAX_ATTEMPTS_35 to 2 if you want only 2 attempts at 35dB
 const MAX_ATTEMPTS_35 = 3;  // attempts allowed at 35 dB
@@ -72,14 +72,14 @@ const MAX_ATTEMPTS_50 = 2;  // attempts allowed at 50 dB
 const MAX_ATTEMPTS_70 = 1;  // attempts allowed at 70 dB
 const MAX_ATTEMPTS_90 = 1;  // attempts allowed at 90 dB
 
-// ðŸ”Š OAE SNR PASS THRESHOLDS â€” minimum dB SNR for a frequency to count as passing
+// 🔊 OAE SNR PASS THRESHOLDS — minimum dB SNR for a frequency to count as passing
 // DPOAE threshold applies to all DPOAE protocols
 // TEOAE thresholds are protocol-specific (8 sec and 32 sec)
-const DPOAE_SNR_THRESHOLD  = 6.0;  // dB â€” applies to all DPOAE protocols
-const TEOAE_8S_THRESHOLD   = 6.0;  // dB â€” TEOAE 8 sec protocol
-const TEOAE_32S_THRESHOLD  = 6.0;  // dB â€” TEOAE 32 sec protocol
+const DPOAE_SNR_THRESHOLD  = 6.0;  // dB — applies to all DPOAE protocols
+const TEOAE_8S_THRESHOLD   = 6.0;  // dB — TEOAE 8 sec protocol
+const TEOAE_32S_THRESHOLD  = 6.0;  // dB — TEOAE 32 sec protocol
 
-// ðŸ“· PHOTO QUALITY SETTINGS - Adjust these as needed
+// 📷 PHOTO QUALITY SETTINGS - Adjust these as needed
 const PHOTO_MAX_WIDTH = 1920;       // Max width in pixels
 const PHOTO_MAX_HEIGHT = 1440;      // Max height in pixels
 const PHOTO_TARGET_SIZE_KB = 200;   // Target max file size in KB - only compresses if exceeded
@@ -478,7 +478,7 @@ const LanguageSelector = () => {
         key: l.code, onClick: () => { setLang(l.code); setIsOpen(false); },
         className: `w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${lang === l.code ? 'bg-primary/10 text-primary font-medium' : 'text-gray-700'}`
       }, React.createElement('div', { className: "flex items-center justify-between" },
-        React.createElement('span', {}, l.native), lang === l.code && React.createElement('span', {}, 'âœ“')
+        React.createElement('span', {}, l.native), lang === l.code && React.createElement('span', {}, '✓')
       )))
     )
   );
@@ -767,12 +767,12 @@ return React.createElement('div', { className: 'space-y-1' },
       type: 'button',
       onClick: () => adjustValue(-1.0),
       className: 'w-10 h-10 bg-gray-200 rounded-lg font-bold text-sm text-gray-700 hover:bg-gray-300 active:bg-gray-400 transition-colors'
-    }, 'âˆ’âˆ’'),
+    }, '−−'),
     React.createElement('button', {
       type: 'button',
       onClick: () => adjustValue(-0.1),
       className: 'w-10 h-10 bg-gray-200 rounded-lg font-bold text-sm text-gray-700 hover:bg-gray-300 active:bg-gray-400 transition-colors'
-    }, 'âˆ’'),
+    }, '−'),
     React.createElement('button', {
       type: 'button',
       onClick: openWheel,
@@ -893,7 +893,7 @@ const SessionSetupScreen = ({ user, masterData, initialData, onComplete, onProfi
 };
 
 // Menu Screen
-const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onProfileClick, onNotifications, onAppointments, notificationCount }) => {
+const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onAppointments, onProfileClick, onNotifications, notificationCount }) => {
   const { t } = useTranslation();
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
     React.createElement(Header, { title: t('mainMenu'), subtitle: t('selectOption'), user, onProfileClick, onNotificationsClick: onNotifications, notificationCount }),
@@ -928,6 +928,22 @@ const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onProfileClick, onNo
           )
         )
       ),
+      React.createElement(Card, { onClick: onAppointments },
+        React.createElement('div', { className: 'flex items-center gap-4' },
+          React.createElement('div', { className: 'w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0' },
+            React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' },
+              React.createElement('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
+              React.createElement('line', { x1: '16', x2: '16', y1: '2', y2: '6' }),
+              React.createElement('line', { x1: '8', x2: '8', y1: '2', y2: '6' }),
+              React.createElement('line', { x1: '3', x2: '21', y1: '10', y2: '10' })
+            )
+          ),
+          React.createElement('div', { className: 'flex-1' },
+            React.createElement('h3', { className: 'font-semibold text-lg text-gray-800' }, 'My Appointments'),
+            React.createElement('p', { className: 'text-sm text-gray-500 mt-1' }, 'View scheduled screenings')
+          )
+        )
+      ),
       React.createElement(Card, { onClick: onNotifications },
         React.createElement('div', { className: 'flex items-center gap-4' },
           React.createElement('div', { className: 'w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 relative' },
@@ -942,27 +958,7 @@ const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onProfileClick, onNo
             React.createElement('p', { className: 'text-sm text-gray-500 mt-1' }, notificationCount > 0 ? `${notificationCount} pending` : t('noNotifications'))
           )
         )
-      ),
-	  React.createElement(Card, { onClick: onAppointments },
-        React.createElement('div', { className: 'flex items-center gap-4' },
-          React.createElement('div', { className: 'w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0' },
-            React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' },
-              React.createElement('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2', ry: '2' }),
-              React.createElement('line', { x1: '16', x2: '16', y1: '2', y2: '6' }),
-              React.createElement('line', { x1: '8', x2: '8', y1: '2', y2: '6' }),
-              React.createElement('line', { x1: '3', x2: '21', y1: '10', y2: '10' }),
-              React.createElement('line', { x1: '8', x2: '8', y1: '14', y2: '14' }),
-              React.createElement('line', { x1: '8', x2: '8', y1: '18', y2: '18' }),
-              React.createElement('line', { x1: '12', x2: '12', y1: '14', y2: '14' }),
-              React.createElement('line', { x1: '12', x2: '12', y1: '18', y2: '18' })
-            )
-          ),
-          React.createElement('div', { className: 'flex-1' },
-            React.createElement('h3', { className: 'font-semibold text-lg text-gray-800' }, 'My Appointments'),
-            React.createElement('p', { className: 'text-sm text-gray-500 mt-1' }, 'View scheduled screenings')
-          )
-        )
-      ),
+      )
     ),
     React.createElement(VersionWatermark)
   );
@@ -988,7 +984,9 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
         const res = await fetch(`${SCRIPT_URL}?action=getHCWAppointments&hcwUsername=${encodeURIComponent(user.hwId)}`);
         const data = await res.json();
         setAppointments(data.status === 'success' ? (data.data || []) : []);
-      } catch { setAppointments([]); }
+      } catch {
+        setAppointments([]);
+      }
       setLoading(false);
     };
     load();
@@ -1004,6 +1002,7 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
     const [h, m] = t.split(':').map(Number);
     return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`;
   };
+
   const fmtDate = (s) => {
     if (!s) return '';
     const [y, mo, d] = s.split('-');
@@ -1012,11 +1011,11 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
   };
 
   const statusStyle = (s) => {
-    if (s === 'booked')      return 'bg-blue-50 text-blue-700';
+    if (s === 'booked') return 'bg-blue-50 text-blue-700';
     if (s === 'screening_started') return 'bg-indigo-50 text-indigo-700';
-    if (s === 'completed')   return 'bg-green-50 text-green-700';
+    if (s === 'completed') return 'bg-green-50 text-green-700';
     if (s === 'rescheduled') return 'bg-yellow-50 text-yellow-700';
-    if (s === 'no_show')     return 'bg-red-50 text-red-700';
+    if (s === 'no_show') return 'bg-red-50 text-red-700';
     return 'bg-gray-100 text-gray-500';
   };
   const statusLabel = (s) => ({ booked:'Confirmed', screening_started:'In Progress', completed:'Completed', rescheduled:'Rescheduled', no_show:'No Show', cancelled:'Cancelled' }[s] || s);
@@ -1024,7 +1023,7 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const filtered = appointments.filter(a => {
     const d = new Date(a.appointmentDate + 'T00:00:00');
-    if (filter === 'today')    return a.appointmentDate === todayStr;
+    if (filter === 'today') return a.appointmentDate === todayStr;
     if (filter === 'upcoming') return d > today;
     return d < today || a.status === 'completed' || a.status === 'no_show';
   });
@@ -1041,8 +1040,7 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
   const noShowUnlockTime = (a) => {
     const [y,mo,d] = a.appointmentDate.split('-').map(Number);
     const [h,m] = a.appointmentTime.split(':').map(Number);
-    const t = new Date(y, mo-1, d, h, m).getTime() + 30 * 60000;
-    const u = new Date(t);
+    const u = new Date(new Date(y, mo-1, d, h, m).getTime() + 30 * 60000);
     return `${u.getHours() % 12 || 12}:${String(u.getMinutes()).padStart(2,'0')} ${u.getHours() >= 12 ? 'PM' : 'AM'}`;
   };
 
@@ -1060,7 +1058,9 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
       } else {
         showToast(data.message || 'Could not mark no-show.', 'error');
       }
-    } catch { showToast('Connection error. Please try again.', 'error'); }
+    } catch {
+      showToast('Connection error. Please try again.', 'error');
+    }
     setNoShowLoading(null);
   };
 
@@ -1079,7 +1079,9 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
       } else {
         showToast(data.message || 'Could not start screening.', 'error');
       }
-    } catch { showToast('Connection error. Please try again.', 'error'); }
+    } catch {
+      showToast('Connection error. Please try again.', 'error');
+    }
     setStartLoading(null);
   };
 
@@ -1216,9 +1218,9 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
   };
 
   const tabs = [
-    { id: 'retake', label: 'ðŸ“· Retake', filter: n => n.reviewStatus === 'photo_requested' },
-    { id: 'pending', label: 'â³ Pending', filter: n => n.reviewStatus === 'pending' },
-    { id: 'done', label: 'âœ“ Done', filter: n => n.reviewStatus === 'completed' },
+    { id: 'retake', label: '📷 Retake', filter: n => n.reviewStatus === 'photo_requested' },
+    { id: 'pending', label: '⏳ Pending', filter: n => n.reviewStatus === 'pending' },
+    { id: 'done', label: '✓ Done', filter: n => n.reviewStatus === 'completed' },
     { id: 'all', label: 'All', filter: n => true }
   ];
 
@@ -1240,14 +1242,14 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
       React.createElement('button', {
         onClick: load,
         className: 'ml-auto flex-shrink-0 w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors'
-      }, 'â†»')
+      }, '↻')
     ),
 
     loading
       ? React.createElement('div', { className: 'flex items-center justify-center py-20 text-gray-400' }, t('loading'))
       : filtered.length === 0
         ? React.createElement('div', { className: 'flex flex-col items-center justify-center py-20 text-gray-400' },
-            React.createElement('div', { className: 'text-4xl mb-3' }, 'ðŸ””'),
+            React.createElement('div', { className: 'text-4xl mb-3' }, '🔔'),
             React.createElement('p', { className: 'font-medium' }, t('noNotifications'))
           )
         : React.createElement('div', { className: 'p-4 space-y-3' },
@@ -1259,7 +1261,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
               return React.createElement('div', { key: i, className: 'bg-white rounded-2xl border border-gray-100 shadow-sm p-4' },
                 React.createElement('div', { className: 'flex items-start justify-between gap-2 mb-2' },
                   React.createElement('div', { className: 'flex-1 min-w-0' },
-                    React.createElement('p', { className: 'font-semibold text-gray-800 text-sm' }, notif.babyName || 'â€”'),
+                    React.createElement('p', { className: 'font-semibold text-gray-800 text-sm' }, notif.babyName || '—'),
                     React.createElement('p', { className: 'text-xs text-gray-400 font-mono mt-0.5' }, sid)
                   ),
                   React.createElement('span', { className: `text-xs font-semibold px-2 py-1 rounded-full ${
@@ -1268,9 +1270,9 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                     notif.reviewStatus === 'photo_requested' ? 'bg-yellow-100 text-yellow-700' :
                     'bg-blue-100 text-blue-700'
                   }` },
-                    notif.reviewStatus === 'completed' ? 'âœ“ Done' :
-                    notif.reviewStatus === 'photo_received' ? 'âœ“ Photo submitted' :
-                    notif.reviewStatus === 'photo_requested' ? 'ðŸ“· Retake' : 'â³ Pending'
+                    notif.reviewStatus === 'completed' ? '✓ Done' :
+                    notif.reviewStatus === 'photo_received' ? '✓ Photo submitted' :
+                    notif.reviewStatus === 'photo_requested' ? '📷 Retake' : '⏳ Pending'
                   )
                 ),
 
@@ -1287,7 +1289,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                   ),
                   isSubmitted
                     ? React.createElement('div', { className: 'flex items-center justify-between' },
-                        React.createElement('div', { className: 'text-xs text-green-600 font-medium py-2' }, 'âœ“ Photo submitted â€” awaiting review'),
+                        React.createElement('div', { className: 'text-xs text-green-600 font-medium py-2' }, '✓ Photo submitted — awaiting review'),
                         React.createElement('label', { className: 'text-xs text-primary underline cursor-pointer' },
                           'Retake again',
                           React.createElement('input', {
@@ -1297,7 +1299,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                         )
                       )
                     : React.createElement('label', { className: `w-full py-3 px-4 rounded-xl text-sm font-semibold text-center cursor-pointer transition-all flex items-center justify-center gap-2 ${isUploading ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}` },
-                        isUploading ? t('uploading') : 'ðŸ“· ' + t('retakePhoto'),
+                        isUploading ? t('uploading') : '📷 ' + t('retakePhoto'),
                         React.createElement('input', {
                           type: 'file', accept: 'image/*', capture: 'environment', className: 'hidden',
                           disabled: isUploading,
@@ -1310,7 +1312,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                   React.createElement('button', {
                     onClick: () => setSelectedNotif(selectedNotif === i ? null : i),
                     className: 'w-full py-2 px-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm font-semibold text-center'
-                  }, selectedNotif === i ? 'â–¾ Hide Result' : 'â–¸ ' + t('viewResult')),
+                  }, selectedNotif === i ? '▾ Hide Result' : '▸ ' + t('viewResult')),
                   selectedNotif === i && React.createElement('div', { className: 'space-y-3 mt-2' },
                     (() => {
                       const lines = notif.synopsis.split('\n');
@@ -1332,12 +1334,12 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                         v === 'REDO'  ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600';
 
                       const formatPhotoLabel = (raw) => {
-                        // converts e.g. "L_35dB_1" â†’ "35dB, Test attempt 1"
+                        // converts e.g. "L_35dB_1" → "35dB, Test attempt 1"
                         const m = raw.match(/^[LR]_(\d+(?:\.\d+)?(?:k)?[Dd][Bb])_(\d+)/);
                         return m ? `${m[1].replace(/db/i, 'dB')}, Test attempt ${m[2]}` : raw;
                       };
 
-                      // Parse photo notes into a map: ear ('L'|'R') â†’ array of { label, val }
+                      // Parse photo notes into a map: ear ('L'|'R') → array of { label, val }
                       const notesByEar = { L: [], R: [] };
                       photoNotes.forEach(note => {
                         const colonIdx = note.indexOf(':');
@@ -1347,7 +1349,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                         const ear = earMatch ? earMatch[1] : null;
                         if (ear) {
                           const m = rawKey.match(/^[LR]_(\d+(?:\.\d+)?(?:k)?dB)_(\d+)/i);
-                          const label = m ? `${m[1].replace(/db/i, 'dB')} â€” attempt ${m[2]}` : rawKey;
+                          const label = m ? `${m[1].replace(/db/i, 'dB')} — attempt ${m[2]}` : rawKey;
                           notesByEar[ear].push({ label, val });
                         }
                       });
@@ -1454,7 +1456,7 @@ const validate = () => {
         React.createElement('div', { className: 'space-y-4' },
 React.createElement('div', { className: 'bg-primary/10 border-2 border-primary rounded-xl p-3 mb-4' },
   React.createElement('div', { className: 'flex items-center gap-2' },
-    React.createElement('span', { className: 'text-2xl' }, 'ðŸ‘¶'),
+    React.createElement('span', { className: 'text-2xl' }, '👶'),
     React.createElement('div', {},
       React.createElement('div', { className: 'text-xs text-gray-600 font-medium' }, t('babyId')),
       React.createElement('div', { className: 'text-lg font-bold text-primary' }, form.babyId)
@@ -1470,7 +1472,7 @@ React.createElement('div', {},
     isLocked('babyName') && React.createElement('button', {
       type: 'button', onClick: () => unlockField('babyName'),
       className: 'flex items-center gap-1 text-xs text-primary font-medium'
-    }, 'âœï¸ ', t('edit'))
+    }, '✏️ ', t('edit'))
   ),
   React.createElement('input', {
     type: 'text', value: form.babyName,
@@ -1502,7 +1504,7 @@ React.createElement('div', {},
 		  React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('dateOfBirth'), React.createElement('span', { className: 'text-red-500' }, ' *')),
-              isLocked('dateOfBirth') && React.createElement('button', { type: 'button', onClick: () => unlockField('dateOfBirth'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'âœï¸ ', t('edit'))
+              isLocked('dateOfBirth') && React.createElement('button', { type: 'button', onClick: () => unlockField('dateOfBirth'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('input', { type: 'date', value: form.dateOfBirth, max: new Date().toISOString().split('T')[0], onChange: (e) => setForm({ ...form, dateOfBirth: e.target.value }), disabled: isLocked('dateOfBirth'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('dateOfBirth') ? 'opacity-60 cursor-not-allowed' : ''}` }),
             errors.dateOfBirth && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, errors.dateOfBirth)
@@ -1510,7 +1512,7 @@ React.createElement('div', {},
 		  React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('gender')),
-              isLocked('gender') && React.createElement('button', { type: 'button', onClick: () => unlockField('gender'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'âœï¸ ', t('edit'))
+              isLocked('gender') && React.createElement('button', { type: 'button', onClick: () => unlockField('gender'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('div', { className: `flex gap-2 p-3 rounded-xl border-2 ${errors.gender ? 'border-red-500 bg-red-50' : 'border-transparent'}` },
               [{ label: t('male'), value: 'Male' }, { label: t('female'), value: 'Female' }, { label: t('other'), value: 'Other' }].map(opt =>
@@ -1522,7 +1524,7 @@ React.createElement('div', {},
           React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('gestationalAge'), React.createElement('span', { className: 'text-red-500' }, ' *')),
-              isLocked('gestationalAge') && React.createElement('button', { type: 'button', onClick: () => unlockField('gestationalAge'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'âœï¸ ', t('edit'))
+              isLocked('gestationalAge') && React.createElement('button', { type: 'button', onClick: () => unlockField('gestationalAge'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('select', { value: form.gestationalAge, onChange: (e) => setForm({ ...form, gestationalAge: e.target.value }), disabled: isLocked('gestationalAge'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('gestationalAge') ? 'opacity-60 cursor-not-allowed' : ''}` },
               React.createElement('option', { value: '' }, t('selectWeeks')),
@@ -1533,7 +1535,7 @@ React.createElement('div', {},
           React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('parentName'), React.createElement('span', { className: 'text-red-500' }, ' *')),
-              isLocked('parentName') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentName'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'âœï¸ ', t('edit'))
+              isLocked('parentName') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentName'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('input', { type: 'text', value: form.parentName, onChange: (e) => setForm({ ...form, parentName: e.target.value }), placeholder: t('enterParentName'), disabled: isLocked('parentName'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('parentName') ? 'opacity-60 cursor-not-allowed' : ''}` }),
             errors.parentName && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, errors.parentName)
@@ -1541,7 +1543,7 @@ React.createElement('div', {},
           React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('phoneNumber'), React.createElement('span', { className: 'text-red-500' }, ' *')),
-              isLocked('parentPhone') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentPhone'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'âœï¸ ', t('edit'))
+              isLocked('parentPhone') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentPhone'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('input', { type: 'tel', value: form.parentPhone, onChange: (e) => setForm({ ...form, parentPhone: e.target.value.replace(/\D/g, '') }), placeholder: t('tenDigit'), maxLength: '10', disabled: isLocked('parentPhone'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('parentPhone') ? 'opacity-60 cursor-not-allowed' : ''}` }),
             errors.parentPhone && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, errors.parentPhone)
@@ -1549,14 +1551,14 @@ React.createElement('div', {},
           React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('email')),
-              isLocked('parentEmail') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentEmail'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'âœï¸ ', t('edit'))
+              isLocked('parentEmail') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentEmail'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('input', { type: 'email', value: form.parentEmail, onChange: (e) => setForm({ ...form, parentEmail: e.target.value }), placeholder: t('emailPlaceholder'), disabled: isLocked('parentEmail'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('parentEmail') ? 'opacity-60 cursor-not-allowed' : ''}` })
           ),
           React.createElement('div', {},
   React.createElement('div', { className: 'flex items-center justify-between mb-2' },
     React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('riskFactors')),
-    isLocked('riskFactors') && React.createElement('button', { type: 'button', onClick: () => unlockField('riskFactors'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'âœï¸ ', t('edit'))
+    isLocked('riskFactors') && React.createElement('button', { type: 'button', onClick: () => unlockField('riskFactors'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
   ),
   React.createElement('button', {
     type: 'button',
@@ -1566,13 +1568,13 @@ React.createElement('div', {},
     React.createElement('span', { className: 'text-sm text-gray-700' },
       form.riskFactors.length === 0 ? t('selectOption') : `${form.riskFactors.length} ${t('selected')}`
     ),
-    React.createElement('span', { className: 'text-gray-400' }, 'â€º')
+    React.createElement('span', { className: 'text-gray-400' }, '›')
   )
 ),
           React.createElement('div', {},
   Object.keys(errors).length > 0 && React.createElement('div', { className: 'mb-3 p-3 bg-red-50 border-2 border-red-500 rounded-xl' },
     React.createElement('div', { className: 'flex items-start gap-2' },
-      React.createElement('span', { className: 'text-red-500 text-lg' }, 'âš ï¸'),
+      React.createElement('span', { className: 'text-red-500 text-lg' }, '⚠️'),
       React.createElement('div', {},
         React.createElement('div', { className: 'text-sm font-semibold text-red-700 mb-1' }, t('pleaseComplete')),
         React.createElement('div', { className: 'text-xs text-red-600' },
@@ -1922,7 +1924,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
 
       complete
         ? React.createElement('div', { className: 'text-xs text-gray-400 mb-1' },
-            `V-G: ${attempt.vtx}kÎ©, G-R: ${attempt.gnd}kÎ©, R-V: ${attempt.ref}kÎ©`
+            `V-G: ${attempt.vtx}kΩ, G-R: ${attempt.gnd}kΩ, R-V: ${attempt.ref}kΩ`
           )
         : React.createElement('div', { className: 'grid grid-cols-3 gap-2 mb-2' },
             ['vtx', 'gnd', 'ref'].map(field =>
@@ -1949,7 +1951,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
             }, attempt.result),
             attempt.photo && React.createElement('span', {
               style: { fontSize: '11px', color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', padding: '2px 8px' }
-            }, 'ðŸ“· Photo saved')
+            }, '📷 Photo saved')
           )
         : React.createElement('div', { className: 'space-y-2' },
             React.createElement('div', { className: 'grid grid-cols-3 gap-2' },
@@ -1974,7 +1976,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
             needsPhoto && React.createElement('div', { className: 'mt-1' },
               photoReady
                 ? React.createElement('div', { className: 'flex items-center gap-2' },
-                    React.createElement('span', { style: { fontSize: '11px', color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', padding: '3px 10px', flex: 1, textAlign: 'center' } }, 'ðŸ“· Photo ready'),
+                    React.createElement('span', { style: { fontSize: '11px', color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', padding: '3px 10px', flex: 1, textAlign: 'center' } }, '📷 Photo ready'),
                     React.createElement('button', {
                       onClick: () => setActivePhotoTarget({ side, db, idx }),
                       style: { fontSize: '11px', color: '#6b7280', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '6px', padding: '3px 10px', cursor: 'pointer' }
@@ -1990,7 +1992,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
                       fontSize: '12px', fontWeight: '500', cursor: attempt.result ? 'pointer' : 'not-allowed'
                     },
                     disabled: !attempt.result
-                  }, 'ðŸ“· Take photo (required)')
+                  }, '📷 Take photo (required)')
             ),
 
             React.createElement('button', {
@@ -2026,7 +2028,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
       return React.createElement('div', { key: db,
         onClick: () => unlocked && handleUnlockLevel(side, db),
         className: `rounded-xl p-3 text-center text-sm transition-all ${unlocked ? 'bg-primary/5 border border-dashed border-primary/40 cursor-pointer hover:bg-primary/10 text-primary font-medium' : 'bg-gray-50 border border-dashed border-gray-200 text-gray-300 cursor-not-allowed'}`
-      }, unlocked ? `Tap to start ${db}` : `${db} â€” locked`);
+      }, unlocked ? `Tap to start ${db}` : `${db} — locked`);
     }
 
     const activeAttemptIdx = attempts.findIndex(a => !isAttemptComplete(a));
@@ -2045,7 +2047,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
         completedAttempts.length > 0 && React.createElement('div', { className: 'space-y-1' },
           completedAttempts.map((a, i) =>
             React.createElement('div', { key: i, className: 'flex items-center justify-between text-xs text-gray-500 py-1 border-b border-gray-100' },
-              React.createElement('span', {}, `Test ${i + 1}: V-G: ${a.vtx}kÎ©, G-R: ${a.gnd}kÎ©, R-V: ${a.ref}kÎ©`),
+              React.createElement('span', {}, `Test ${i + 1}: V-G: ${a.vtx}kΩ, G-R: ${a.gnd}kΩ, R-V: ${a.ref}kΩ`),
               React.createElement('span', {
                 style: {
                   background: a.result === 'PASS' ? '#dcfce7' : a.result === 'REFER' ? '#fee2e2' : '#ffedd5',
@@ -2733,7 +2735,7 @@ const BabyInfoBanner = ({ record }) => {
             record.babyName || '-'
           )
         ),
-        React.createElement('span', { className: 'text-primary/50 text-xs flex-shrink-0' }, 'â–¾')
+        React.createElement('span', { className: 'text-primary/50 text-xs flex-shrink-0' }, '▾')
       )
     ),
 
@@ -2970,7 +2972,7 @@ const compressPhoto = (file) => {
           // Calculate quality needed to hit target size in one shot
           quality = Math.max(0.4, Math.min(0.92, quality * (PHOTO_TARGET_SIZE_KB / sizeKB)));
           base64 = canvas.toDataURL('image/jpeg', quality).split(',')[1];
-          console.log(`Photo compressed: ${sizeKB}KB â†’ ~${Math.round(base64.length * 0.75 / 1024)}KB at quality ${quality.toFixed(2)}`);
+          console.log(`Photo compressed: ${sizeKB}KB → ~${Math.round(base64.length * 0.75 / 1024)}KB at quality ${quality.toFixed(2)}`);
         } else {
           console.log(`Photo kept at original quality: ${sizeKB}KB`);
         }
