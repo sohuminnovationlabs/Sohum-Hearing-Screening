@@ -972,7 +972,7 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
   const [appointments, setAppointments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState('today');
-  const [noShowLoading, setNoShowLoading] = React.useState(null);
+  const [outcomeLoading, setOutcomeLoading] = React.useState(null);
   const [startLoading, setStartLoading] = React.useState(null);
   const [toast, setToast] = React.useState(null);
 
@@ -1016,17 +1016,19 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
     if (s === 'screening_started') return 'bg-purple-50 text-purple-700';
     if (s === 'completed')   return 'bg-green-50 text-green-700';
     if (s === 'rescheduled') return 'bg-yellow-50 text-yellow-700';
+    if (s === 'reschedule_requested') return 'bg-orange-50 text-orange-700';
+    if (s === 'no_show_unresolved') return 'bg-rose-50 text-rose-700';
     if (s === 'no_show')     return 'bg-red-50 text-red-700';
     return 'bg-gray-100 text-gray-500';
   };
-  const statusLabel = (s) => ({ booked:'Confirmed', screening_started:'Screening Started', completed:'Completed', rescheduled:'Rescheduled', no_show:'No Show', cancelled:'Cancelled' }[s] || s);
+  const statusLabel = (s) => ({ booked:'Confirmed', screening_started:'Screening Started', completed:'Completed', rescheduled:'Rescheduled', no_show:'Late / No-Show', reschedule_requested:'Reschedule Needed', no_show_unresolved:'No-Show Unresolved', cancelled:'Cancelled' }[s] || s);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const filtered = appointments.filter(a => {
     const d = new Date(a.appointmentDate + 'T00:00:00');
     if (filter === 'today')    return a.appointmentDate === todayStr;
     if (filter === 'upcoming') return d > today;
-    return d < today || a.status === 'completed' || a.status === 'no_show';
+    return d < today || a.status === 'completed' || a.status === 'no_show' || a.status === 'reschedule_requested' || a.status === 'no_show_unresolved';
   });
 
   const canMarkNoShow = (a) => {
@@ -1039,6 +1041,10 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
   };
 
   const canStartScreening = (a) => ['booked', 'rescheduled', 'no_show', 'screening_started'].includes(a.status);
+  const canSetOutcome = (a) => {
+    if (!a.babyName || !a.babyName.trim()) return false;
+    return ['booked', 'rescheduled', 'no_show'].includes(a.status);
+  };
 
   const noShowUnlockTime = (a) => {
     const [y,mo,d] = a.appointmentDate.split('-').map(Number);
@@ -1048,22 +1054,28 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
     return `${u.getHours() % 12 || 12}:${String(u.getMinutes()).padStart(2,'0')} ${u.getHours() >= 12 ? 'PM' : 'AM'}`;
   };
 
-  const handleNoShow = async (a) => {
-    setNoShowLoading(a.appointmentId);
+  const handleOutcome = async (a, outcome) => {
+    const labels = {
+      late_no_show: 'Baby marked as no-show, but can still be started if they arrive late.',
+      reschedule_later: 'Marked for supervisor rescheduling.',
+      unresolved_no_show: 'Marked as unresolved no-show.'
+    };
+    setOutcomeLoading(`${a.appointmentId}:${outcome}`);
     try {
       const res = await fetch(SCRIPT_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'markNoShow', appointmentId: a.appointmentId, markedBy: user.hwId })
+        body: JSON.stringify({ action: 'updateAppointmentOutcome', appointmentId: a.appointmentId, hcwUsername: user.hwId, outcome })
       });
       const data = await res.json();
       if (data.status === 'success') {
-        setAppointments(prev => prev.map(ap => ap.appointmentId === a.appointmentId ? { ...ap, status: 'no_show' } : ap));
-        showToast('Marked as no-show.');
+        const appt = data.data || {};
+        setAppointments(prev => prev.map(ap => ap.appointmentId === a.appointmentId ? { ...ap, status: appt.status || ap.status } : ap));
+        showToast(labels[outcome] || 'Appointment outcome updated.');
       } else {
-        showToast(data.message || 'Could not mark no-show.', 'error');
+        showToast(data.message || 'Could not update appointment outcome.', 'error');
       }
     } catch { showToast('Connection error. Please try again.', 'error'); }
-    setNoShowLoading(null);
+    setOutcomeLoading(null);
   };
 
   const handleStartScreening = async (a) => {
@@ -1144,13 +1156,27 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
                     className: 'w-full py-2.5 text-sm font-medium rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 mb-2'
                   }, startLoading === a.appointmentId ? 'Starting...' : 'Baby Arrived - Start Screening'),
                   canMarkNoShow(a)
-                    ? React.createElement('button', {
-                        onClick: () => handleNoShow(a),
-                        disabled: noShowLoading === a.appointmentId,
-                        className: 'w-full py-2.5 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50'
-                      }, noShowLoading === a.appointmentId ? 'Marking…' : 'Mark as No-Show')
+                    ? React.createElement('div', { className: 'space-y-2' },
+                        React.createElement('button', {
+                          onClick: () => handleOutcome(a, 'late_no_show'),
+                          disabled: !!outcomeLoading,
+                          className: 'w-full py-2.5 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50'
+                        }, outcomeLoading === `${a.appointmentId}:late_no_show` ? 'Marking…' : 'No-Show, May Arrive Late'),
+                        React.createElement('button', {
+                          onClick: () => handleOutcome(a, 'reschedule_later'),
+                          disabled: !!outcomeLoading,
+                          className: 'w-full py-2.5 text-sm font-medium rounded-xl bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors disabled:opacity-50'
+                        }, outcomeLoading === `${a.appointmentId}:reschedule_later` ? 'Marking…' : 'No-Show, Reschedule Needed'),
+                        React.createElement('button', {
+                          onClick: () => handleOutcome(a, 'unresolved_no_show'),
+                          disabled: !!outcomeLoading,
+                          className: 'w-full py-2.5 text-sm font-medium rounded-xl bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 transition-colors disabled:opacity-50'
+                        }, outcomeLoading === `${a.appointmentId}:unresolved_no_show` ? 'Marking…' : 'No-Show, Return Unknown')
+                      )
                     : (a.babyName && a.babyName.trim() && (a.status === 'booked' || a.status === 'rescheduled'))
                       ? React.createElement('p', { className: 'text-xs text-gray-400 text-center py-1' }, `No-show available after ${noShowUnlockTime(a)}`)
+                      : canSetOutcome(a) && a.status === 'no_show'
+                        ? React.createElement('p', { className: 'text-xs text-gray-400 text-center py-1' }, 'This no-show can still be started if the baby arrives late.')
                       : null
                 )
               )
