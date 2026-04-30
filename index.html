@@ -968,11 +968,12 @@ const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onProfileClick, onNo
   );
 };
 
-const AppointmentsScreen = ({ user, onBack, onProfileClick, onNotificationsClick, notificationCount }) => {
+const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, onNotificationsClick, notificationCount }) => {
   const [appointments, setAppointments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState('today');
   const [noShowLoading, setNoShowLoading] = React.useState(null);
+  const [startLoading, setStartLoading] = React.useState(null);
   const [toast, setToast] = React.useState(null);
 
   const showToast = (msg, type = 'success') => {
@@ -1012,12 +1013,13 @@ const AppointmentsScreen = ({ user, onBack, onProfileClick, onNotificationsClick
 
   const statusStyle = (s) => {
     if (s === 'booked')      return 'bg-blue-50 text-blue-700';
+    if (s === 'screening_started') return 'bg-purple-50 text-purple-700';
     if (s === 'completed')   return 'bg-green-50 text-green-700';
     if (s === 'rescheduled') return 'bg-yellow-50 text-yellow-700';
     if (s === 'no_show')     return 'bg-red-50 text-red-700';
     return 'bg-gray-100 text-gray-500';
   };
-  const statusLabel = (s) => ({ booked:'Confirmed', completed:'Completed', rescheduled:'Rescheduled', no_show:'No Show', cancelled:'Cancelled' }[s] || s);
+  const statusLabel = (s) => ({ booked:'Confirmed', screening_started:'Screening Started', completed:'Completed', rescheduled:'Rescheduled', no_show:'No Show', cancelled:'Cancelled' }[s] || s);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const filtered = appointments.filter(a => {
@@ -1035,6 +1037,8 @@ const AppointmentsScreen = ({ user, onBack, onProfileClick, onNotificationsClick
     const unlock = new Date(y, mo-1, d, h, m).getTime() + 30 * 60000;
     return Date.now() >= unlock;
   };
+
+  const canStartScreening = (a) => ['booked', 'rescheduled', 'no_show', 'screening_started'].includes(a.status);
 
   const noShowUnlockTime = (a) => {
     const [y,mo,d] = a.appointmentDate.split('-').map(Number);
@@ -1060,6 +1064,27 @@ const AppointmentsScreen = ({ user, onBack, onProfileClick, onNotificationsClick
       }
     } catch { showToast('Connection error. Please try again.', 'error'); }
     setNoShowLoading(null);
+  };
+
+  const handleStartScreening = async (a) => {
+    setStartLoading(a.appointmentId);
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'startAppointmentScreening', appointmentId: a.appointmentId, hcwUsername: user.hwId })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        const appt = data.data || a;
+        setAppointments(prev => prev.map(item => item.appointmentId === a.appointmentId ? { ...item, status: appt.status || 'screening_started' } : item));
+        onStartScreening(appt);
+      } else {
+        showToast(data.message || 'Could not start screening.', 'error');
+      }
+    } catch {
+      showToast('Connection error. Please try again.', 'error');
+    }
+    setStartLoading(null);
   };
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
@@ -1113,6 +1138,11 @@ const AppointmentsScreen = ({ user, onBack, onProfileClick, onNotificationsClick
                   ),
                   a.notes && React.createElement('p', { className: 'text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2 mb-3' }, '📝 ' + a.notes),
                   a.rescheduledFrom && React.createElement('p', { className: 'text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mb-3' }, `🔄 Rescheduled from ${a.rescheduledFrom}`),
+                  canStartScreening(a) && React.createElement('button', {
+                    onClick: () => handleStartScreening(a),
+                    disabled: startLoading === a.appointmentId,
+                    className: 'w-full py-2.5 text-sm font-medium rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 mb-2'
+                  }, startLoading === a.appointmentId ? 'Starting...' : 'Baby Arrived - Start Screening'),
                   canMarkNoShow(a)
                     ? React.createElement('button', {
                         onClick: () => handleNoShow(a),
@@ -1378,7 +1408,12 @@ const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, on
   const { t, lang } = useTranslation();
   const [unlockedFields, setUnlockedFields] = useState({});
   const unlockField = (field) => setUnlockedFields(prev => ({ ...prev, [field]: true }));
-  const isLocked = (field) => prefilled && !unlockedFields[field];
+  const lockedFields = Array.isArray(initialData._lockedFields) ? initialData._lockedFields : null;
+  const isLocked = (field) => prefilled && !unlockedFields[field] && (!lockedFields || lockedFields.includes(field));
+  const todayLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
  
   const [form, setForm] = useState({
     babyId: initialData.babyId || generateBabyId(),
@@ -1478,7 +1513,7 @@ React.createElement('div', {},
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('dateOfBirth'), React.createElement('span', { className: 'text-red-500' }, ' *')),
               isLocked('dateOfBirth') && React.createElement('button', { type: 'button', onClick: () => unlockField('dateOfBirth'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
-            React.createElement('input', { type: 'date', value: form.dateOfBirth, max: new Date().toISOString().split('T')[0], onChange: (e) => setForm({ ...form, dateOfBirth: e.target.value }), disabled: isLocked('dateOfBirth'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('dateOfBirth') ? 'opacity-60 cursor-not-allowed' : ''}` }),
+            React.createElement('input', { type: 'date', value: form.dateOfBirth, max: todayLocal, onChange: (e) => setForm({ ...form, dateOfBirth: e.target.value }), disabled: isLocked('dateOfBirth'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('dateOfBirth') ? 'opacity-60 cursor-not-allowed' : ''}` }),
             errors.dateOfBirth && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, errors.dateOfBirth)
           ),          
 		  React.createElement('div', {},
@@ -3129,8 +3164,52 @@ const App = () => {
   const sessionComplete = step !== STEP.SESSION && step !== STEP.LOGIN && step !== STEP.LOADING;
   const navProps = { onProfileClick: () => setShowProfile(true), onNotificationsClick: () => { if (sessionComplete) setStep(STEP.NOTIFICATIONS); }, onNotifications: () => { if (sessionComplete) setStep(STEP.NOTIFICATIONS); }, notificationCount };
   const clearBabyData = () => {
-    const { babyId, babyName, deviceTestId, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, ...rest } = record;
+    const { babyId, babyName, deviceTestId, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, appointmentId, appointmentSource, _fromAppointment, _appointmentId, _lockedFields, _prefilled, ...rest } = record;
     setRecord({ ...rest, babyId: generateBabyId() });
+    setStep(STEP.BABY);
+  };
+  const normalizeAppointmentDate = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const handleAppointmentStart = (appointment) => {
+    const dateOfBirth = normalizeAppointmentDate(appointment.babyDob || appointment.dateOfBirth || '');
+    const appointmentFields = {
+      babyName: appointment.babyName || '',
+      dateOfBirth,
+      parentPhone: appointment.parentPhone ? String(appointment.parentPhone).replace(/\D/g, '').slice(-10) : ''
+    };
+    const lockedFields = Object.entries(appointmentFields)
+      .filter(([, value]) => value !== null && value !== undefined && String(value).trim())
+      .map(([field]) => field);
+    const sessionData = {
+      hwName: record.hwName || user.hwName,
+      hwId: record.hwId || user.hwId,
+      ngo: record.ngo || user.ngo,
+      hospitalName: appointment.hospitalName || record.hospitalName || '',
+      deviceSerial: record.deviceSerial || '',
+      sessionDate: record.sessionDate || new Date().toISOString().split('T')[0]
+    };
+    setRecord({
+      ...sessionData,
+      babyId: generateBabyId(),
+      deviceTestId: '',
+      gender: '',
+      gestationalAge: '',
+      parentName: '',
+      parentEmail: '',
+      riskFactors: [],
+      ...appointmentFields,
+      appointmentId: appointment.appointmentId,
+      appointmentSource: 'HCW appointment',
+      _appointmentId: appointment.appointmentId,
+      _fromAppointment: true,
+      _prefilled: lockedFields.length > 0,
+      _lockedFields: lockedFields
+    });
     setStep(STEP.BABY);
   };
   const handleLogin = async (userData) => {
@@ -3184,11 +3263,11 @@ const App = () => {
   return React.createElement('div', {},
     step === STEP.LOGIN && React.createElement(LoginScreen, { onLogin: handleLogin }),
     step === STEP.SESSION && React.createElement(SessionSetupScreen, { user, masterData, initialData: record, onComplete: d => { merge(d); setStep(STEP.MENU); }, ...navProps }),
-    step === STEP.MENU && React.createElement(MenuScreen, { user, onRegisterBaby: () => setStep(STEP.BABY), onExistingBaby: () => setStep(STEP.EXISTING_BABY), onAppointments: () => setStep(STEP.APPOINTMENTS), ...navProps }),
+    step === STEP.MENU && React.createElement(MenuScreen, { user, onRegisterBaby: () => { clearBabyData(); }, onExistingBaby: () => setStep(STEP.EXISTING_BABY), onAppointments: () => setStep(STEP.APPOINTMENTS), ...navProps }),
     step === STEP.NOTIFICATIONS && React.createElement(NotificationsScreen, { user, onBack: () => setStep(STEP.MENU), ...navProps }),
-    step === STEP.APPOINTMENTS && React.createElement(AppointmentsScreen, { user, onBack: () => setStep(STEP.MENU), ...navProps }),
+    step === STEP.APPOINTMENTS && React.createElement(AppointmentsScreen, { user, onBack: () => setStep(STEP.MENU), onStartScreening: handleAppointmentStart, ...navProps }),
     step === STEP.EXISTING_BABY && React.createElement(ExistingBabyLookupScreen, { user, onBack: () => setStep(STEP.MENU), onFound: (d) => { merge({ ...d, screeningId: '', _prefilled: true }); setStep(STEP.BABY); }, ...navProps }),
-    step === STEP.BABY && React.createElement(BabyRegistrationScreen, { user, initialData: record, onBack: () => setStep(record._prefilled ? STEP.EXISTING_BABY : STEP.MENU), onNext: d => { merge(d); setStep(STEP.TEST_SELECT); }, onClear: clearBabyData, ...navProps, prefilled: !!record._prefilled }),
+    step === STEP.BABY && React.createElement(BabyRegistrationScreen, { user, initialData: record, onBack: () => setStep(record._fromAppointment ? STEP.APPOINTMENTS : (record._prefilled ? STEP.EXISTING_BABY : STEP.MENU)), onNext: d => { merge(d); setStep(STEP.TEST_SELECT); }, onClear: clearBabyData, ...navProps, prefilled: !!record._prefilled }),
     step === STEP.TEST_SELECT && React.createElement(TestSelectionScreen, { user, onBack: () => setStep(STEP.BABY), onSelectAABR: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.AABR); }, onSelectOAE: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.OAE_TYPE); }, ...navProps }),
     step === STEP.AABR && React.createElement(AABREntryScreen, { user, initialData: record, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.REC); }, ...navProps }),
     step === STEP.OAE_TYPE && React.createElement(OAETypeScreen, { user, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.OAE_PROTOCOL); }, ...navProps }),
