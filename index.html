@@ -31,7 +31,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 import { createRoot } from 'react-dom/client';
 
 
-// TEST MODE - Set to true to pre-fill baby registration form for faster testing
+// 🧪 TEST MODE - Set to true to pre-fill baby registration form for faster testing
 // Set back to false before pushing to production
 const TEST_MODE = false;
 const TEST_DATA = {
@@ -47,24 +47,24 @@ const TEST_DATA = {
 };
 
 
-// VERSION - Update this single line for new releases
+// 🔧 VERSION - Update this single line for new releases
 const APP_VERSION = 'v8.6.4';
 
-// DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
+// 🔬 DEVICE TEST ID LABEL - Change this string to rename the field everywhere in the app (only made this cuz I was unsure if its called unique ID or device generated ID)
 const DEVICE_TEST_ID_LABEL = 'Unique ID';
 
 
-// PHOTO STORAGE MODE
+// 📁 PHOTO STORAGE MODE
 // Mode 1: Current naming convention - <UniqueID><Ear><AttemptNumber> e.g. 90vnjhjyuR01
 // Mode 2: New naming convention - <UniqueID>_<dB>dB_<Ear>_<AttemptNumber> e.g. 90vnjhjyu_35dB_R_01
 const PHOTO_STORAGE_MODE = 1;
 
-// AABR PROTOCOL LOCK
+// 🔒 AABR PROTOCOL LOCK
 // 1 = strict: each level must be exhausted before the next unlocks
 // 0 = free: all levels accessible from the start, attempt limits still apply
 const AABR_PROTOCOL_LOCK = 1;
 
-// AABR MAX ATTEMPTS PER INTENSITY LEVEL
+// 🎯 AABR MAX ATTEMPTS PER INTENSITY LEVEL
 // Adjust these numbers to change how many attempts are allowed at each level
 // e.g. change MAX_ATTEMPTS_35 to 2 if you want only 2 attempts at 35dB
 const MAX_ATTEMPTS_35 = 3;  // attempts allowed at 35 dB
@@ -72,14 +72,14 @@ const MAX_ATTEMPTS_50 = 2;  // attempts allowed at 50 dB
 const MAX_ATTEMPTS_70 = 1;  // attempts allowed at 70 dB
 const MAX_ATTEMPTS_90 = 1;  // attempts allowed at 90 dB
 
-// OAE SNR PASS THRESHOLDS - minimum dB SNR for a frequency to count as passing
+// 🔊 OAE SNR PASS THRESHOLDS — minimum dB SNR for a frequency to count as passing
 // DPOAE threshold applies to all DPOAE protocols
 // TEOAE thresholds are protocol-specific (8 sec and 32 sec)
-const DPOAE_SNR_THRESHOLD  = 6.0;  // dB - applies to all DPOAE protocols
-const TEOAE_8S_THRESHOLD   = 6.0;  // dB - TEOAE 8 sec protocol
-const TEOAE_32S_THRESHOLD  = 6.0;  // dB - TEOAE 32 sec protocol
+const DPOAE_SNR_THRESHOLD  = 6.0;  // dB — applies to all DPOAE protocols
+const TEOAE_8S_THRESHOLD   = 6.0;  // dB — TEOAE 8 sec protocol
+const TEOAE_32S_THRESHOLD  = 6.0;  // dB — TEOAE 32 sec protocol
 
-// PHOTO QUALITY SETTINGS - Adjust these as needed
+// 📷 PHOTO QUALITY SETTINGS - Adjust these as needed
 const PHOTO_MAX_WIDTH = 1920;       // Max width in pixels
 const PHOTO_MAX_HEIGHT = 1440;      // Max height in pixels
 const PHOTO_TARGET_SIZE_KB = 200;   // Target max file size in KB - only compresses if exceeded
@@ -96,12 +96,6 @@ const generateScreeningId = () => {
   return `S-${year}-${uniqueDigits}`;
 };
 const generateSessionId = () => 'SES-' + Date.now();
-const localDateInputValue = (date = new Date()) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
 
 // GPS Location with Smart Caching
 let lastLocation = null;
@@ -220,7 +214,7 @@ const translations = {
     inUtero: "In utero infections", hyperbilirubinemia: "Hyperbilirubinemia",
     syndromes: "Syndromes associated with hearing loss", selectTest: "Select Test Type",
     aabrFull: "Automated Auditory Brainstem Response", oaeFull: "Otoacoustic Emissions",
-    aabrTest: "AABR Test", enterResults: "Enter test results", impedanceValues: "Impedance Values (kOhm)",
+    aabrTest: "AABR Test", enterResults: "Enter test results", impedanceValues: "Impedance Values (kΩ)",
     leftEar: "Left Ear", rightEar: "Right Ear", pass: "PASS", refer: "REFER", redo: "REDO",
     selectOaeType: "Select OAE Type", dpoaeFull: "Distortion Product Otoacoustic Emissions",
     teoaeFull: "Transient Evoked Otoacoustic Emissions", protocol: "Protocol", result: "Result",
@@ -230,7 +224,7 @@ const translations = {
     rescreenMonth: "Rescreen in 1 month", referAudiologist: "Refer to audiologist",
     referEnt: "Refer to ENT specialist",
     audiologistVerification: "Audiologist Verification", notifications: "Notifications", noNotifications: "No notifications", 
-	awaitingReview: "Awaiting audiologist review", photoRetakeRequested: "Photo retake requested", reviewComplete: "Review complete - tap to view", retakePhoto: "Retake Photo", uploading: "Uploading...", uploadSuccess: "Photo uploaded successfully", viewResult: "View Result", audiologistVerdict: "Audiologist Verdict", audiologistRecommendation: "Audiologist Recommendation", audiologistComments: "Comments", submitting: "Submitting...", submitScreening: "Submit Screening",
+	awaitingReview: "Awaiting audiologist review", photoRetakeRequested: "Photo retake requested", reviewComplete: "Review complete — tap to view", retakePhoto: "Retake Photo", uploading: "Uploading...", uploadSuccess: "Photo uploaded successfully", viewResult: "View Result", audiologistVerdict: "Audiologist Verdict", audiologistRecommendation: "Audiologist Recommendation", audiologistComments: "Comments", submitting: "Submitting...", submitScreening: "Submit Screening",
     success: "Success", screeningCompleted: "Screening completed", screeningId: "Screening ID",
     hasBeenLogged: "has been successfully logged", screenSameBaby: "Screen Same Baby",
     screenNewBaby: "Screen New Baby", confirmBabyIdentity: "Confirm Baby Identity",
@@ -290,7 +284,7 @@ const translations = {
     inUtero: "गर्भाशय में संक्रमण", hyperbilirubinemia: "हाइपरबिलीरुबिनेमिया",
     syndromes: "सुनने की क्षमता खोने से जुड़े सिंड्रोम", selectTest: "परीक्षण प्रकार चुनें",
     aabrFull: "स्वचालित श्रवण मस्तिष्क प्रतिक्रिया", oaeFull: "ओटोअकॉस्टिक उत्सर्जन",
-    aabrTest: "AABR परीक्षण", enterResults: "परिणाम दर्ज करें", impedanceValues: "प्रतिबाधा मान (kOhm)",
+    aabrTest: "AABR परीक्षण", enterResults: "परिणाम दर्ज करें", impedanceValues: "प्रतिबाधा मान (kΩ)",
     leftEar: "बायां कान", rightEar: "दायां कान", pass: "उत्तीर्ण", refer: "रेफर करें", redo: "पुनः करें",
     selectOaeType: "OAE प्रकार चुनें", dpoaeFull: "विकृति उत्पाद ओटोअकॉस्टिक उत्सर्जन",
     teoaeFull: "क्षणिक उत्पन्न ओटोअकॉस्टिक उत्सर्जन", protocol: "प्रोटोकॉल", result: "परिणाम",
@@ -299,7 +293,7 @@ const translations = {
     passNoFollowup: "उत्तीर्ण - फॉलो-अप की आवश्यकता नहीं", referFollowup: "रेफर करें - फॉलो-अप आवश्यक",
     rescreenMonth: "1 महीने में पुनः जांच", referAudiologist: "ऑडियोलॉजिस्ट के पास भेजें",
     referEnt: "ENT विशेषज्ञ के पास भेजें",
-    audiologistVerification: "ऑडियोलॉजिस्ट सत्यापन", notifications: "सूचनाएं", noNotifications: "कोई सूचना नहीं", awaitingReview: "ऑडियोलॉजिस्ट समीक्षा की प्रतीक्षा", photoRetakeRequested: "फोटो पुनः लेने का अनुरोध", reviewComplete: "समीक्षा पूर्ण - देखने के लिए टैप करें", retakePhoto: "फोटो दोबारा लें", uploading: "अपलोड हो रहा है...", uploadSuccess: "फोटो सफलतापूर्वक अपलोड हुई", viewResult: "परिणाम देखें", audiologistVerdict: "ऑडियोलॉजिस्ट निर्णय", audiologistRecommendation: "ऑडियोलॉजिस्ट सिफारिश", audiologistComments: "टिप्पणियां", submitting: "जमा हो रहा है...", submitScreening: "जांच जमा करें",
+    audiologistVerification: "ऑडियोलॉजिस्ट सत्यापन", notifications: "सूचनाएं", noNotifications: "कोई सूचना नहीं", awaitingReview: "ऑडियोलॉजिस्ट समीक्षा की प्रतीक्षा", photoRetakeRequested: "फोटो पुनः लेने का अनुरोध", reviewComplete: "समीक्षा पूर्ण — देखने के लिए टैप करें", retakePhoto: "फोटो दोबारा लें", uploading: "अपलोड हो रहा है...", uploadSuccess: "फोटो सफलतापूर्वक अपलोड हुई", viewResult: "परिणाम देखें", audiologistVerdict: "ऑडियोलॉजिस्ट निर्णय", audiologistRecommendation: "ऑडियोलॉजिस्ट सिफारिश", audiologistComments: "टिप्पणियां", submitting: "जमा हो रहा है...", submitScreening: "जांच जमा करें",
     success: "सफल", screeningCompleted: "जांच पूर्ण", screeningId: "जांच आईडी",
     hasBeenLogged: "सफलतापूर्वक लॉग किया गया है", screenSameBaby: "उसी शिशु की जांच करें",
     screenNewBaby: "नए शिशु की जांच करें", confirmBabyIdentity: "शिशु की पहचान की पुष्टि करें",
@@ -360,7 +354,7 @@ const translations = {
     inUtero: "ಗರ್ಭಾಶಯದಲ್ಲಿ ಸೋಂಕುಗಳು", hyperbilirubinemia: "ಹೈಪರ್‌ಬಿಲಿರುಬಿನೀಮಿಯಾ",
     syndromes: "ಶ್ರವಣ ನಷ್ಟದೊಂದಿಗೆ ಸಂಬಂಧಿಸಿದ ಸಿಂಡ್ರೋಮ್‌ಗಳು", selectTest: "ಪರೀಕ್ಷಾ ಪ್ರಕಾರ ಆಯ್ಕೆಮಾಡಿ",
     aabrFull: "ಸ್ವಯಂಚಾಲಿತ ಶ್ರವಣ ಮೆದುಳಿನ ಪ್ರತಿಕ್ರಿಯೆ", oaeFull: "ಓಟೋಅಕೌಸ್ಟಿಕ್ ಹೊರಸೂಸುವಿಕೆ",
-    aabrTest: "AABR ಪರೀಕ್ಷೆ", enterResults: "ಫಲಿತಾಂಶಗಳನ್ನು ನಮೂದಿಸಿ", impedanceValues: "ಪ್ರತಿರೋಧ ಮೌಲ್ಯಗಳು (kOhm)",
+    aabrTest: "AABR ಪರೀಕ್ಷೆ", enterResults: "ಫಲಿತಾಂಶಗಳನ್ನು ನಮೂದಿಸಿ", impedanceValues: "ಪ್ರತಿರೋಧ ಮೌಲ್ಯಗಳು (kΩ)",
     leftEar: "ಎಡ ಕಿವಿ", rightEar: "ಬಲ ಕಿವಿ", pass: "ಉತ್ತೀರ್ಣ", refer: "ಉಲ್ಲೇಖಿಸಿ", redo: "ಮತ್ತೊಮ್ಮೆ ಮಾಡಿ",
     selectOaeType: "OAE ಪ್ರಕಾರ ಆಯ್ಕೆಮಾಡಿ", dpoaeFull: "ವಿರೂಪ ಉತ್ಪನ್ನ ಓಟೋಅಕೌಸ್ಟಿಕ್ ಹೊರಸೂಸುವಿಕೆ",
     teoaeFull: "ಕ್ಷಣಿಕ ಉದ್ಭವಿಸಿದ ಓಟೋಅಕೌಸ್ಟಿಕ್ ಹೊರಸೂಸುವಿಕೆ", protocol: "ಪ್ರೋಟೋಕಾಲ್", result: "ಫಲಿತಾಂಶ",
@@ -369,7 +363,7 @@ const translations = {
     passNoFollowup: "ಉತ್ತೀರ್ಣ - ಫಾಲೋ-ಅಪ್ ಅಗತ್ಯವಿಲ್ಲ", referFollowup: "ಉಲ್ಲೇಖಿಸಿ - ಫಾಲೋ-ಅಪ್ ಅಗತ್ಯವಿದೆ",
     rescreenMonth: "1 ತಿಂಗಳಲ್ಲಿ ಮರುಪರೀಕ್ಷೆ", referAudiologist: "ಆಡಿಯಾಲಜಿಸ್ಟ್‌ಗೆ ಉಲ್ಲೇಖಿಸಿ",
     referEnt: "ENT ತಜ್ಞರಿಗೆ ಉಲ್ಲೇಖಿಸಿ",
-    audiologistVerification: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಪರಿಶೀಲನೆ", notifications: "ಅಧಿಸೂಚನೆಗಳು", noNotifications: "ಯಾವುದೇ ಅಧಿಸೂಚನೆ ಇಲ್ಲ", awaitingReview: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಪರಿಶೀಲನೆ ನಿರೀಕ್ಷಿಸಲಾಗುತ್ತಿದೆ", photoRetakeRequested: "ಫೋಟೋ ಮರು ತೆಗೆಯಲು ವಿನಂತಿ", reviewComplete: "ಪರಿಶೀಲನೆ ಪೂರ್ಣ - ನೋಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ", retakePhoto: "ಫೋಟೋ ಮತ್ತೆ ತೆಗೆಯಿರಿ", uploading: "ಅಪ್ಲೋಡ್ ಆಗುತ್ತಿದೆ...", uploadSuccess: "ಫೋಟೋ ಯಶಸ್ವಿಯಾಗಿ ಅಪ್ಲೋಡ್ ಆಯಿತು", viewResult: "ಫಲಿತಾಂಶ ನೋಡಿ", audiologistVerdict: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ತೀರ್ಪು", audiologistRecommendation: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಶಿಫಾರಸು", audiologistComments: "ಟಿಪ್ಪಣಿಗಳು", submitting: "ಸಲ್ಲಿಸುತ್ತಿದೆ...", submitScreening: "ಪರೀಕ್ಷೆಯನ್ನು ಸಲ್ಲಿಸಿ",
+    audiologistVerification: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಪರಿಶೀಲನೆ", notifications: "ಅಧಿಸೂಚನೆಗಳು", noNotifications: "ಯಾವುದೇ ಅಧಿಸೂಚನೆ ಇಲ್ಲ", awaitingReview: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಪರಿಶೀಲನೆ ನಿರೀಕ್ಷಿಸಲಾಗುತ್ತಿದೆ", photoRetakeRequested: "ಫೋಟೋ ಮರು ತೆಗೆಯಲು ವಿನಂತಿ", reviewComplete: "ಪರಿಶೀಲನೆ ಪೂರ್ಣ — ನೋಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ", retakePhoto: "ಫೋಟೋ ಮತ್ತೆ ತೆಗೆಯಿರಿ", uploading: "ಅಪ್ಲೋಡ್ ಆಗುತ್ತಿದೆ...", uploadSuccess: "ಫೋಟೋ ಯಶಸ್ವಿಯಾಗಿ ಅಪ್ಲೋಡ್ ಆಯಿತು", viewResult: "ಫಲಿತಾಂಶ ನೋಡಿ", audiologistVerdict: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ತೀರ್ಪು", audiologistRecommendation: "ಆಡಿಯಾಲಜಿಸ್ಟ್ ಶಿಫಾರಸು", audiologistComments: "ಟಿಪ್ಪಣಿಗಳು", submitting: "ಸಲ್ಲಿಸುತ್ತಿದೆ...", submitScreening: "ಪರೀಕ್ಷೆಯನ್ನು ಸಲ್ಲಿಸಿ",
     success: "ಯಶಸ್ವಿ", screeningCompleted: "ಪರೀಕ್ಷೆ ಪೂರ್ಣಗೊಂಡಿದೆ", screeningId: "ಪರೀಕ್ಷಾ ಐಡಿ",
     hasBeenLogged: "ಯಶಸ್ವಿಯಾಗಿ ದಾಖಲಿಸಲಾಗಿದೆ", screenSameBaby: "ಅದೇ ಮಗುವನ್ನು ಪರೀಕ್ಷಿಸಿ",
     screenNewBaby: "ಹೊಸ ಮಗುವನ್ನು ಪರೀಕ್ಷಿಸಿ", confirmBabyIdentity: "ಮಗುವಿನ ಗುರುತನ್ನು ದೃಢೀಕರಿಸಿ",
@@ -441,12 +435,12 @@ const RISK_FACTOR_KEYS = {
 };
 
 const RISK_FACTOR_DISPLAY = {
-  nicu_over_5: { icon: 'B', labelKey: 'nicuOver5' },
-  family_history: { icon: 'F', labelKey: 'familyHistory' },
-  craniofacial: { icon: 'C', labelKey: 'craniofacial' },
-  in_utero: { icon: 'I', labelKey: 'inUtero' },
-  hyperbilirubinemia: { icon: 'H', labelKey: 'hyperbilirubinemia' },
-  syndromes: { icon: 'S', labelKey: 'syndromes' }
+  nicu_over_5: { icon: '👶', labelKey: 'nicuOver5' },
+  family_history: { icon: '👨‍👩‍👧', labelKey: 'familyHistory' },
+  craniofacial: { icon: '👂', labelKey: 'craniofacial' },
+  in_utero: { icon: '🤰', labelKey: 'inUtero' },
+  hyperbilirubinemia: { icon: '🟡', labelKey: 'hyperbilirubinemia' },
+  syndromes: { icon: '🧬', labelKey: 'syndromes' }
 };
 
 const LanguageContext = createContext();
@@ -461,8 +455,8 @@ const LanguageProvider = ({ children }) => {
   const t = (key) => translations[lang][key] || key;
   return React.createElement(LanguageContext.Provider, { value: { lang, setLang, t } }, children);
 };
-    { code: 'hi', name: 'Hindi', native: 'Hindi' },
-    { code: 'kn', name: 'Kannada', native: 'Kannada' }
+// Language Selector Component
+const LanguageSelector = () => {
   const { lang, setLang } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const languages = [
@@ -478,13 +472,13 @@ const LanguageProvider = ({ children }) => {
       React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
       React.createElement('line', { x1: "2", x2: "22", y1: "12", y2: "12" }),
       React.createElement('path', { d: "M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" })
-        React.createElement('span', {}, l.native), lang === l.code && React.createElement('span', {}, 'Selected')
+    )),
     isOpen && React.createElement('div', { className: "absolute right-0 top-12 bg-white rounded-xl shadow-lg py-2 min-w-[140px] z-50 border border-gray-200" },
       languages.map(l => React.createElement('button', {
         key: l.code, onClick: () => { setLang(l.code); setIsOpen(false); },
         className: `w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${lang === l.code ? 'bg-primary/10 text-primary font-medium' : 'text-gray-700'}`
       }, React.createElement('div', { className: "flex items-center justify-between" },
-        React.createElement('span', {}, l.native), lang === l.code && React.createElement('span', {}, 'Selected')
+        React.createElement('span', {}, l.native), lang === l.code && React.createElement('span', {}, '✓')
       )))
     )
   );
@@ -510,7 +504,7 @@ const DOBConfirmationModal = ({ babyName, expectedDOB, onConfirm, onCancel }) =>
         React.createElement('label', { className: "text-sm font-medium text-gray-700 block mb-2" }, t('pleaseConfirmDob')),
         React.createElement('input', {
           type: 'date', value: inputDOB, onChange: (e) => { setInputDOB(e.target.value); setError(''); },
-          max: localDateInputValue(),
+          max: new Date().toISOString().split('T')[0],
           className: "w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20"
         }),
         error && React.createElement('p', { className: "text-xs text-red-500 mt-1" }, error)
@@ -773,12 +767,12 @@ return React.createElement('div', { className: 'space-y-1' },
       type: 'button',
       onClick: () => adjustValue(-1.0),
       className: 'w-10 h-10 bg-gray-200 rounded-lg font-bold text-sm text-gray-700 hover:bg-gray-300 active:bg-gray-400 transition-colors'
-    }, '--'),
+    }, '−−'),
     React.createElement('button', {
       type: 'button',
       onClick: () => adjustValue(-0.1),
       className: 'w-10 h-10 bg-gray-200 rounded-lg font-bold text-sm text-gray-700 hover:bg-gray-300 active:bg-gray-400 transition-colors'
-    }, '-'),
+    }, '−'),
     React.createElement('button', {
       type: 'button',
       onClick: openWheel,
@@ -871,7 +865,7 @@ const SessionSetupScreen = ({ user, masterData, initialData, onComplete, onProfi
   useEffect(() => {
     getSmartLocation();
   }, []);
-  const [form, setForm] = useState({ hwName: user.hwName, hwId: user.hwId, ngo: user.ngo, hospitalName: initialData?.hospitalName || '', deviceSerial: initialData?.deviceSerial || '', sessionDate: initialData?.sessionDate || localDateInputValue() });
+  const [form, setForm] = useState({ hwName: user.hwName, hwId: user.hwId, ngo: user.ngo, hospitalName: initialData?.hospitalName || '', deviceSerial: initialData?.deviceSerial || '', sessionDate: initialData?.sessionDate || new Date().toISOString().split('T')[0] });
   const canContinue = form.hospitalName && form.deviceSerial && form.sessionDate;
   return React.createElement('div', { className: 'min-h-screen flex flex-col pb-24' },
     React.createElement(Header, { title: t('sessionSetup'), subtitle: t('startSession'), user, onProfileClick, onNotificationsClick, notificationCount }),
@@ -889,7 +883,7 @@ const SessionSetupScreen = ({ user, masterData, initialData, onComplete, onProfi
             React.createElement('option', { value: '' }, t('selectDevice')),
             devices.map((d, i) => React.createElement('option', { key: i, value: d }, d))
           ),
-          React.createElement(Input, { label: t('sessionDate'), type: 'date', value: form.sessionDate, max: localDateInputValue(), onChange: (e) => setForm({ ...form, sessionDate: e.target.value }) })
+          React.createElement(Input, { label: t('sessionDate'), type: 'date', value: form.sessionDate, max: new Date().toISOString().split('T')[0], onChange: (e) => setForm({ ...form, sessionDate: e.target.value }) })
         )
       )
     ),
@@ -899,7 +893,7 @@ const SessionSetupScreen = ({ user, masterData, initialData, onComplete, onProfi
 };
 
 // Menu Screen
-const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onAppointments, onProfileClick, onNotifications, notificationCount }) => {
+const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onProfileClick, onNotifications, onAppointments, notificationCount }) => {
   const { t } = useTranslation();
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
     React.createElement(Header, { title: t('mainMenu'), subtitle: t('selectOption'), user, onProfileClick, onNotificationsClick: onNotifications, notificationCount }),
@@ -934,22 +928,6 @@ const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onAppointments, onPr
           )
         )
       ),
-      React.createElement(Card, { onClick: onAppointments },
-        React.createElement('div', { className: 'flex items-center gap-4' },
-          React.createElement('div', { className: 'w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0' },
-            React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' },
-              React.createElement('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
-              React.createElement('line', { x1: '16', x2: '16', y1: '2', y2: '6' }),
-              React.createElement('line', { x1: '8', x2: '8', y1: '2', y2: '6' }),
-              React.createElement('line', { x1: '3', x2: '21', y1: '10', y2: '10' })
-            )
-          ),
-          React.createElement('div', { className: 'flex-1' },
-            React.createElement('h3', { className: 'font-semibold text-lg text-gray-800' }, 'My Appointments'),
-            React.createElement('p', { className: 'text-sm text-gray-500 mt-1' }, 'View scheduled screenings')
-          )
-        )
-      ),
       React.createElement(Card, { onClick: onNotifications },
         React.createElement('div', { className: 'flex items-center gap-4' },
           React.createElement('div', { className: 'w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 relative' },
@@ -964,18 +942,37 @@ const MenuScreen = ({ user, onRegisterBaby, onExistingBaby, onAppointments, onPr
             React.createElement('p', { className: 'text-sm text-gray-500 mt-1' }, notificationCount > 0 ? `${notificationCount} pending` : t('noNotifications'))
           )
         )
-      )
+      ),
+	  React.createElement(Card, { onClick: onAppointments },
+        React.createElement('div', { className: 'flex items-center gap-4' },
+          React.createElement('div', { className: 'w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0' },
+            React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' },
+              React.createElement('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2', ry: '2' }),
+              React.createElement('line', { x1: '16', x2: '16', y1: '2', y2: '6' }),
+              React.createElement('line', { x1: '8', x2: '8', y1: '2', y2: '6' }),
+              React.createElement('line', { x1: '3', x2: '21', y1: '10', y2: '10' }),
+              React.createElement('line', { x1: '8', x2: '8', y1: '14', y2: '14' }),
+              React.createElement('line', { x1: '8', x2: '8', y1: '18', y2: '18' }),
+              React.createElement('line', { x1: '12', x2: '12', y1: '14', y2: '14' }),
+              React.createElement('line', { x1: '12', x2: '12', y1: '18', y2: '18' })
+            )
+          ),
+          React.createElement('div', { className: 'flex-1' },
+            React.createElement('h3', { className: 'font-semibold text-lg text-gray-800' }, 'My Appointments'),
+            React.createElement('p', { className: 'text-sm text-gray-500 mt-1' }, 'View scheduled screenings')
+          )
+        )
+      ),
     ),
     React.createElement(VersionWatermark)
   );
 };
 
-const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, onNotificationsClick, notificationCount }) => {
+const AppointmentsScreen = ({ user, onBack, onProfileClick, onNotificationsClick, notificationCount }) => {
   const [appointments, setAppointments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState('today');
   const [noShowLoading, setNoShowLoading] = React.useState(null);
-  const [startLoading, setStartLoading] = React.useState(null);
   const [toast, setToast] = React.useState(null);
 
   const showToast = (msg, type = 'success') => {
@@ -990,9 +987,7 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
         const res = await fetch(`${SCRIPT_URL}?action=getHCWAppointments&hcwUsername=${encodeURIComponent(user.hwId)}`);
         const data = await res.json();
         setAppointments(data.status === 'success' ? (data.data || []) : []);
-      } catch {
-        setAppointments([]);
-      }
+      } catch { setAppointments([]); }
       setLoading(false);
     };
     load();
@@ -1008,7 +1003,6 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
     const [h, m] = t.split(':').map(Number);
     return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`;
   };
-
   const fmtDate = (s) => {
     if (!s) return '';
     const [y, mo, d] = s.split('-');
@@ -1017,19 +1011,18 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
   };
 
   const statusStyle = (s) => {
-    if (s === 'booked') return 'bg-blue-50 text-blue-700';
-    if (s === 'screening_started') return 'bg-indigo-50 text-indigo-700';
-    if (s === 'completed') return 'bg-green-50 text-green-700';
+    if (s === 'booked')      return 'bg-blue-50 text-blue-700';
+    if (s === 'completed')   return 'bg-green-50 text-green-700';
     if (s === 'rescheduled') return 'bg-yellow-50 text-yellow-700';
-    if (s === 'no_show') return 'bg-red-50 text-red-700';
+    if (s === 'no_show')     return 'bg-red-50 text-red-700';
     return 'bg-gray-100 text-gray-500';
   };
-  const statusLabel = (s) => ({ booked:'Confirmed', screening_started:'In Progress', completed:'Completed', rescheduled:'Rescheduled', no_show:'No Show', cancelled:'Cancelled' }[s] || s);
+  const statusLabel = (s) => ({ booked:'Confirmed', completed:'Completed', rescheduled:'Rescheduled', no_show:'No Show', cancelled:'Cancelled' }[s] || s);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const filtered = appointments.filter(a => {
     const d = new Date(a.appointmentDate + 'T00:00:00');
-    if (filter === 'today') return a.appointmentDate === todayStr;
+    if (filter === 'today')    return a.appointmentDate === todayStr;
     if (filter === 'upcoming') return d > today;
     return d < today || a.status === 'completed' || a.status === 'no_show';
   });
@@ -1046,7 +1039,8 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
   const noShowUnlockTime = (a) => {
     const [y,mo,d] = a.appointmentDate.split('-').map(Number);
     const [h,m] = a.appointmentTime.split(':').map(Number);
-    const u = new Date(new Date(y, mo-1, d, h, m).getTime() + 30 * 60000);
+    const t = new Date(y, mo-1, d, h, m).getTime() + 30 * 60000;
+    const u = new Date(t);
     return `${u.getHours() % 12 || 12}:${String(u.getMinutes()).padStart(2,'0')} ${u.getHours() >= 12 ? 'PM' : 'AM'}`;
   };
 
@@ -1064,40 +1058,17 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
       } else {
         showToast(data.message || 'Could not mark no-show.', 'error');
       }
-    } catch {
-      showToast('Connection error. Please try again.', 'error');
-    }
+    } catch { showToast('Connection error. Please try again.', 'error'); }
     setNoShowLoading(null);
-  };
-
-  const handleStartScreening = async (a) => {
-    setStartLoading(a.appointmentId);
-    try {
-      const res = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'startAppointmentScreening', appointmentId: a.appointmentId, hcwUsername: user.hwId })
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        const updated = data.data || { ...a, status: 'screening_started' };
-        setAppointments(prev => prev.map(ap => ap.appointmentId === a.appointmentId ? updated : ap));
-        onStartScreening(updated);
-      } else {
-        showToast(data.message || 'Could not start screening.', 'error');
-      }
-    } catch {
-      showToast('Connection error. Please try again.', 'error');
-    }
-    setStartLoading(null);
   };
 
   return React.createElement('div', { className: 'min-h-screen flex flex-col' },
     toast && React.createElement('div', {
       className: `fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-[420px] w-[92%] rounded-2xl shadow-xl px-5 py-4 flex items-center gap-3 ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white`
     },
-      React.createElement('span', {}, toast.type === 'success' ? 'OK' : 'ERROR'),
+      React.createElement('span', {}, toast.type === 'success' ? '✓' : '✕'),
       React.createElement('p', { className: 'flex-1 text-sm font-medium' }, toast.msg),
-      React.createElement('button', { onClick: () => setToast(null), className: 'text-white/70 hover:text-white' }, 'x')
+      React.createElement('button', { onClick: () => setToast(null), className: 'text-white/70 hover:text-white' }, '×')
     ),
     React.createElement(Header, { title: 'My Appointments', subtitle: 'Scheduled screenings', onBack, user, onProfileClick, onNotificationsClick, notificationCount }),
     React.createElement(Container, {},
@@ -1111,10 +1082,10 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
         )
       ),
       loading
-        ? React.createElement('div', { className: 'text-center py-12 text-gray-400 text-sm' }, 'Loading appointments...')
+        ? React.createElement('div', { className: 'text-center py-12 text-gray-400 text-sm' }, 'Loading appointments…')
         : filtered.length === 0
           ? React.createElement('div', { className: 'text-center py-12' },
-              React.createElement('p', { className: 'text-3xl mb-3' }, 'No appointments'),
+              React.createElement('p', { className: 'text-3xl mb-3' }, '📅'),
               React.createElement('p', { className: 'text-gray-500 text-sm' }, `No ${filter} appointments.`)
             )
           : React.createElement('div', { className: 'space-y-3' },
@@ -1129,10 +1100,10 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
                   ),
                   React.createElement('div', { className: 'grid grid-cols-2 gap-2 mb-3' },
                     [
-                      ['Date', fmtDate(a.appointmentDate)],
-                      ['Time', fmt12(a.appointmentTime)],
-                      ['Hospital', a.hospitalName],
-                      a.parentPhone ? ['Phone', a.parentPhone] : null,
+                      ['📅 Date', fmtDate(a.appointmentDate)],
+                      ['🕐 Time', fmt12(a.appointmentTime)],
+                      ['🏥 Hospital', a.hospitalName],
+                      a.parentPhone ? ['📱 Phone', a.parentPhone] : null,
                     ].filter(Boolean).map(([label, value]) =>
                       React.createElement('div', { key: label, className: 'bg-gray-50 rounded-xl px-3 py-2.5' },
                         React.createElement('p', { className: 'text-xs text-gray-400 mb-0.5' }, label),
@@ -1140,19 +1111,14 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
                       )
                     )
                   ),
-                  a.notes && React.createElement('p', { className: 'text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2 mb-3' }, 'Notes: ' + a.notes),
-                  a.rescheduledFrom && React.createElement('p', { className: 'text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mb-3' }, 'Rescheduled from ' + a.rescheduledFrom),
-                  ['booked','rescheduled','screening_started','no_show'].includes(a.status) && React.createElement('button', {
-                    onClick: () => handleStartScreening(a),
-                    disabled: startLoading === a.appointmentId,
-                    className: 'w-full py-2.5 text-sm font-medium rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 mb-2'
-                  }, startLoading === a.appointmentId ? 'Opening...' : (a.status === 'no_show' ? 'Start Late Screening' : a.status === 'screening_started' ? 'Resume Screening' : 'Start Screening')),
+                  a.notes && React.createElement('p', { className: 'text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2 mb-3' }, '📝 ' + a.notes),
+                  a.rescheduledFrom && React.createElement('p', { className: 'text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mb-3' }, `🔄 Rescheduled from ${a.rescheduledFrom}`),
                   canMarkNoShow(a)
                     ? React.createElement('button', {
                         onClick: () => handleNoShow(a),
                         disabled: noShowLoading === a.appointmentId,
                         className: 'w-full py-2.5 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50'
-                      }, noShowLoading === a.appointmentId ? 'Marking...' : 'Mark as No-Show')
+                      }, noShowLoading === a.appointmentId ? 'Marking…' : 'Mark as No-Show')
                     : (a.babyName && a.babyName.trim() && (a.status === 'booked' || a.status === 'rescheduled'))
                       ? React.createElement('p', { className: 'text-xs text-gray-400 text-center py-1' }, `No-show available after ${noShowUnlockTime(a)}`)
                       : null
@@ -1224,9 +1190,9 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
   };
 
   const tabs = [
-    { id: 'retake', label: 'Retake', filter: n => n.reviewStatus === 'photo_requested' },
-    { id: 'pending', label: 'Pending', filter: n => n.reviewStatus === 'pending' },
-    { id: 'done', label: 'Done', filter: n => n.reviewStatus === 'completed' },
+    { id: 'retake', label: '📷 Retake', filter: n => n.reviewStatus === 'photo_requested' },
+    { id: 'pending', label: '⏳ Pending', filter: n => n.reviewStatus === 'pending' },
+    { id: 'done', label: '✓ Done', filter: n => n.reviewStatus === 'completed' },
     { id: 'all', label: 'All', filter: n => true }
   ];
 
@@ -1247,15 +1213,15 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
       }),
       React.createElement('button', {
         onClick: load,
-      }, 'Refresh')
-      }, 'Refresh')
+        className: 'ml-auto flex-shrink-0 w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors'
+      }, '↻')
     ),
 
     loading
       ? React.createElement('div', { className: 'flex items-center justify-center py-20 text-gray-400' }, t('loading'))
       : filtered.length === 0
         ? React.createElement('div', { className: 'flex flex-col items-center justify-center py-20 text-gray-400' },
-            React.createElement('div', { className: 'text-sm mb-3' }, 'No notifications'),
+            React.createElement('div', { className: 'text-4xl mb-3' }, '🔔'),
             React.createElement('p', { className: 'font-medium' }, t('noNotifications'))
           )
         : React.createElement('div', { className: 'p-4 space-y-3' },
@@ -1267,7 +1233,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
               return React.createElement('div', { key: i, className: 'bg-white rounded-2xl border border-gray-100 shadow-sm p-4' },
                 React.createElement('div', { className: 'flex items-start justify-between gap-2 mb-2' },
                   React.createElement('div', { className: 'flex-1 min-w-0' },
-                    React.createElement('p', { className: 'font-semibold text-gray-800 text-sm' }, notif.babyName || '-'),
+                    React.createElement('p', { className: 'font-semibold text-gray-800 text-sm' }, notif.babyName || '—'),
                     React.createElement('p', { className: 'text-xs text-gray-400 font-mono mt-0.5' }, sid)
                   ),
                   React.createElement('span', { className: `text-xs font-semibold px-2 py-1 rounded-full ${
@@ -1276,9 +1242,9 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                     notif.reviewStatus === 'photo_requested' ? 'bg-yellow-100 text-yellow-700' :
                     'bg-blue-100 text-blue-700'
                   }` },
-                    notif.reviewStatus === 'completed' ? 'Done' :
-                    notif.reviewStatus === 'photo_received' ? 'Photo submitted' :
-                    notif.reviewStatus === 'photo_requested' ? 'Retake' : 'Pending'
+                    notif.reviewStatus === 'completed' ? '✓ Done' :
+                    notif.reviewStatus === 'photo_received' ? '✓ Photo submitted' :
+                    notif.reviewStatus === 'photo_requested' ? '📷 Retake' : '⏳ Pending'
                   )
                 ),
 
@@ -1295,7 +1261,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                   ),
                   isSubmitted
                     ? React.createElement('div', { className: 'flex items-center justify-between' },
-                        React.createElement('div', { className: 'text-xs text-green-600 font-medium py-2' }, 'Photo submitted - awaiting review'),
+                        React.createElement('div', { className: 'text-xs text-green-600 font-medium py-2' }, '✓ Photo submitted — awaiting review'),
                         React.createElement('label', { className: 'text-xs text-primary underline cursor-pointer' },
                           'Retake again',
                           React.createElement('input', {
@@ -1305,9 +1271,9 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                         )
                       )
                     : React.createElement('label', { className: `w-full py-3 px-4 rounded-xl text-sm font-semibold text-center cursor-pointer transition-all flex items-center justify-center gap-2 ${isUploading ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}` },
-                        isUploading ? t('uploading') : t('retakePhoto'),
+                        isUploading ? t('uploading') : '📷 ' + t('retakePhoto'),
                         React.createElement('input', {
-                        isUploading ? t('uploading') : t('retakePhoto'),
+                          type: 'file', accept: 'image/*', capture: 'environment', className: 'hidden',
                           disabled: isUploading,
                           onChange: (e) => e.target.files[0] && handleCameraCapture(notif, e.target.files[0])
                         })
@@ -1318,7 +1284,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                   React.createElement('button', {
                     onClick: () => setSelectedNotif(selectedNotif === i ? null : i),
                     className: 'w-full py-2 px-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm font-semibold text-center'
-                  }, selectedNotif === i ? 'Hide Result' : t('viewResult')),
+                  }, selectedNotif === i ? '▾ Hide Result' : '▸ ' + t('viewResult')),
                   selectedNotif === i && React.createElement('div', { className: 'space-y-3 mt-2' },
                     (() => {
                       const lines = notif.synopsis.split('\n');
@@ -1340,12 +1306,12 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                         v === 'REDO'  ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600';
 
                       const formatPhotoLabel = (raw) => {
-                        // converts e.g. "L_35dB_1" -> "35dB, Test attempt 1"
+                        // converts e.g. "L_35dB_1" → "35dB, Test attempt 1"
                         const m = raw.match(/^[LR]_(\d+(?:\.\d+)?(?:k)?[Dd][Bb])_(\d+)/);
                         return m ? `${m[1].replace(/db/i, 'dB')}, Test attempt ${m[2]}` : raw;
                       };
 
-                      // Parse photo notes into a map: ear ('L'|'R') -> array of { label, val }
+                      // Parse photo notes into a map: ear ('L'|'R') → array of { label, val }
                       const notesByEar = { L: [], R: [] };
                       photoNotes.forEach(note => {
                         const colonIdx = note.indexOf(':');
@@ -1355,7 +1321,7 @@ const NotificationsScreen = ({ user, onBack, onProfileClick, onNotificationsClic
                         const ear = earMatch ? earMatch[1] : null;
                         if (ear) {
                           const m = rawKey.match(/^[LR]_(\d+(?:\.\d+)?(?:k)?dB)_(\d+)/i);
-                          const label = m ? ${m[1].replace(/db/i, 'dB')} - attempt  : rawKey;
+                          const label = m ? `${m[1].replace(/db/i, 'dB')} — attempt ${m[2]}` : rawKey;
                           notesByEar[ear].push({ label, val });
                         }
                       });
@@ -1412,11 +1378,7 @@ const BabyRegistrationScreen = ({ user, initialData, onBack, onNext, onClear, on
   const { t, lang } = useTranslation();
   const [unlockedFields, setUnlockedFields] = useState({});
   const unlockField = (field) => setUnlockedFields(prev => ({ ...prev, [field]: true }));
-  const isLocked = (field) => {
-    const value = form[field];
-    const hasValue = Array.isArray(value) ? value.length > 0 : !!String(value || '').trim();
-    return prefilled && hasValue && !unlockedFields[field];
-  };
+  const isLocked = (field) => prefilled && !unlockedFields[field];
  
   const [form, setForm] = useState({
     babyId: initialData.babyId || generateBabyId(),
@@ -1466,7 +1428,7 @@ const validate = () => {
         React.createElement('div', { className: 'space-y-4' },
 React.createElement('div', { className: 'bg-primary/10 border-2 border-primary rounded-xl p-3 mb-4' },
   React.createElement('div', { className: 'flex items-center gap-2' },
-    React.createElement('span', { className: 'text-sm font-semibold text-primary' }, 'Baby'),
+    React.createElement('span', { className: 'text-2xl' }, '👶'),
     React.createElement('div', {},
       React.createElement('div', { className: 'text-xs text-gray-600 font-medium' }, t('babyId')),
       React.createElement('div', { className: 'text-lg font-bold text-primary' }, form.babyId)
@@ -1482,7 +1444,7 @@ React.createElement('div', {},
     isLocked('babyName') && React.createElement('button', {
       type: 'button', onClick: () => unlockField('babyName'),
       className: 'flex items-center gap-1 text-xs text-primary font-medium'
-    }, 'Edit ', t('edit'))
+    }, '✏️ ', t('edit'))
   ),
   React.createElement('input', {
     type: 'text', value: form.babyName,
@@ -1514,15 +1476,15 @@ React.createElement('div', {},
 		  React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('dateOfBirth'), React.createElement('span', { className: 'text-red-500' }, ' *')),
-              isLocked('dateOfBirth') && React.createElement('button', { type: 'button', onClick: () => unlockField('dateOfBirth'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'Edit ', t('edit'))
+              isLocked('dateOfBirth') && React.createElement('button', { type: 'button', onClick: () => unlockField('dateOfBirth'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
-            React.createElement('input', { type: 'date', value: form.dateOfBirth, max: localDateInputValue(), onChange: (e) => setForm({ ...form, dateOfBirth: e.target.value }), disabled: isLocked('dateOfBirth'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('dateOfBirth') ? 'opacity-60 cursor-not-allowed' : ''}` }),
+            React.createElement('input', { type: 'date', value: form.dateOfBirth, max: new Date().toISOString().split('T')[0], onChange: (e) => setForm({ ...form, dateOfBirth: e.target.value }), disabled: isLocked('dateOfBirth'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('dateOfBirth') ? 'opacity-60 cursor-not-allowed' : ''}` }),
             errors.dateOfBirth && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, errors.dateOfBirth)
           ),          
 		  React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('gender')),
-              isLocked('gender') && React.createElement('button', { type: 'button', onClick: () => unlockField('gender'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'Edit ', t('edit'))
+              isLocked('gender') && React.createElement('button', { type: 'button', onClick: () => unlockField('gender'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('div', { className: `flex gap-2 p-3 rounded-xl border-2 ${errors.gender ? 'border-red-500 bg-red-50' : 'border-transparent'}` },
               [{ label: t('male'), value: 'Male' }, { label: t('female'), value: 'Female' }, { label: t('other'), value: 'Other' }].map(opt =>
@@ -1534,7 +1496,7 @@ React.createElement('div', {},
           React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('gestationalAge'), React.createElement('span', { className: 'text-red-500' }, ' *')),
-              isLocked('gestationalAge') && React.createElement('button', { type: 'button', onClick: () => unlockField('gestationalAge'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'Edit ', t('edit'))
+              isLocked('gestationalAge') && React.createElement('button', { type: 'button', onClick: () => unlockField('gestationalAge'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('select', { value: form.gestationalAge, onChange: (e) => setForm({ ...form, gestationalAge: e.target.value }), disabled: isLocked('gestationalAge'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('gestationalAge') ? 'opacity-60 cursor-not-allowed' : ''}` },
               React.createElement('option', { value: '' }, t('selectWeeks')),
@@ -1545,7 +1507,7 @@ React.createElement('div', {},
           React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('parentName'), React.createElement('span', { className: 'text-red-500' }, ' *')),
-              isLocked('parentName') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentName'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'Edit ', t('edit'))
+              isLocked('parentName') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentName'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('input', { type: 'text', value: form.parentName, onChange: (e) => setForm({ ...form, parentName: e.target.value }), placeholder: t('enterParentName'), disabled: isLocked('parentName'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('parentName') ? 'opacity-60 cursor-not-allowed' : ''}` }),
             errors.parentName && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, errors.parentName)
@@ -1553,7 +1515,7 @@ React.createElement('div', {},
           React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('phoneNumber'), React.createElement('span', { className: 'text-red-500' }, ' *')),
-              isLocked('parentPhone') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentPhone'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'Edit ', t('edit'))
+              isLocked('parentPhone') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentPhone'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('input', { type: 'tel', value: form.parentPhone, onChange: (e) => setForm({ ...form, parentPhone: e.target.value.replace(/\D/g, '') }), placeholder: t('tenDigit'), maxLength: '10', disabled: isLocked('parentPhone'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('parentPhone') ? 'opacity-60 cursor-not-allowed' : ''}` }),
             errors.parentPhone && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, errors.parentPhone)
@@ -1561,14 +1523,14 @@ React.createElement('div', {},
           React.createElement('div', {},
             React.createElement('div', { className: 'flex items-center justify-between mb-1' },
               React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('email')),
-              isLocked('parentEmail') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentEmail'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'Edit ', t('edit'))
+              isLocked('parentEmail') && React.createElement('button', { type: 'button', onClick: () => unlockField('parentEmail'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
             ),
             React.createElement('input', { type: 'email', value: form.parentEmail, onChange: (e) => setForm({ ...form, parentEmail: e.target.value }), placeholder: t('emailPlaceholder'), disabled: isLocked('parentEmail'), className: `w-full bg-secondary border-none rounded-xl px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 ${isLocked('parentEmail') ? 'opacity-60 cursor-not-allowed' : ''}` })
           ),
           React.createElement('div', {},
   React.createElement('div', { className: 'flex items-center justify-between mb-2' },
     React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1' }, t('riskFactors')),
-    isLocked('riskFactors') && React.createElement('button', { type: 'button', onClick: () => unlockField('riskFactors'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, 'Edit ', t('edit'))
+    isLocked('riskFactors') && React.createElement('button', { type: 'button', onClick: () => unlockField('riskFactors'), className: 'flex items-center gap-1 text-xs text-primary font-medium' }, '✏️ ', t('edit'))
   ),
   React.createElement('button', {
     type: 'button',
@@ -1578,13 +1540,13 @@ React.createElement('div', {},
     React.createElement('span', { className: 'text-sm text-gray-700' },
       form.riskFactors.length === 0 ? t('selectOption') : `${form.riskFactors.length} ${t('selected')}`
     ),
-    React.createElement('span', { className: 'text-gray-400' }, '>')
+    React.createElement('span', { className: 'text-gray-400' }, '›')
   )
 ),
           React.createElement('div', {},
   Object.keys(errors).length > 0 && React.createElement('div', { className: 'mb-3 p-3 bg-red-50 border-2 border-red-500 rounded-xl' },
     React.createElement('div', { className: 'flex items-start gap-2' },
-      React.createElement('span', { className: 'text-red-500 text-lg' }, 'Warning'),
+      React.createElement('span', { className: 'text-red-500 text-lg' }, '⚠️'),
       React.createElement('div', {},
         React.createElement('div', { className: 'text-sm font-semibold text-red-700 mb-1' }, t('pleaseComplete')),
         React.createElement('div', { className: 'text-xs text-red-600' },
@@ -1934,7 +1896,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
 
       complete
         ? React.createElement('div', { className: 'text-xs text-gray-400 mb-1' },
-            `V-G: ${attempt.vtx}kOhm, G-R: ${attempt.gnd}kOhm, R-V: ${attempt.ref}kOhm`
+            `V-G: ${attempt.vtx}kΩ, G-R: ${attempt.gnd}kΩ, R-V: ${attempt.ref}kΩ`
           )
         : React.createElement('div', { className: 'grid grid-cols-3 gap-2 mb-2' },
             ['vtx', 'gnd', 'ref'].map(field =>
@@ -1961,7 +1923,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
             }, attempt.result),
             attempt.photo && React.createElement('span', {
               style: { fontSize: '11px', color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', padding: '2px 8px' }
-            }, 'Photo saved')
+            }, '📷 Photo saved')
           )
         : React.createElement('div', { className: 'space-y-2' },
             React.createElement('div', { className: 'grid grid-cols-3 gap-2' },
@@ -1986,7 +1948,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
             needsPhoto && React.createElement('div', { className: 'mt-1' },
               photoReady
                 ? React.createElement('div', { className: 'flex items-center gap-2' },
-                    React.createElement('span', { style: { fontSize: '11px', color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', padding: '3px 10px', flex: 1, textAlign: 'center' } }, 'Photo ready'),
+                    React.createElement('span', { style: { fontSize: '11px', color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', padding: '3px 10px', flex: 1, textAlign: 'center' } }, '📷 Photo ready'),
                     React.createElement('button', {
                       onClick: () => setActivePhotoTarget({ side, db, idx }),
                       style: { fontSize: '11px', color: '#6b7280', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '6px', padding: '3px 10px', cursor: 'pointer' }
@@ -2002,7 +1964,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
                       fontSize: '12px', fontWeight: '500', cursor: attempt.result ? 'pointer' : 'not-allowed'
                     },
                     disabled: !attempt.result
-                  }, 'Take photo (required)')
+                  }, '📷 Take photo (required)')
             ),
 
             React.createElement('button', {
@@ -2038,7 +2000,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
       return React.createElement('div', { key: db,
         onClick: () => unlocked && handleUnlockLevel(side, db),
         className: `rounded-xl p-3 text-center text-sm transition-all ${unlocked ? 'bg-primary/5 border border-dashed border-primary/40 cursor-pointer hover:bg-primary/10 text-primary font-medium' : 'bg-gray-50 border border-dashed border-gray-200 text-gray-300 cursor-not-allowed'}`
-      }, unlocked ? Tap to start  : ${db} - locked);
+      }, unlocked ? `Tap to start ${db}` : `${db} — locked`);
     }
 
     const activeAttemptIdx = attempts.findIndex(a => !isAttemptComplete(a));
@@ -2057,7 +2019,7 @@ const AABREntryScreen = ({ user, initialData = {}, onBack, onNext, onProfileClic
         completedAttempts.length > 0 && React.createElement('div', { className: 'space-y-1' },
           completedAttempts.map((a, i) =>
             React.createElement('div', { key: i, className: 'flex items-center justify-between text-xs text-gray-500 py-1 border-b border-gray-100' },
-              React.createElement('span', {}, `Test ${i + 1}: V-G: ${a.vtx}kOhm, G-R: ${a.gnd}kOhm, R-V: ${a.ref}kOhm`),
+              React.createElement('span', {}, `Test ${i + 1}: V-G: ${a.vtx}kΩ, G-R: ${a.gnd}kΩ, R-V: ${a.ref}kΩ`),
               React.createElement('span', {
                 style: {
                   background: a.result === 'PASS' ? '#dcfce7' : a.result === 'REFER' ? '#fee2e2' : '#ffedd5',
@@ -2745,7 +2707,7 @@ const BabyInfoBanner = ({ record }) => {
             record.babyName || '-'
           )
         ),
-        React.createElement('span', { className: 'text-primary/50 text-xs flex-shrink-0' }, 'v')
+        React.createElement('span', { className: 'text-primary/50 text-xs flex-shrink-0' }, '▾')
       )
     ),
 
@@ -2982,7 +2944,7 @@ const compressPhoto = (file) => {
           // Calculate quality needed to hit target size in one shot
           quality = Math.max(0.4, Math.min(0.92, quality * (PHOTO_TARGET_SIZE_KB / sizeKB)));
           base64 = canvas.toDataURL('image/jpeg', quality).split(',')[1];
-          console.log(Photo compressed: KB -> ~KB at quality );
+          console.log(`Photo compressed: ${sizeKB}KB → ~${Math.round(base64.length * 0.75 / 1024)}KB at quality ${quality.toFixed(2)}`);
         } else {
           console.log(`Photo kept at original quality: ${sizeKB}KB`);
         }
@@ -3167,35 +3129,8 @@ const App = () => {
   const sessionComplete = step !== STEP.SESSION && step !== STEP.LOGIN && step !== STEP.LOADING;
   const navProps = { onProfileClick: () => setShowProfile(true), onNotificationsClick: () => { if (sessionComplete) setStep(STEP.NOTIFICATIONS); }, onNotifications: () => { if (sessionComplete) setStep(STEP.NOTIFICATIONS); }, notificationCount };
   const clearBabyData = () => {
-    const { babyId, babyName, deviceTestId, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, appointmentId, appointmentSource, _fromAppointment, _prefilled, ...rest } = record;
+    const { babyId, babyName, deviceTestId, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, ...rest } = record;
     setRecord({ ...rest, babyId: generateBabyId() });
-    setStep(STEP.BABY);
-  };
-  const startFromAppointment = (appt) => {
-    const sessionData = {
-      hwName: record.hwName,
-      hwId: record.hwId,
-      ngo: record.ngo,
-      deviceSerial: record.deviceSerial,
-      sessionDate: record.sessionDate || localDateInputValue(),
-      hospitalName: appt.hospitalName || record.hospitalName,
-      appointmentId: appt.appointmentId,
-      appointmentSource: 'scheduled',
-      babyId: generateBabyId(),
-      deviceTestId: '',
-      babyName: appt.babyName || '',
-      dateOfBirth: appt.babyDob || '',
-      gender: '',
-      gestationalAge: '',
-      parentName: '',
-      parentPhone: appt.parentPhone || '',
-      parentEmail: '',
-      riskFactors: [],
-      screeningId: '',
-      _prefilled: true,
-      _fromAppointment: true
-    };
-    setRecord(sessionData);
     setStep(STEP.BABY);
   };
   const handleLogin = async (userData) => {
@@ -3251,9 +3186,9 @@ const App = () => {
     step === STEP.SESSION && React.createElement(SessionSetupScreen, { user, masterData, initialData: record, onComplete: d => { merge(d); setStep(STEP.MENU); }, ...navProps }),
     step === STEP.MENU && React.createElement(MenuScreen, { user, onRegisterBaby: () => setStep(STEP.BABY), onExistingBaby: () => setStep(STEP.EXISTING_BABY), onAppointments: () => setStep(STEP.APPOINTMENTS), ...navProps }),
     step === STEP.NOTIFICATIONS && React.createElement(NotificationsScreen, { user, onBack: () => setStep(STEP.MENU), ...navProps }),
-    step === STEP.APPOINTMENTS && React.createElement(AppointmentsScreen, { user, onBack: () => setStep(STEP.MENU), onStartScreening: startFromAppointment, ...navProps }),
+    step === STEP.APPOINTMENTS && React.createElement(AppointmentsScreen, { user, onBack: () => setStep(STEP.MENU), ...navProps }),
     step === STEP.EXISTING_BABY && React.createElement(ExistingBabyLookupScreen, { user, onBack: () => setStep(STEP.MENU), onFound: (d) => { merge({ ...d, screeningId: '', _prefilled: true }); setStep(STEP.BABY); }, ...navProps }),
-    step === STEP.BABY && React.createElement(BabyRegistrationScreen, { user, initialData: record, onBack: () => setStep(record._fromAppointment ? STEP.APPOINTMENTS : record._prefilled ? STEP.EXISTING_BABY : STEP.MENU), onNext: d => { merge(d); setStep(STEP.TEST_SELECT); }, onClear: clearBabyData, ...navProps, prefilled: !!record._prefilled }),
+    step === STEP.BABY && React.createElement(BabyRegistrationScreen, { user, initialData: record, onBack: () => setStep(record._prefilled ? STEP.EXISTING_BABY : STEP.MENU), onNext: d => { merge(d); setStep(STEP.TEST_SELECT); }, onClear: clearBabyData, ...navProps, prefilled: !!record._prefilled }),
     step === STEP.TEST_SELECT && React.createElement(TestSelectionScreen, { user, onBack: () => setStep(STEP.BABY), onSelectAABR: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.AABR); }, onSelectOAE: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.OAE_TYPE); }, ...navProps }),
     step === STEP.AABR && React.createElement(AABREntryScreen, { user, initialData: record, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.REC); }, ...navProps }),
     step === STEP.OAE_TYPE && React.createElement(OAETypeScreen, { user, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.OAE_PROTOCOL); }, ...navProps }),
