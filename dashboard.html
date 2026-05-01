@@ -2912,7 +2912,7 @@ const App = () => {
   }, [hcwAssignments]);
 
   const allRows = useMemo(() => {
-    const parsed = parseRows(rawMain, user?.ngo || null, hcwSupervisorMap);
+    const parsed = parseRows(rawMain, user?.role === 'supervisor' ? null : user?.ngo || null, hcwSupervisorMap);
     if (user?.role !== 'supervisor') return parsed;
     const allowed = new Set((user.assignedHCWs || []).map(h => h.toLowerCase()));
     return parsed.filter(r => allowed.has((r.opId || '').toLowerCase()));
