@@ -2629,9 +2629,9 @@ const LoginScreen = ({onLogin}) => {
     if (loading) return;
     setErr('');
     setLoading(true);
-    const ok = await onLogin(form.u.trim(), form.p);
+    const result = await onLogin(form.u.trim(), form.p);
     setLoading(false);
-    if (!ok) setErr('Invalid username or password.');
+    if (!result?.ok) setErr(result?.message || 'Invalid username or password.');
   };
 
   return h('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column',background:C.slate100}},
@@ -2699,6 +2699,7 @@ const App = () => {
   const handleLogin = async (username, password) => {
     try {
       const res = await fetch(`${SCRIPT_URL}?action=validateLogin&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`);
+      if (!res.ok) return { ok:false, message:`Login request failed (${res.status}).` };
       const json = await res.json();
       if (json.status === 'success' && json.role) {
         // Map notes field: 'Full Access' → admin, anything else → scoped NGO name
@@ -2707,12 +2708,12 @@ const App = () => {
         const u = { username, name: json.name, role, ngo };
         setUser(u);
         setScreen('overview');
-        return u;
+        return { ok:true, user:u };
       }
-      return null;
+      return { ok:false, message: json.message || 'Invalid username or password.' };
     } catch(err) {
       console.error('Login error:', err);
-      return null;
+      return { ok:false, message: `Login error: ${err.message}` };
     }
   };
 
