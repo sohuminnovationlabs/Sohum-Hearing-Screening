@@ -596,7 +596,7 @@ const screeningEfficiency = totalConclusive>0 ? (totalAttempts/totalConclusive).
     // Monday of that week
     const day = d.getDay(), diff = (day === 0 ? -6 : 1 - day);
     const mon = new Date(d); mon.setDate(d.getDate() + diff); mon.setHours(0,0,0,0);
-    const key = mon.toISOString().slice(0,10);
+    const key = toInputDate(mon);
     if (!weekMap[key]) weekMap[key] = { date: key, AABR: 0, OAE: 0 };
     weekMap[key][r.testType === 'OAE' ? 'OAE' : 'AABR']++;
   });
@@ -606,7 +606,7 @@ const screeningEfficiency = totalConclusive>0 ? (totalAttempts/totalConclusive).
   const dayMap = {};
   rows.forEach(r => {
     if (!r.ts || isNaN(r.ts)) return;
-    const key = r.ts.toISOString().slice(0,10);
+    const key = toInputDate(r.ts);
     if (!dayMap[key]) dayMap[key] = { date: key, AABR: 0, OAE: 0 };
     dayMap[key][r.testType === 'OAE' ? 'OAE' : 'AABR']++;
   });
@@ -2015,18 +2015,34 @@ const filterAppointmentsByScope = (appointments,scope,filterHosp,filterHCW,custo
 
 const calcAppointmentStats = (appointments) => {
   const byHospital = {}, byHCW = {}, byStatus = {};
+  const activeStatuses = new Set(['booked','screening_started','rescheduled']);
+  const noShowStatuses = new Set(['no_show','no_show_unresolved']);
+  const rescheduleStatuses = new Set(['reschedule_requested']);
+  const isActive = a => activeStatuses.has(a.status || '');
+  const isNoShow = a => noShowStatuses.has(a.status || '');
+  const isReschedule = a => rescheduleStatuses.has(a.status || '');
   appointments.forEach(a => {
-    if (!byHospital[a.hospitalName]) byHospital[a.hospitalName] = {total:0,booked:0,cancelled:0,noShow:0,rows:[]};
-    if (!byHCW[a.hcwUsername]) byHCW[a.hcwUsername] = {total:0,booked:0,cancelled:0,noShow:0,rows:[]};
+    if (!byHospital[a.hospitalName]) byHospital[a.hospitalName] = {total:0,booked:0,active:0,completed:0,cancelled:0,noShow:0,reschedule:0,rows:[]};
+    if (!byHCW[a.hcwUsername]) byHCW[a.hcwUsername] = {total:0,booked:0,active:0,completed:0,cancelled:0,noShow:0,reschedule:0,rows:[]};
     [byHospital[a.hospitalName], byHCW[a.hcwUsername]].forEach(g => {
       g.total++; g.rows.push(a);
       if (a.status === 'cancelled') g.cancelled++;
-      else if (a.status === 'no_show') g.noShow++;
-      else g.booked++;
+      else if (a.status === 'completed') g.completed++;
+      else if (isNoShow(a)) g.noShow++;
+      else if (isReschedule(a)) g.reschedule++;
+      else if (isActive(a)) { g.active++; g.booked++; }
     });
     byStatus[a.status || 'unknown'] = (byStatus[a.status || 'unknown'] || 0) + 1;
   });
-  return {total:appointments.length,active:appointments.filter(a=>a.status!=='cancelled'&&a.status!=='no_show').length,cancelled:byStatus.cancelled||0,noShow:byStatus.no_show||0,completed:byStatus.completed||0,byHospital,byHCW,byStatus};
+  return {
+    total: appointments.length,
+    active: appointments.filter(isActive).length,
+    cancelled: byStatus.cancelled || 0,
+    noShow: (byStatus.no_show || 0) + (byStatus.no_show_unresolved || 0),
+    completed: byStatus.completed || 0,
+    reschedule: byStatus.reschedule_requested || 0,
+    byHospital, byHCW, byStatus
+  };
 };
 
 const AppointmentMetricsCard = ({appointments,onOpen}) => {
@@ -2037,9 +2053,10 @@ const AppointmentMetricsCard = ({appointments,onOpen}) => {
       h('div',{},h(SectionLabel,{style:{marginBottom:2}},'Appointment Scheduling'),h('div',{style:{fontSize:11,color:C.slate400}},'Upcoming bookings, independent of screening date filter')),
       h('div',{style:{width:38,height:38,borderRadius:10,background:C.primary,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800}},s.total)
     ),
-    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}},
+    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8}},
       h(KpiCard,{value:s.total,label:'Bookings'}), h(KpiCard,{value:s.active,label:'Active',color:C.green}),
-      h(KpiCard,{value:s.cancelled,label:'Cancelled',color:C.slate500}), h(KpiCard,{value:s.noShow,label:'No-show',color:C.red})
+      h(KpiCard,{value:s.completed,label:'Completed',color:C.greenD}), h(KpiCard,{value:s.cancelled,label:'Cancelled',color:C.slate500}),
+      h(KpiCard,{value:s.noShow,label:'No-show',color:C.red}), h(KpiCard,{value:s.reschedule,label:'Reschedule',color:C.orange})
     ),
     h('div',{style:{fontSize:11,color:C.primary,fontWeight:700,marginTop:10}},'Open breakdown and reassignments')
   );
@@ -2096,7 +2113,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
           h('input',{type:'date',value:toInputDate(apptTo),onChange:e=>{ const d=new Date(e.target.value); d.setHours(23,59,59,999); setApptTo(d); },style:{flex:1,background:C.slate100,border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,color:C.slate800,fontFamily:'inherit'}})
         )
       ),
-      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:12}},h(KpiCard,{value:s.total,label:'Bookings'}),h(KpiCard,{value:s.active,label:'Active',color:C.green}),h(KpiCard,{value:s.cancelled,label:'Cancelled',color:C.slate500}),h(KpiCard,{value:s.noShow,label:'No-show',color:C.red})),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8,marginBottom:12}},h(KpiCard,{value:s.total,label:'Bookings'}),h(KpiCard,{value:s.active,label:'Active',color:C.green}),h(KpiCard,{value:s.completed,label:'Completed',color:C.greenD}),h(KpiCard,{value:s.cancelled,label:'Cancelled',color:C.slate500}),h(KpiCard,{value:s.noShow,label:'No-show',color:C.red}),h(KpiCard,{value:s.reschedule,label:'Reschedule',color:C.orange})),
       h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'start'}},groupCard('By Hospital',s.byHospital),groupCard('By HCW',s.byHCW)),
       h(SectionLabel,{style:{paddingLeft:2}},'Appointment Queue'),
       activeRows.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No appointments in the selected filter.'),
