@@ -574,7 +574,7 @@ const parseRows = (rawData, ngoFilter, supervisorMap={}) => {
       screenId:  r[7]||'',
       hospital:  r[4]||'',
       device:    r[5]||'',
-      screenId:  r[7]||'',
+      
       phone:     String(r[16]||'').replace(/\D/g,''),
       testType:  r[18]||'',
       impClass:  classifyImpedanceRow(r),
@@ -1553,9 +1553,9 @@ const AudiologyPerformance = ({allRows, audNameMap={}}) => {
     passOverrideCount: v.overrides ? v.overrides.passOverride : 0,
   }));
 
-  if (!entries.length) return null;
-
   const [selAud, setSelAud] = useState(null);
+
+  if (!entries.length) return null;
   const sel = selAud ? entries.find(e=>e.name===selAud) : null;
 
   // Detail: cases reviewed by selected audiologist
