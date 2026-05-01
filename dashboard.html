@@ -2086,15 +2086,18 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
   const [apptTo,setApptTo] = useState(() => { const d = todayDateOnly(); d.setDate(d.getDate()+30); d.setHours(23,59,59,999); return d; });
   const filtered = useMemo(()=>filterAppointmentsByScope(appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo),[appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo]);
   const s = useMemo(()=>calcAppointmentStats(filtered),[filtered]);
-  const activeRows = filtered.slice().sort((a,b) => {
-    const cmp = (a.appointmentDate+a.appointmentTime).localeCompare(b.appointmentDate+b.appointmentTime);
-    return apptScope === 'past' ? -cmp : cmp;
-  });
+  const adminRows = useMemo(() => appointments.filter(a => (!filterHosp || a.hospitalName === filterHosp) && (!filterHCW || a.hcwUsername === filterHCW)), [appointments,filterHosp,filterHCW]);
   const appointmentStartDate = (appt) => {
     const [y,m,d] = (appt.appointmentDate || '').split('-').map(Number);
     const [h,min] = (appt.appointmentTime || '').split(':').map(Number);
     return new Date(y || 2000, (m || 1) - 1, d || 1, h || 0, min || 0);
   };
+  const activeRows = adminRows.slice().sort((a,b) => {
+    const cmp = (a.appointmentDate+a.appointmentTime).localeCompare(b.appointmentDate+b.appointmentTime);
+    const af = appointmentStartDate(a) >= new Date() ? 0 : 1;
+    const bf = appointmentStartDate(b) >= new Date() ? 0 : 1;
+    return af !== bf ? af - bf : cmp;
+  });
   const canReassignAppointment = (appt) =>
     ['booked','rescheduled','screening_started'].includes(appt.status) && appointmentStartDate(appt) > new Date();
   const canRescheduleAppointment = canReassignAppointment;
@@ -2148,29 +2151,44 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
     return Object.entries(groups).sort((a,b)=>b[1].length-a[1].length || a[0].localeCompare(b[0]));
   }, [activeRows, stackBy]);
   const workloadDates = useMemo(() => {
-    const start = apptScope === 'custom' ? new Date(apptFrom) : todayDateOnly();
-    const end = apptScope === 'custom' ? new Date(apptTo) : (() => { const d = todayDateOnly(); d.setDate(d.getDate()+13); return d; })();
+    const start = todayDateOnly();
+    const end = (() => { const d = todayDateOnly(); d.setDate(d.getDate()+13); return d; })();
     const dates = [];
     for (let d = new Date(start); d <= end && dates.length < 21; d.setDate(d.getDate()+1)) {
       dates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
     }
     return dates;
-  }, [apptScope, apptFrom, apptTo]);
+  }, []);
   const workloadRows = useMemo(() => {
     const activeSet = new Set(['booked','screening_started','rescheduled']);
-    const hcws = [...new Set(filtered.filter(a=>activeSet.has(a.status)).map(a=>a.hcwUsername).filter(Boolean))].sort();
+    const hcws = [...new Set(adminRows.filter(a=>activeSet.has(a.status)).map(a=>a.hcwUsername).filter(Boolean))].sort();
     return hcws.map(hcw => ({
       hcw,
-      dates: workloadDates.map(date => filtered.filter(a => activeSet.has(a.status) && a.hcwUsername === hcw && a.appointmentDate === date).length)
+      dates: workloadDates.map(date => adminRows.filter(a => activeSet.has(a.status) && a.hcwUsername === hcw && a.appointmentDate === date).length)
     }));
-  }, [filtered, workloadDates]);
+  }, [adminRows, workloadDates]);
   const loadColor = (count) => count >= 5 ? C.red : count >= 3 ? C.orange : count >= 1 ? C.green : C.slate100;
+  const statusMeta = (status) => ({
+    booked: {label:'Booked', bg:'#eaf3fb', color:C.primary},
+    screening_started: {label:'Screening Started', bg:'#ecfdf5', color:C.greenD},
+    completed: {label:'Completed', bg:'#dcfce7', color:C.greenD},
+    cancelled: {label:'Cancelled', bg:'#f1f5f9', color:C.slate500},
+    no_show: {label:'No Show', bg:'#fee2e2', color:C.red},
+    no_show_unresolved: {label:'No Show', bg:'#fee2e2', color:C.red},
+    reschedule_requested: {label:'Reschedule Requested', bg:'#ffedd5', color:C.orange},
+    rescheduled: {label:'Rescheduled', bg:'#fef9c3', color:'#a16207'}
+  }[status || ''] || {label:(status || 'Unknown').toString().replace(/_/g,' '), bg:C.slate100, color:C.slate500});
+  const StatusPill = ({status}) => {
+    const meta = statusMeta(status);
+    return h('span',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',borderRadius:999,padding:'4px 9px',background:meta.bg,color:meta.color,fontSize:10,fontWeight:800,whiteSpace:'nowrap',textTransform:'none'}},meta.label);
+  };
   const QueueRows = () => h(Fragment,null,
     h(SectionLabel,{style:{paddingLeft:2}},'Appointment Queue'),
     activeRows.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No appointments in the selected filter.'),
     activeRows.map(a=>h(Card,{key:a.appointmentId,style:{marginBottom:10}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'flex-start'}},
-      h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},`${a.appointmentDate} - ${a.appointmentTime}`),h('div',{style:{fontSize:12,color:C.slate600,marginTop:3}},`${a.hospitalName} - ${a.babyName||'Walk-in slot'}`),h('div',{style:{fontSize:11,color:C.slate400,marginTop:3}},`HCW: ${a.hcwUsername} - ${a.status}`)),
+      h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},`${a.appointmentDate} - ${a.appointmentTime}`),h('div',{style:{fontSize:12,color:C.slate600,marginTop:3}},`${a.hospitalName} - ${a.babyName||'Walk-in slot'}`),h('div',{style:{fontSize:11,color:C.slate400,marginTop:3}},`HCW: ${a.hcwUsername}`)),
       h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}},
+        h(StatusPill,{status:a.status}),
         canRescheduleAppointment(a) && h('button',{onClick:()=>openReschedule(a),title:'Move future appointment',style:{background:C.slate100,color:C.primary,border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},'Reschedule'),
         canReassignAppointment(a) && h('button',{onClick:()=>openReassign(a),title:'Reassign future appointment',style:{background:C.primary,color:'#fff',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},'Reassign')
       )
@@ -2188,13 +2206,13 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
     stackGroups.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No stacks in the selected filter.'),
     stackGroups.map(([key,rows]) => h(Card,{key,style:{marginBottom:10}},
       h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}},
-        h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},key),
+        h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},stackBy === 'status' ? statusMeta(key).label : key),
         h('div',{style:{fontSize:18,fontWeight:800,color:C.primary}},rows.length)
       ),
       rows.map(a => h('div',{key:a.appointmentId,style:{display:'grid',gridTemplateColumns:'92px 1fr 82px',gap:8,alignItems:'center',padding:'8px 0',borderTop:`1px solid ${C.slate100}`}},
         h('div',{style:{fontSize:12,fontWeight:800,color:C.slate700}},`${a.appointmentDate.slice(5)} ${a.appointmentTime}`),
         h('div',{style:{minWidth:0}},h('div',{style:{fontSize:12,color:C.slate700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},a.babyName||'Walk-in slot'),h('div',{style:{fontSize:10,color:C.slate400,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},`${a.hospitalName} - ${a.hcwUsername}`)),
-        h('div',{style:{fontSize:10,color:C.slate500,textAlign:'right'}},a.status)
+        h('div',{style:{textAlign:'right'}},h(StatusPill,{status:a.status}))
       ))
     ))
   );
@@ -2226,6 +2244,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
     h('div',{style:{padding:'14px 14px 0'}},
       h(BackBtn,{onClick:onBack}),
       msg && h('div',{style:{fontSize:12,color:msg.includes('failed')||msg.includes('error')||msg.includes('Unable')?C.red:C.green,marginBottom:10}},msg),
+      h('div',{style:{border:`1px solid ${C.slate200}`,borderRadius:18,padding:12,marginBottom:16,background:'rgba(255,255,255,0.45)'}},
       h(Card,{style:{marginBottom:12,padding:12}},
         h('div',{style:{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}},
           [['upcoming','Upcoming'],['past','Past / Closed'],['all','All'],['custom','Custom']].map(([key,label]) =>
@@ -2238,7 +2257,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
           h('input',{type:'date',value:toInputDate(apptTo),onChange:e=>{ const d=new Date(e.target.value); d.setHours(23,59,59,999); setApptTo(d); },style:{flex:1,background:C.slate100,border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,color:C.slate800,fontFamily:'inherit'}})
         )
       ),
-      h(Card,{style:{marginBottom:12,padding:12}},
+      false && h(Card,{style:{marginBottom:12,padding:12}},
         h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
           [['queue','Queue'],['stacks','Stacks'],['workload','Workload']].map(([key,label]) =>
             h('button',{key,onClick:()=>setAdminView(key),style:{padding:'7px 11px',border:'none',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:800,fontFamily:'inherit',background:adminView===key?C.primary:C.slate100,color:adminView===key?'#fff':C.slate600}},label)
@@ -2247,9 +2266,19 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
       ),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8,marginBottom:12}},h(KpiCard,{value:s.total,label:'Bookings'}),h(KpiCard,{value:s.active,label:'Active',color:C.green}),h(KpiCard,{value:s.completed,label:'Completed',color:C.greenD}),h(KpiCard,{value:s.cancelled,label:'Cancelled',color:C.slate500}),h(KpiCard,{value:s.noShow,label:'No-show',color:C.red}),h(KpiCard,{value:s.reschedule,label:'Reschedule',color:C.orange})),
       h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'start'}},groupCard('By Hospital',s.byHospital),groupCard('By HCW',s.byHCW)),
-      adminView === 'queue' && h(QueueRows),
-      adminView === 'stacks' && h(StackRows),
-      adminView === 'workload' && h(WorkloadGrid),
+      ),
+      h('div',{style:{borderTop:`2px dashed ${C.slate300}`,paddingTop:14,marginBottom:12}},
+        h(Card,{style:{marginBottom:12,padding:12}},
+          h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+            [['queue','Queue'],['stacks','Stacks'],['workload','Workload']].map(([key,label]) =>
+              h('button',{key,onClick:()=>setAdminView(key),style:{padding:'7px 11px',border:'none',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:800,fontFamily:'inherit',background:adminView===key?C.primary:C.slate100,color:adminView===key?'#fff':C.slate600}},label)
+            )
+          )
+        ),
+        adminView === 'queue' && h(QueueRows),
+        adminView === 'stacks' && h(StackRows),
+        adminView === 'workload' && h(WorkloadGrid)
+      ),
       false && h(SectionLabel,{style:{paddingLeft:2}},'Appointment Queue'),
       false && activeRows.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No appointments in the selected filter.'),
       false && activeRows.map(a=>h(Card,{key:a.appointmentId,style:{marginBottom:10}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'flex-start'}},
