@@ -2079,8 +2079,14 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
   const [rescheduling,setRescheduling] = useState(null);
   const [hcwOptions,setHcwOptions] = useState([]);
   const [targetHCW,setTargetHCW] = useState('');
+  const [reassignMsg,setReassignMsg] = useState('');
+  const [reassignBusy,setReassignBusy] = useState(false);
   const [newDate,setNewDate] = useState('');
   const [newTime,setNewTime] = useState('');
+  const [rescheduleHCW,setRescheduleHCW] = useState('');
+  const [rescheduleHcwOptions,setRescheduleHcwOptions] = useState([]);
+  const [rescheduleSlots,setRescheduleSlots] = useState([]);
+  const [rescheduleLoading,setRescheduleLoading] = useState(false);
   const [msg,setMsg] = useState('');
   const [apptScope,setApptScope] = useState('upcoming');
   const [adminView,setAdminView] = useState('queue');
@@ -2115,13 +2121,14 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
   });
   const canReassignAppointment = (appt) =>
     ['booked','rescheduled','screening_started'].includes(appt.status) && appointmentStartDate(appt) > new Date();
-  const canRescheduleAppointment = canReassignAppointment;
+  const canRescheduleAppointment = (appt) =>
+    ['booked','rescheduled','screening_started','reschedule_requested'].includes(appt.status) && appointmentStartDate(appt) > new Date();
   const openReassign = async (appt) => {
     if (!canReassignAppointment(appt)) {
       setMsg('Only future active appointments can be reassigned.');
       return;
     }
-    setMsg(''); setReassigning(appt); setTargetHCW('');
+    setMsg(''); setReassignMsg(''); setReassignBusy(false); setReassigning(appt); setTargetHCW('');
     try {
       const res = await fetch(`${scriptUrl}?action=getHCWListForHospital&hospitalName=${encodeURIComponent(appt.hospitalName)}`);
       const json = await res.json();
@@ -2141,6 +2148,46 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
       setMsg(user?.role === 'supervisor' ? '' : 'Unable to load HCW list.');
     }
   };
+  const loadRescheduleOptions = async (appt) => {
+    try {
+      const res = await fetch(`${scriptUrl}?action=getHCWListForHospital&hospitalName=${encodeURIComponent(appt.hospitalName)}`);
+      const json = await res.json();
+      let options = json.status==='success'?(json.data||[]):[];
+      if (user?.role === 'supervisor') {
+        const allowed = new Set((user.assignedHCWs || []).map(h => h.toLowerCase()));
+        options = options.filter(hcw => allowed.has((hcw.username || '').toLowerCase()));
+        if (options.length === 0) options = supervisorHcwOptions;
+      }
+      setRescheduleHcwOptions(options);
+      if (options.some(h => h.username === appt.hcwUsername)) setRescheduleHCW(appt.hcwUsername);
+      else setRescheduleHCW(options[0]?.username || '');
+    } catch(e) {
+      setRescheduleHcwOptions(user?.role === 'supervisor' ? supervisorHcwOptions : []);
+      setRescheduleHCW(appt.hcwUsername || '');
+    }
+  };
+  const loadRescheduleSlots = async (appt,dateStr,hcwUsername) => {
+    if (!appt || !dateStr) return;
+    setRescheduleLoading(true);
+    setRescheduleSlots([]);
+    setNewTime('');
+    try {
+      const hcwParam = hcwUsername ? `&hcwUsername=${encodeURIComponent(hcwUsername)}` : '';
+      const res = await fetch(`${scriptUrl}?action=getAvailableSlotsForReschedule&hospitalName=${encodeURIComponent(appt.hospitalName)}&date=${encodeURIComponent(dateStr)}&appointmentId=${encodeURIComponent(appt.appointmentId)}${hcwParam}`);
+      const json = await res.json();
+      if (json.status === 'success') {
+        const current = appt.appointmentDate === dateStr ? appt.appointmentTime : '';
+        setRescheduleSlots((json.slots || []).filter(s => s.available || s.time === current));
+        if (current) setNewTime(current);
+      } else {
+        setMsg(json.message || 'Unable to load available slots.');
+      }
+    } catch(e) {
+      setMsg('Network error while loading slots.');
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
   const openReschedule = (appt) => {
     if (!canRescheduleAppointment(appt)) {
       setMsg('Only future active appointments can be rescheduled.');
@@ -2149,23 +2196,29 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
     setMsg('');
     setRescheduling(appt);
     setNewDate(appt.appointmentDate || toInputDate(todayDateOnly()));
-    setNewTime(appt.appointmentTime || '');
+    setNewTime('');
+    setRescheduleHCW(appt.hcwUsername || '');
+    loadRescheduleOptions(appt);
+    loadRescheduleSlots(appt, appt.appointmentDate || toInputDate(todayDateOnly()), appt.hcwUsername || '');
   };
   const submitReassign = async () => {
-    if (!reassigning || !targetHCW) return;
-    setMsg('Updating assignment...');
+    if (!reassigning || !targetHCW || reassignBusy) return;
+    setReassignBusy(true);
+    setReassignMsg('Updating assignment...');
+    setMsg('');
     try {
       const res = await fetch(scriptUrl,{method:'POST',body:JSON.stringify({action:'reassignAppointment',appointmentId:reassigning.appointmentId,newHcwUsername:targetHCW,adminUsername:'dashboard'})});
       const json = await res.json();
-      if (json.status === 'success') { setMsg('Appointment reassigned.'); setReassigning(null); setTargetHCW(''); onChanged&&onChanged(); }
-      else setMsg(json.message || 'Reassignment failed.');
-    } catch(e) { setMsg('Network error while reassigning.'); }
+      if (json.status === 'success') { setMsg('Appointment reassigned.'); setReassignMsg(''); setReassigning(null); setTargetHCW(''); onChanged&&onChanged(); }
+      else setReassignMsg(json.message || 'Reassignment failed.');
+    } catch(e) { setReassignMsg('Network error while reassigning.'); }
+    finally { setReassignBusy(false); }
   };
   const submitReschedule = async () => {
     if (!rescheduling || !newDate || !newTime) return;
     setMsg('Updating appointment time...');
     try {
-      const res = await fetch(scriptUrl,{method:'POST',body:JSON.stringify({action:'rescheduleAppointment',appointmentId:rescheduling.appointmentId,newDate,newTime,adminUsername:'dashboard'})});
+      const res = await fetch(scriptUrl,{method:'POST',body:JSON.stringify({action:'rescheduleAppointment',appointmentId:rescheduling.appointmentId,newDate,newTime,newHcwUsername:rescheduleHCW,adminUsername:'dashboard'})});
       const json = await res.json();
       if (json.status === 'success') { setMsg('Appointment rescheduled.'); setRescheduling(null); setNewDate(''); setNewTime(''); onChanged&&onChanged(); }
       else setMsg(json.message || 'Reschedule failed.');
@@ -2321,20 +2374,30 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
           h('div',{style:{fontSize:15,fontWeight:800,color:C.slate800,marginBottom:4}},'Reschedule Appointment'),
           h('div',{style:{fontSize:12,color:C.slate500,marginBottom:12}},`${rescheduling.hospitalName} - ${rescheduling.babyName||'Walk-in slot'} - HCW: ${rescheduling.hcwUsername}`),
           h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}},
-            h('input',{type:'date',value:newDate,onChange:e=>setNewDate(e.target.value),style:{background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,fontFamily:'inherit'}}),
-            h('input',{type:'time',value:newTime,onChange:e=>setNewTime(e.target.value),style:{background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,fontFamily:'inherit'}})
+            h('select',{value:rescheduleHCW,onChange:e=>{setRescheduleHCW(e.target.value); loadRescheduleSlots(rescheduling,newDate,e.target.value);},style:{background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,fontFamily:'inherit'}},
+              h('option',{value:''},'Select HCW'),
+              rescheduleHcwOptions.map(hcw=>h('option',{key:hcw.username,value:hcw.username},`${hcw.workerName} (${hcw.username})`))
+            ),
+            h('input',{type:'date',value:newDate,onChange:e=>{setNewDate(e.target.value); loadRescheduleSlots(rescheduling,e.target.value,rescheduleHCW);},style:{background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,fontFamily:'inherit'}}),
+            h('div',{}),
+            h('select',{value:newTime,onChange:e=>setNewTime(e.target.value),disabled:rescheduleLoading,style:{background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,fontFamily:'inherit'}},
+              h('option',{value:''},rescheduleLoading?'Loading slots...':'Select slot'),
+              rescheduleSlots.map(s=>h('option',{key:`${s.time}-${s.duration}`,value:s.time},`${s.time} (${s.duration || rescheduling.slotDuration || 30} min)`))
+            )
           ),
-          h('div',{style:{display:'flex',gap:8}},h('button',{onClick:submitReschedule,disabled:!newDate||!newTime,style:{flex:1,background:C.primary,color:'#fff',border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:newDate&&newTime?'pointer':'default',opacity:newDate&&newTime?1:0.55,fontFamily:'inherit'}},'Confirm'),h('button',{onClick:()=>setRescheduling(null),style:{flex:1,background:C.slate200,color:C.slate600,border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}},'Cancel'))
+          !rescheduleLoading && newDate && rescheduleSlots.length===0 && h('div',{style:{fontSize:12,color:C.orange,marginBottom:12}},'No available slots for this hospital/date.'),
+          h('div',{style:{display:'flex',gap:8}},h('button',{onClick:submitReschedule,disabled:!newDate||!newTime||!rescheduleHCW,style:{flex:1,background:C.primary,color:'#fff',border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:newDate&&newTime&&rescheduleHCW?'pointer':'default',opacity:newDate&&newTime&&rescheduleHCW?1:0.55,fontFamily:'inherit'}},'Confirm'),h('button',{onClick:()=>setRescheduling(null),style:{flex:1,background:C.slate200,color:C.slate600,border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}},'Cancel'))
         )
       ),
       reassigning && h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.42)',zIndex:800,display:'flex',alignItems:'flex-end',justifyContent:'center'},onClick:e=>{if(e.target===e.currentTarget)setReassigning(null);}},
         h('div',{style:{background:C.white,borderRadius:'18px 18px 0 0',padding:18,width:'100%',maxWidth:520,boxShadow:'0 -4px 28px rgba(0,0,0,0.18)'}},
           h('div',{style:{fontSize:15,fontWeight:800,color:C.slate800,marginBottom:4}},'Reassign Appointment'),
           h('div',{style:{fontSize:12,color:C.slate500,marginBottom:12}},`${reassigning.hospitalName} · ${reassigning.appointmentDate} ${reassigning.appointmentTime}`),
+          reassignMsg && h('div',{style:{fontSize:12,color:reassignMsg.includes('failed')||reassignMsg.includes('error')||reassignMsg.includes('not assigned')||reassignMsg.includes('Network')?C.red:C.green,background:reassignMsg.includes('Updating')?C.slate100:'transparent',borderRadius:8,padding:'7px 9px',marginBottom:10}},reassignMsg),
           h('select',{value:targetHCW,onChange:e=>setTargetHCW(e.target.value),style:{width:'100%',background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,marginBottom:12,fontFamily:'inherit'}},
             h('option',{value:''},'Select HCW'), hcwOptions.filter(hcw=>hcw.username!==reassigning.hcwUsername).map(hcw=>h('option',{key:hcw.username,value:hcw.username},`${hcw.workerName} (${hcw.username})`))
           ),
-          h('div',{style:{display:'flex',gap:8}},h('button',{onClick:submitReassign,disabled:!targetHCW,style:{flex:1,background:C.primary,color:'#fff',border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:targetHCW?'pointer':'default',opacity:targetHCW?1:0.55,fontFamily:'inherit'}},'Confirm'),h('button',{onClick:()=>setReassigning(null),style:{flex:1,background:C.slate200,color:C.slate600,border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}},'Cancel'))
+          h('div',{style:{display:'flex',gap:8}},h('button',{onClick:submitReassign,disabled:!targetHCW||reassignBusy,style:{flex:1,background:C.primary,color:'#fff',border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:targetHCW&&!reassignBusy?'pointer':'default',opacity:targetHCW&&!reassignBusy?1:0.55,fontFamily:'inherit'}},reassignBusy?'Updating...':'Confirm'),h('button',{onClick:()=>setReassigning(null),disabled:reassignBusy,style:{flex:1,background:C.slate200,color:C.slate600,border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:reassignBusy?'default':'pointer',opacity:reassignBusy?0.6:1,fontFamily:'inherit'}},'Cancel'))
         )
       )
     )
