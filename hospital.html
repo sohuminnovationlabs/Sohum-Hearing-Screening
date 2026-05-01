@@ -96,6 +96,16 @@ const getDayName = (dateStr) => {
   return days[new Date(dateStr + 'T00:00:00').getDay()];
 };
 
+const getLocalDateStr = (date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+
+const isPastSlot = (dateStr, timeStr) => {
+  if (!dateStr || !timeStr) return false;
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const [h, m] = timeStr.split(':').map(Number);
+  return new Date(y, mo - 1, d, h, m).getTime() <= Date.now();
+};
+
 // Generate next 14 days, Mon–Sat only
 const getBookableDates = (windowDays = 14) => {
   const dates = [];
@@ -460,7 +470,11 @@ const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
     load();
   }, [selectedDate]);
 
-  const available = slots.filter(s => s.available);
+  const visibleSlots = slots.map(s => {
+    const expired = isPastSlot(selectedDate, s.time);
+    return { ...s, expired, availableNow: s.available && !expired };
+  });
+  const available = visibleSlots.filter(s => s.availableNow);
 
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, {
@@ -488,22 +502,22 @@ const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
           )
         ),
         React.createElement('div', { className: 'grid grid-cols-3 gap-2.5 mb-6' },
-          slots.map(s =>
+          visibleSlots.map(s =>
             React.createElement('button', {
               key: s.time,
-              onClick: () => s.available && setSelected(s.time),
-              disabled: !s.available,
-              title: s.available ? 'Available' : 'Already booked',
+              onClick: () => s.availableNow && setSelected(s.time),
+              disabled: !s.availableNow,
+              title: s.availableNow ? 'Available' : s.expired ? 'Time has passed' : 'Already booked',
               className: `slot-btn rounded-lg min-h-[74px] py-3.5 px-2 text-sm font-semibold text-center border transition-all
-                ${!s.available
+                ${!s.availableNow
                   ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70'
                   : selected === s.time
                   ? 'bg-primary text-white shadow-md'
                   : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-sm'}`
             },
               React.createElement('p', { className: 'font-bold' }, formatTime12(s.time).split(' ')[0]),
-              React.createElement('p', { className: `text-xs mt-0.5 ${!s.available ? 'text-slate-400' : selected === s.time ? 'text-white/70' : 'text-slate-400'}` },
-                s.available ? formatTime12(s.time).split(' ')[1] : 'Booked'
+              React.createElement('p', { className: `text-xs mt-0.5 ${!s.availableNow ? 'text-slate-400' : selected === s.time ? 'text-white/70' : 'text-slate-400'}` },
+                s.availableNow ? formatTime12(s.time).split(' ')[1] : s.expired ? 'Passed' : 'Booked'
               )
             )
           )
@@ -527,7 +541,9 @@ const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime }) => {
   const [parentPhone, setParentPhone] = useState('');
   const [isWalkin, setIsWalkin] = useState(false);
 
-  const isValid = isWalkin || (babyName.trim().length > 0);
+  const todayStr = getLocalDateStr();
+  const isDobValid = !babyDob || babyDob <= todayStr;
+  const isValid = isWalkin || (babyName.trim().length > 0 && isDobValid);
 
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, {
@@ -567,9 +583,10 @@ const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime }) => {
           onChange: e => setBabyName(e.target.value)
         }),
         React.createElement(Input, {
-          label: 'Date of Birth', type: 'date', value: babyDob,
+          label: 'Date of Birth', type: 'date', value: babyDob, max: todayStr,
           onChange: e => setBabyDob(e.target.value)
         }),
+        !isDobValid && React.createElement('p', { className: 'text-xs text-red-500 -mt-2' }, 'Date of birth cannot be in the future.'),
         React.createElement(Input, {
           label: 'Parent / Guardian Phone', type: 'tel', placeholder: 'e.g. 9876543210', value: parentPhone,
           onChange: e => setParentPhone(e.target.value)
