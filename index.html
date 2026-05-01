@@ -1126,7 +1126,7 @@ const AppointmentsScreen = ({ user, onBack, onStartScreening, onProfileClick, on
               React.createElement('p', { className: 'text-gray-500 text-sm' }, `No ${filter} appointments.`)
             )
           : React.createElement('div', { className: 'space-y-3' },
-              filtered.map(a =>
+              filtered.map(a => ({ ...a, notes: '' })).map(a =>
                 React.createElement(Card, { key: a.appointmentId },
                   React.createElement('div', { className: 'flex items-start justify-between gap-2 mb-3' },
                     React.createElement('div', {},
