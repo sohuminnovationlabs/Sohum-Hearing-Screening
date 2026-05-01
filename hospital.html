@@ -470,7 +470,7 @@ const SelectModalityScreen = ({ selectedDate, onNext, onBack }) => {
         },
           React.createElement('p', { className: 'text-lg font-bold' }, option.label),
           React.createElement('p', { className: `text-sm mt-1 ${selected === option.value ? 'text-white/70' : 'text-slate-500'}` },
-            'Slot duration is read from the scheduler Config sheet.'
+            option.value === 'AABR' ? 'Automated Auditory Brainstem Response screening' : 'Otoacoustic Emissions screening'
           )
         )
       )
