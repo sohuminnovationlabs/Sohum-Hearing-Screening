@@ -1967,7 +1967,7 @@ const parseAppointments = (rawData) => {
     appointmentId:r[0]||'', hospitalName:r[1]||'', hospitalUsername:r[2]||'', hcwUsername:r[3]||'',
     babyName:r[4]||'', babyDob:normDate(r[5]), parentPhone:r[6]||'', appointmentDate:normDate(r[7]),
     appointmentTime:normTime(r[8]), slotDuration:parseInt(r[9]||0)||0, status:(r[10]||'').toString().trim(),
-    bookedAt:r[11]||'', notes:r[12]||'', calEventId:r[13]||'', rescheduledFrom:r[14]||''
+    bookedAt:r[11]||'', notes:r[12]||'', calEventId:r[13]||'', rescheduledFrom:r[14]||'', modality:(r[15]||'').toString().trim().toUpperCase()
   })).filter(a => a.appointmentDate);
 };
 
@@ -2173,7 +2173,8 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
     setNewTime('');
     try {
       const hcwParam = hcwUsername ? `&hcwUsername=${encodeURIComponent(hcwUsername)}` : '';
-      const res = await fetch(`${scriptUrl}?action=getAvailableSlotsForReschedule&hospitalName=${encodeURIComponent(appt.hospitalName)}&date=${encodeURIComponent(dateStr)}&appointmentId=${encodeURIComponent(appt.appointmentId)}${hcwParam}`);
+      const modalityParam = appt.modality ? `&modality=${encodeURIComponent(appt.modality)}` : '';
+      const res = await fetch(`${scriptUrl}?action=getAvailableSlotsForReschedule&hospitalName=${encodeURIComponent(appt.hospitalName)}&date=${encodeURIComponent(dateStr)}&appointmentId=${encodeURIComponent(appt.appointmentId)}${hcwParam}${modalityParam}`);
       const json = await res.json();
       if (json.status === 'success') {
         const current = appt.appointmentDate === dateStr ? appt.appointmentTime : '';
@@ -2218,7 +2219,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
     if (!rescheduling || !newDate || !newTime) return;
     setMsg('Updating appointment time...');
     try {
-      const res = await fetch(scriptUrl,{method:'POST',body:JSON.stringify({action:'rescheduleAppointment',appointmentId:rescheduling.appointmentId,newDate,newTime,newHcwUsername:rescheduleHCW,adminUsername:'dashboard'})});
+      const res = await fetch(scriptUrl,{method:'POST',body:JSON.stringify({action:'rescheduleAppointment',appointmentId:rescheduling.appointmentId,newDate,newTime,newHcwUsername:rescheduleHCW,modality:rescheduling.modality,adminUsername:'dashboard'})});
       const json = await res.json();
       if (json.status === 'success') { setMsg('Appointment rescheduled.'); setRescheduling(null); setNewDate(''); setNewTime(''); onChanged&&onChanged(); }
       else setMsg(json.message || 'Reschedule failed.');
@@ -2372,7 +2373,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
       rescheduling && h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.42)',zIndex:800,display:'flex',alignItems:'flex-end',justifyContent:'center'},onClick:e=>{if(e.target===e.currentTarget)setRescheduling(null);}},
         h('div',{style:{background:C.white,borderRadius:'18px 18px 0 0',padding:18,width:'100%',maxWidth:520,boxShadow:'0 -4px 28px rgba(0,0,0,0.18)'}},
           h('div',{style:{fontSize:15,fontWeight:800,color:C.slate800,marginBottom:4}},'Reschedule Appointment'),
-          h('div',{style:{fontSize:12,color:C.slate500,marginBottom:12}},`${rescheduling.hospitalName} - ${rescheduling.babyName||'Walk-in slot'} - HCW: ${rescheduling.hcwUsername}`),
+          h('div',{style:{fontSize:12,color:C.slate500,marginBottom:12}},`${rescheduling.hospitalName} - ${rescheduling.babyName||'Walk-in slot'} - ${rescheduling.modality || 'Modality not set'} - HCW: ${rescheduling.hcwUsername}`),
           h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}},
             h('select',{value:rescheduleHCW,onChange:e=>{setRescheduleHCW(e.target.value); loadRescheduleSlots(rescheduling,newDate,e.target.value);},style:{background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,fontFamily:'inherit'}},
               h('option',{value:''},'Select HCW'),
