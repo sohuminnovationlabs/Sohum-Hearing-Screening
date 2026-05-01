@@ -59,12 +59,17 @@ const apiPost = async (body) => {
 
 // ─── Utility ──────────────────────────────────────────────────────
 const slotCache = new Map();
-const slotCacheKey = (hospitalName, date) => `${hospitalName}__${date}`;
+const MODALITY_OPTIONS = [
+  { value: 'AABR', label: 'AABR' },
+  { value: 'OAE', label: 'OAE' },
+];
+const modalityLabel = (value) => (MODALITY_OPTIONS.find(m => m.value === value) || {}).label || value || '';
+const slotCacheKey = (hospitalName, date, modality = '') => `${hospitalName}__${date}__${modality}`;
 
-const getSlotsCached = async (hospitalName, date) => {
-  const key = slotCacheKey(hospitalName, date);
+const getSlotsCached = async (hospitalName, date, modality) => {
+  const key = slotCacheKey(hospitalName, date, modality);
   if (slotCache.has(key)) return slotCache.get(key);
-  const promise = apiGet({ action: 'getAvailableSlots', hospitalName, date });
+  const promise = apiGet({ action: 'getAvailableSlots', hospitalName, date, modality });
   slotCache.set(key, promise);
   try {
     const data = await promise;
@@ -406,7 +411,6 @@ const SelectDateScreen = ({ session, onNext, onBack }) => {
   const dayAbbr = ['Su','Mo','Tu','We','Th','Fr','Sa'];
   const selectDate = (dateStr) => {
     setSelected(dateStr);
-    getSlotsCached(session.hospitalName, dateStr).catch(() => {});
   };
 
   return React.createElement('div', { className: 'min-h-screen pb-28' },
@@ -447,7 +451,41 @@ const SelectDateScreen = ({ session, onNext, onBack }) => {
 };
 
 // ─── SCREEN: Book Appointment — Step 2: Select Time ──────────────
-const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
+const SelectModalityScreen = ({ selectedDate, onNext, onBack }) => {
+  const [selected, setSelected] = useState('');
+
+  return React.createElement('div', { className: 'min-h-screen pb-28' },
+    React.createElement(Header, {
+      title: 'Select Modality',
+      subtitle: formatDate(selectedDate),
+      onBack
+    }),
+    React.createElement('div', { className: 'px-6 pt-6 space-y-3' },
+      MODALITY_OPTIONS.map(option =>
+        React.createElement('button', {
+          key: option.value,
+          onClick: () => setSelected(option.value),
+          className: `w-full rounded-2xl border p-5 text-left transition-all slot-btn
+            ${selected === option.value ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-slate-700 border-slate-200 shadow-sm'}`
+        },
+          React.createElement('p', { className: 'text-lg font-bold' }, option.label),
+          React.createElement('p', { className: `text-sm mt-1 ${selected === option.value ? 'text-white/70' : 'text-slate-500'}` },
+            'Slot duration is read from the scheduler Config sheet.'
+          )
+        })
+      )
+    ),
+    React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+      React.createElement('div', { className: 'max-w-[480px] mx-auto' },
+        React.createElement(Button, { onClick: () => onNext(selected), disabled: !selected },
+          selected ? `Continue - ${modalityLabel(selected)}` : 'Select a Modality'
+        )
+      )
+    )
+  );
+};
+
+const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) => {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -457,7 +495,7 @@ const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
     const load = async () => {
       setLoading(true); setError('');
       try {
-        const data = await getSlotsCached(session.hospitalName, selectedDate);
+        const data = await getSlotsCached(session.hospitalName, selectedDate, modality);
         if (data.status === 'success') {
           setSlots(data.slots || []);
           if ((data.slots || []).length === 0) setError(data.message || 'No slots available on this date.');
@@ -470,7 +508,7 @@ const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
       setLoading(false);
     };
     load();
-  }, [selectedDate]);
+  }, [selectedDate, modality]);
 
   const visibleSlots = slots.map(s => {
     const expired = isPastSlot(selectedDate, s.time);
@@ -481,7 +519,7 @@ const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, {
       title: 'Select Time',
-      subtitle: `${getDayName(selectedDate)}, ${formatDate(selectedDate)}`,
+      subtitle: `${getDayName(selectedDate)}, ${formatDate(selectedDate)} - ${modalityLabel(modality)}`,
       onBack
     }),
     React.createElement('div', { className: 'px-6 pt-6' },
@@ -537,7 +575,7 @@ const SelectTimeScreen = ({ session, selectedDate, onNext, onBack }) => {
 };
 
 // ─── SCREEN: Book Appointment — Step 3: Baby Details (optional) ───
-const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime }) => {
+const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime, modality }) => {
   const [babyName, setBabyName] = useState('');
   const [babyDob, setBabyDob] = useState('');
   const [parentPhone, setParentPhone] = useState('');
@@ -550,7 +588,7 @@ const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime }) => {
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, {
       title: 'Patient Details',
-      subtitle: `${formatDate(selectedDate)} at ${formatTime12(selectedTime)}`,
+      subtitle: `${formatDate(selectedDate)} at ${formatTime12(selectedTime)} - ${modalityLabel(modality)}`,
       onBack
     }),
     React.createElement('div', { className: 'px-6 pt-6 space-y-5' },
@@ -610,7 +648,7 @@ const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime }) => {
 };
 
 // ─── SCREEN: Book Appointment — Step 4: Confirm ───────────────────
-const ConfirmScreen = ({ session, selectedDate, selectedTime, babyDetails, onConfirm, onBack }) => {
+const ConfirmScreen = ({ session, selectedDate, selectedTime, modality, babyDetails, onConfirm, onBack }) => {
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState('');
 
@@ -624,6 +662,7 @@ const ConfirmScreen = ({ session, selectedDate, selectedTime, babyDetails, onCon
     ['Hospital', session.hospitalName],
     ['Date', `${getDayName(selectedDate)}, ${formatDate(selectedDate)}`],
     ['Time', formatTime12(selectedTime)],
+    ['Modality', modalityLabel(modality)],
     ['Patient', babyDetails.isWalkin ? 'Walk-in Slot' : babyDetails.babyName],
     babyDetails.babyDob ? ['Date of Birth', formatDate(babyDetails.babyDob)] : null,
     babyDetails.parentPhone ? ['Parent Phone', babyDetails.parentPhone] : null,
@@ -668,7 +707,7 @@ const ConfirmScreen = ({ session, selectedDate, selectedTime, babyDetails, onCon
 };
 
 // ─── SCREEN: Booking Success ──────────────────────────────────────
-const SuccessScreen = ({ appointmentId, assignedHCWName, selectedDate, selectedTime, babyDetails, onDone }) =>
+const SuccessScreen = ({ appointmentId, assignedHCWName, selectedDate, selectedTime, modality, babyDetails, onDone }) =>
   React.createElement('div', { className: 'min-h-screen flex flex-col items-center justify-center px-6 pb-12 text-center fade-in' },
     React.createElement('div', { className: 'w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6' },
       React.createElement('svg', { className: 'w-10 h-10 text-green-600', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
@@ -685,6 +724,7 @@ const SuccessScreen = ({ appointmentId, assignedHCWName, selectedDate, selectedT
           ['Appointment ID', appointmentId],
           ['Date', formatDate(selectedDate)],
           ['Time', formatTime12(selectedTime)],
+          ['Modality', modalityLabel(modality)],
           ['Patient', babyDetails.isWalkin ? 'Walk-in Slot' : babyDetails.babyName],
           ['Assigned HCW', assignedHCWName],
         ].map(([label, value]) =>
@@ -823,7 +863,7 @@ const AppointmentsScreen = ({ session, onBack }) => {
 const App = () => {
   const [screen, setScreen] = useState('login');
   const [session, setSession] = useState(null);
-  const [booking, setBooking] = useState({ date: '', time: '', babyDetails: null });
+  const [booking, setBooking] = useState({ date: '', modality: '', time: '', babyDetails: null });
   const [bookingResult, setBookingResult] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -839,7 +879,7 @@ const App = () => {
 
   const handleLogout = () => {
     setSession(null);
-    setBooking({ date: '', time: '', babyDetails: null });
+    setBooking({ date: '', modality: '', time: '', babyDetails: null });
     setBookingResult(null);
     setScreen('login');
   };
@@ -852,6 +892,7 @@ const App = () => {
         hospitalName: session.hospitalName,
         appointmentDate: booking.date,
         appointmentTime: booking.time,
+        modality: booking.modality,
         babyName: booking.babyDetails.babyName,
         babyDob: booking.babyDetails.babyDob,
         parentPhone: booking.babyDetails.parentPhone,
@@ -859,7 +900,7 @@ const App = () => {
         fast: true
       });
       if (data.status === 'success') {
-        slotCache.delete(slotCacheKey(session.hospitalName, booking.date));
+        slotCache.delete(slotCacheKey(session.hospitalName, booking.date, booking.modality));
         setBookingResult({ appointmentId: data.appointmentId, assignedHCWName: data.assignedHCWName });
         setScreen('success');
         apiPost({ action: 'finalizeAppointment', appointmentId: data.appointmentId })
@@ -891,13 +932,22 @@ const App = () => {
       onBack: () => setScreen('home'),
       onNext: (date) => {
         setBooking(p => ({ ...p, date }));
+        setScreen('selectModality');
+      }
+    }),
+    screen === 'selectModality' && React.createElement(SelectModalityScreen, {
+      selectedDate: booking.date,
+      onBack: () => setScreen('selectDate'),
+      onNext: (modality) => {
+        setBooking(p => ({ ...p, modality }));
         setScreen('selectTime');
       }
     }),
     screen === 'selectTime' && React.createElement(SelectTimeScreen, {
       session,
       selectedDate: booking.date,
-      onBack: () => setScreen('selectDate'),
+      modality: booking.modality,
+      onBack: () => setScreen('selectModality'),
       onNext: (time) => {
         setBooking(p => ({ ...p, time }));
         setScreen('babyDetails');
@@ -906,6 +956,7 @@ const App = () => {
     screen === 'babyDetails' && React.createElement(BabyDetailsScreen, {
       selectedDate: booking.date,
       selectedTime: booking.time,
+      modality: booking.modality,
       onBack: () => setScreen('selectTime'),
       onNext: (babyDetails) => {
         setBooking(p => ({ ...p, babyDetails }));
@@ -916,6 +967,7 @@ const App = () => {
       session,
       selectedDate: booking.date,
       selectedTime: booking.time,
+      modality: booking.modality,
       babyDetails: booking.babyDetails,
       onBack: () => setScreen('babyDetails'),
       onConfirm: handleConfirmBooking
@@ -924,9 +976,10 @@ const App = () => {
       ...bookingResult,
       selectedDate: booking.date,
       selectedTime: booking.time,
+      modality: booking.modality,
       babyDetails: booking.babyDetails,
       onDone: () => {
-        setBooking({ date: '', time: '', babyDetails: null });
+        setBooking({ date: '', modality: '', time: '', babyDetails: null });
         setBookingResult(null);
         setScreen('home');
       }
