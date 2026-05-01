@@ -2122,7 +2122,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
   const canReassignAppointment = (appt) =>
     ['booked','rescheduled','screening_started'].includes(appt.status) && appointmentStartDate(appt) > new Date();
   const canRescheduleAppointment = (appt) =>
-    ['booked','rescheduled','screening_started','reschedule_requested'].includes(appt.status) && appointmentStartDate(appt) > new Date();
+    appt.status === 'reschedule_requested' || (['booked','rescheduled','screening_started'].includes(appt.status) && appointmentStartDate(appt) > new Date());
   const openReassign = async (appt) => {
     if (!canReassignAppointment(appt)) {
       setMsg('Only future active appointments can be reassigned.');
