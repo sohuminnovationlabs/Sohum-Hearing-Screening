@@ -1017,8 +1017,8 @@ const ScreeningHeatmap = ({rows, dateFrom, dateTo}) => {
 };
 
 // ── TREND CHART (line chart, pure SVG) ────────────────────────────────────────
-const TrendChart = ({dailyData,weeklyData,allRowsForHeatmap}) => {
-  const [granularity, setGranularity] = useState('week');
+const TrendChart = ({dailyData,weeklyData,allRowsForHeatmap,initialGranularity='week'}) => {
+  const [granularity, setGranularity] = useState(initialGranularity);
   const [series,      setSeries]      = useState('total');
   const [tooltip,     setTooltip]     = useState(null);
   // Auto-degrade: >60 days of data forces weekly view
@@ -1126,6 +1126,10 @@ const TrendChart = ({dailyData,weeklyData,allRowsForHeatmap}) => {
         areaPath && h('path',{d:areaPath,fill:col,fillOpacity:0.08}),
         // Line
         pts.length>1 && h('polyline',{points:pointsStr,fill:'none',stroke:col,strokeWidth:2,strokeLinejoin:'round',strokeLinecap:'round'}),
+        pts.map(([x,y],i) => h('g',{key:`pt-${data[i].date}`},
+          h('circle',{cx:x,cy:y,r:3.4,fill:col,stroke:'#fff',strokeWidth:1.4}),
+          h('circle',{cx:x,cy:y,r:6,fill:col,fillOpacity:0.08})
+        )),
         // X axis labels — only show a sensible number
         data.map((d,i) => {
           if (!(i % Math.ceil(data.length/7) === 0 || i === data.length-1)) return null;
@@ -2130,7 +2134,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
       activeRows.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No appointments in the selected filter.'),
       activeRows.map(a=>h(Card,{key:a.appointmentId,style:{marginBottom:10}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'flex-start'}},
         h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},`${a.appointmentDate} · ${a.appointmentTime}`),h('div',{style:{fontSize:12,color:C.slate600,marginTop:3}},`${a.hospitalName} · ${a.babyName||'Walk-in slot'}`),h('div',{style:{fontSize:11,color:C.slate400,marginTop:3}},`HCW: ${a.hcwUsername} · ${a.status}`)),
-        h('button',{onClick:()=>openReassign(a),disabled:!canReassignAppointment(a),title:canReassignAppointment(a)?'Reassign future appointment':'Only future active appointments can be reassigned',style:{background:C.primary,color:'#fff',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:canReassignAppointment(a)?'pointer':'default',opacity:canReassignAppointment(a)?1:0.5,fontFamily:'inherit'}},'Reassign')
+        canReassignAppointment(a) && h('button',{onClick:()=>openReassign(a),title:'Reassign future appointment',style:{background:C.primary,color:'#fff',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},'Reassign')
       ))),
       reassigning && h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.42)',zIndex:800,display:'flex',alignItems:'flex-end',justifyContent:'center'},onClick:e=>{if(e.target===e.currentTarget)setReassigning(null);}},
         h('div',{style:{background:C.white,borderRadius:'18px 18px 0 0',padding:18,width:'100%',maxWidth:520,boxShadow:'0 -4px 28px rgba(0,0,0,0.18)'}},
@@ -2350,7 +2354,7 @@ const EntityDetailScreen = ({type,entityKey,rows,onBack}) => {
         h(KpiCard,{value:type==='worker'?s.uniqueHospitals:s.uniqueWorkers,label:type==='worker'?'Hospitals':'Workers'})
       ),
 
-      h(TrendChart,{dailyData:s.dailyData,weeklyData:s.weeklyData,allRowsForHeatmap:rows}),
+      h(TrendChart,{dailyData:s.dailyData,weeklyData:s.weeklyData,allRowsForHeatmap:rows,initialGranularity:'day'}),
       h(ReferRateKpi,{referRate:s.referRate,totalRefer:s.totalRefer,total:s.total}),
 
       s.aabr > 0 && h(Card,{style:{marginBottom:12}},
