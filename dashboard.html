@@ -2073,10 +2073,15 @@ const AppointmentMetricsCard = ({appointments,onOpen}) => {
 
 const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onBack,onChanged}) => {
   const [reassigning,setReassigning] = useState(null);
+  const [rescheduling,setRescheduling] = useState(null);
   const [hcwOptions,setHcwOptions] = useState([]);
   const [targetHCW,setTargetHCW] = useState('');
+  const [newDate,setNewDate] = useState('');
+  const [newTime,setNewTime] = useState('');
   const [msg,setMsg] = useState('');
   const [apptScope,setApptScope] = useState('upcoming');
+  const [adminView,setAdminView] = useState('queue');
+  const [stackBy,setStackBy] = useState('hospital');
   const [apptFrom,setApptFrom] = useState(todayDateOnly());
   const [apptTo,setApptTo] = useState(() => { const d = todayDateOnly(); d.setDate(d.getDate()+30); d.setHours(23,59,59,999); return d; });
   const filtered = useMemo(()=>filterAppointmentsByScope(appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo),[appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo]);
@@ -2092,6 +2097,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
   };
   const canReassignAppointment = (appt) =>
     ['booked','rescheduled','screening_started'].includes(appt.status) && appointmentStartDate(appt) > new Date();
+  const canRescheduleAppointment = canReassignAppointment;
   const openReassign = async (appt) => {
     if (!canReassignAppointment(appt)) {
       setMsg('Only future active appointments can be reassigned.');
@@ -2100,6 +2106,16 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
     setMsg(''); setReassigning(appt); setTargetHCW('');
     try { const res = await fetch(`${scriptUrl}?action=getHCWListForHospital&hospitalName=${encodeURIComponent(appt.hospitalName)}`); const json = await res.json(); setHcwOptions(json.status==='success'?(json.data||[]):[]); }
     catch(e) { setHcwOptions([]); setMsg('Unable to load HCW list.'); }
+  };
+  const openReschedule = (appt) => {
+    if (!canRescheduleAppointment(appt)) {
+      setMsg('Only future active appointments can be rescheduled.');
+      return;
+    }
+    setMsg('');
+    setRescheduling(appt);
+    setNewDate(appt.appointmentDate || toInputDate(todayDateOnly()));
+    setNewTime(appt.appointmentTime || '');
   };
   const submitReassign = async () => {
     if (!reassigning || !targetHCW) return;
@@ -2111,6 +2127,92 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
       else setMsg(json.message || 'Reassignment failed.');
     } catch(e) { setMsg('Network error while reassigning.'); }
   };
+  const submitReschedule = async () => {
+    if (!rescheduling || !newDate || !newTime) return;
+    setMsg('Updating appointment time...');
+    try {
+      const res = await fetch(scriptUrl,{method:'POST',body:JSON.stringify({action:'rescheduleAppointment',appointmentId:rescheduling.appointmentId,newDate,newTime,adminUsername:'dashboard'})});
+      const json = await res.json();
+      if (json.status === 'success') { setMsg('Appointment rescheduled.'); setRescheduling(null); setNewDate(''); setNewTime(''); onChanged&&onChanged(); }
+      else setMsg(json.message || 'Reschedule failed.');
+    } catch(e) { setMsg('Network error while rescheduling.'); }
+  };
+  const groupKey = (appt) => stackBy === 'hcw' ? (appt.hcwUsername || 'Unassigned') : stackBy === 'status' ? (appt.status || 'unknown') : (appt.hospitalName || 'Unknown hospital');
+  const stackGroups = useMemo(() => {
+    const groups = {};
+    activeRows.forEach(a => {
+      const key = groupKey(a);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(a);
+    });
+    return Object.entries(groups).sort((a,b)=>b[1].length-a[1].length || a[0].localeCompare(b[0]));
+  }, [activeRows, stackBy]);
+  const workloadDates = useMemo(() => {
+    const start = apptScope === 'custom' ? new Date(apptFrom) : todayDateOnly();
+    const end = apptScope === 'custom' ? new Date(apptTo) : (() => { const d = todayDateOnly(); d.setDate(d.getDate()+13); return d; })();
+    const dates = [];
+    for (let d = new Date(start); d <= end && dates.length < 21; d.setDate(d.getDate()+1)) {
+      dates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+    }
+    return dates;
+  }, [apptScope, apptFrom, apptTo]);
+  const workloadRows = useMemo(() => {
+    const activeSet = new Set(['booked','screening_started','rescheduled']);
+    const hcws = [...new Set(filtered.filter(a=>activeSet.has(a.status)).map(a=>a.hcwUsername).filter(Boolean))].sort();
+    return hcws.map(hcw => ({
+      hcw,
+      dates: workloadDates.map(date => filtered.filter(a => activeSet.has(a.status) && a.hcwUsername === hcw && a.appointmentDate === date).length)
+    }));
+  }, [filtered, workloadDates]);
+  const loadColor = (count) => count >= 5 ? C.red : count >= 3 ? C.orange : count >= 1 ? C.green : C.slate100;
+  const QueueRows = () => h(Fragment,null,
+    h(SectionLabel,{style:{paddingLeft:2}},'Appointment Queue'),
+    activeRows.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No appointments in the selected filter.'),
+    activeRows.map(a=>h(Card,{key:a.appointmentId,style:{marginBottom:10}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'flex-start'}},
+      h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},`${a.appointmentDate} - ${a.appointmentTime}`),h('div',{style:{fontSize:12,color:C.slate600,marginTop:3}},`${a.hospitalName} - ${a.babyName||'Walk-in slot'}`),h('div',{style:{fontSize:11,color:C.slate400,marginTop:3}},`HCW: ${a.hcwUsername} - ${a.status}`)),
+      h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}},
+        canRescheduleAppointment(a) && h('button',{onClick:()=>openReschedule(a),title:'Move future appointment',style:{background:C.slate100,color:C.primary,border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},'Reschedule'),
+        canReassignAppointment(a) && h('button',{onClick:()=>openReassign(a),title:'Reassign future appointment',style:{background:C.primary,color:'#fff',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},'Reassign')
+      )
+    )))
+  );
+  const StackRows = () => h(Fragment,null,
+    h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:8}},
+      h(SectionLabel,{style:{paddingLeft:2,marginBottom:0}},'Appointment Stacks'),
+      h('select',{value:stackBy,onChange:e=>setStackBy(e.target.value),style:{background:C.slate100,border:'none',borderRadius:8,padding:'7px 10px',fontSize:12,color:C.slate800,fontFamily:'inherit'}},
+        h('option',{value:'hospital'},'By hospital'),
+        h('option',{value:'hcw'},'By HCW'),
+        h('option',{value:'status'},'By status')
+      )
+    ),
+    stackGroups.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No stacks in the selected filter.'),
+    stackGroups.map(([key,rows]) => h(Card,{key,style:{marginBottom:10}},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}},
+        h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},key),
+        h('div',{style:{fontSize:18,fontWeight:800,color:C.primary}},rows.length)
+      ),
+      rows.map(a => h('div',{key:a.appointmentId,style:{display:'grid',gridTemplateColumns:'92px 1fr 82px',gap:8,alignItems:'center',padding:'8px 0',borderTop:`1px solid ${C.slate100}`}},
+        h('div',{style:{fontSize:12,fontWeight:800,color:C.slate700}},`${a.appointmentDate.slice(5)} ${a.appointmentTime}`),
+        h('div',{style:{minWidth:0}},h('div',{style:{fontSize:12,color:C.slate700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},a.babyName||'Walk-in slot'),h('div',{style:{fontSize:10,color:C.slate400,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},`${a.hospitalName} - ${a.hcwUsername}`)),
+        h('div',{style:{fontSize:10,color:C.slate500,textAlign:'right'}},a.status)
+      ))
+    ))
+  );
+  const WorkloadGrid = () => h(Card,{style:{marginBottom:12}},
+    h(SectionLabel,{},'HCW Workload Heatmap'),
+    h('div',{style:{fontSize:11,color:C.slate400,marginBottom:10}},apptScope==='custom'?'Custom range, capped at 21 days.':'Next 14 days of active appointments.'),
+    workloadRows.length===0 && h('div',{style:{fontSize:13,color:C.slate400,textAlign:'center',padding:18}},'No active HCW load in the selected filter.'),
+    workloadRows.length>0 && h('div',{style:{overflowX:'auto'}},
+      h('div',{style:{display:'grid',gridTemplateColumns:`120px repeat(${workloadDates.length},34px)`,gap:5,minWidth:120 + workloadDates.length*39}},
+        h('div',{}),
+        workloadDates.map(d=>h('div',{key:d,style:{fontSize:9,color:C.slate400,textAlign:'center'}},d.slice(5))),
+        workloadRows.flatMap(row => [
+          h('div',{key:`${row.hcw}-label`,style:{fontSize:11,color:C.slate700,fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',paddingTop:8}},row.hcw),
+          ...row.dates.map((count,i)=>h('div',{key:`${row.hcw}-${workloadDates[i]}`,title:`${row.hcw} - ${workloadDates[i]} - ${count} appointment(s)`,style:{height:28,borderRadius:7,background:loadColor(count),color:count?C.white:C.slate300,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800}},count||''))
+        ])
+      )
+    )
+  );
   const groupCard = (title,map) => h(Card,{style:{marginBottom:12}},h(SectionLabel,{},title),
     Object.entries(map).sort((a,b)=>b[1].total-a[1].total).map(([key,info]) =>
       h('div',{key,style:{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:`1px solid ${C.slate100}`}},
@@ -2136,14 +2238,35 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
           h('input',{type:'date',value:toInputDate(apptTo),onChange:e=>{ const d=new Date(e.target.value); d.setHours(23,59,59,999); setApptTo(d); },style:{flex:1,background:C.slate100,border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,color:C.slate800,fontFamily:'inherit'}})
         )
       ),
+      h(Card,{style:{marginBottom:12,padding:12}},
+        h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+          [['queue','Queue'],['stacks','Stacks'],['workload','Workload']].map(([key,label]) =>
+            h('button',{key,onClick:()=>setAdminView(key),style:{padding:'7px 11px',border:'none',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:800,fontFamily:'inherit',background:adminView===key?C.primary:C.slate100,color:adminView===key?'#fff':C.slate600}},label)
+          )
+        )
+      ),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8,marginBottom:12}},h(KpiCard,{value:s.total,label:'Bookings'}),h(KpiCard,{value:s.active,label:'Active',color:C.green}),h(KpiCard,{value:s.completed,label:'Completed',color:C.greenD}),h(KpiCard,{value:s.cancelled,label:'Cancelled',color:C.slate500}),h(KpiCard,{value:s.noShow,label:'No-show',color:C.red}),h(KpiCard,{value:s.reschedule,label:'Reschedule',color:C.orange})),
       h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'start'}},groupCard('By Hospital',s.byHospital),groupCard('By HCW',s.byHCW)),
-      h(SectionLabel,{style:{paddingLeft:2}},'Appointment Queue'),
-      activeRows.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No appointments in the selected filter.'),
-      activeRows.map(a=>h(Card,{key:a.appointmentId,style:{marginBottom:10}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'flex-start'}},
+      adminView === 'queue' && h(QueueRows),
+      adminView === 'stacks' && h(StackRows),
+      adminView === 'workload' && h(WorkloadGrid),
+      false && h(SectionLabel,{style:{paddingLeft:2}},'Appointment Queue'),
+      false && activeRows.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No appointments in the selected filter.'),
+      false && activeRows.map(a=>h(Card,{key:a.appointmentId,style:{marginBottom:10}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'flex-start'}},
         h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},`${a.appointmentDate} · ${a.appointmentTime}`),h('div',{style:{fontSize:12,color:C.slate600,marginTop:3}},`${a.hospitalName} · ${a.babyName||'Walk-in slot'}`),h('div',{style:{fontSize:11,color:C.slate400,marginTop:3}},`HCW: ${a.hcwUsername} · ${a.status}`)),
         canReassignAppointment(a) && h('button',{onClick:()=>openReassign(a),title:'Reassign future appointment',style:{background:C.primary,color:'#fff',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},'Reassign')
       ))),
+      rescheduling && h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.42)',zIndex:800,display:'flex',alignItems:'flex-end',justifyContent:'center'},onClick:e=>{if(e.target===e.currentTarget)setRescheduling(null);}},
+        h('div',{style:{background:C.white,borderRadius:'18px 18px 0 0',padding:18,width:'100%',maxWidth:520,boxShadow:'0 -4px 28px rgba(0,0,0,0.18)'}},
+          h('div',{style:{fontSize:15,fontWeight:800,color:C.slate800,marginBottom:4}},'Reschedule Appointment'),
+          h('div',{style:{fontSize:12,color:C.slate500,marginBottom:12}},`${rescheduling.hospitalName} - ${rescheduling.babyName||'Walk-in slot'} - HCW: ${rescheduling.hcwUsername}`),
+          h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}},
+            h('input',{type:'date',value:newDate,onChange:e=>setNewDate(e.target.value),style:{background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,fontFamily:'inherit'}}),
+            h('input',{type:'time',value:newTime,onChange:e=>setNewTime(e.target.value),style:{background:C.slate100,border:'none',borderRadius:10,padding:'11px',fontSize:13,color:C.slate800,fontFamily:'inherit'}})
+          ),
+          h('div',{style:{display:'flex',gap:8}},h('button',{onClick:submitReschedule,disabled:!newDate||!newTime,style:{flex:1,background:C.primary,color:'#fff',border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:newDate&&newTime?'pointer':'default',opacity:newDate&&newTime?1:0.55,fontFamily:'inherit'}},'Confirm'),h('button',{onClick:()=>setRescheduling(null),style:{flex:1,background:C.slate200,color:C.slate600,border:'none',borderRadius:10,padding:'11px',fontSize:13,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}},'Cancel'))
+        )
+      ),
       reassigning && h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.42)',zIndex:800,display:'flex',alignItems:'flex-end',justifyContent:'center'},onClick:e=>{if(e.target===e.currentTarget)setReassigning(null);}},
         h('div',{style:{background:C.white,borderRadius:'18px 18px 0 0',padding:18,width:'100%',maxWidth:520,boxShadow:'0 -4px 28px rgba(0,0,0,0.18)'}},
           h('div',{style:{fontSize:15,fontWeight:800,color:C.slate800,marginBottom:4}},'Reassign Appointment'),
