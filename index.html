@@ -3190,7 +3190,7 @@ const App = () => {
   const sessionComplete = step !== STEP.SESSION && step !== STEP.LOGIN && step !== STEP.LOADING;
   const navProps = { onProfileClick: () => setShowProfile(true), onNotificationsClick: () => { if (sessionComplete) setStep(STEP.NOTIFICATIONS); }, onNotifications: () => { if (sessionComplete) setStep(STEP.NOTIFICATIONS); }, notificationCount };
   const clearBabyData = () => {
-    const { babyId, babyName, deviceTestId, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, appointmentId, appointmentSource, _fromAppointment, _appointmentId, _lockedFields, _prefilled, ...rest } = record;
+    const { babyId, babyName, deviceTestId, dateOfBirth, gender, gestationalAge, parentName, parentPhone, parentEmail, riskFactors, screeningId, testType, appointmentModality, appointmentId, appointmentSource, _fromAppointment, _appointmentId, _lockedFields, _prefilled, ...rest } = record;
     setRecord({ ...rest, babyId: generateBabyId() });
     setStep(STEP.BABY);
   };
@@ -3202,6 +3202,7 @@ const App = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
   const handleAppointmentStart = (appointment) => {
+    const appointmentModality = (appointment.modality || '').toString().trim().toUpperCase();
     const dateOfBirth = normalizeAppointmentDate(appointment.babyDob || appointment.dateOfBirth || '');
     const appointmentFields = {
       babyName: appointment.babyName || '',
@@ -3230,6 +3231,7 @@ const App = () => {
       riskFactors: [],
       ...appointmentFields,
       appointmentId: appointment.appointmentId,
+      appointmentModality: appointmentModality === 'AABR' || appointmentModality === 'OAE' ? appointmentModality : '',
       appointmentSource: 'HCW appointment',
       _appointmentId: appointment.appointmentId,
       _fromAppointment: true,
@@ -3293,7 +3295,7 @@ const App = () => {
     step === STEP.NOTIFICATIONS && React.createElement(NotificationsScreen, { user, onBack: () => setStep(STEP.MENU), ...navProps }),
     step === STEP.APPOINTMENTS && React.createElement(AppointmentsScreen, { user, onBack: () => setStep(STEP.MENU), onStartScreening: handleAppointmentStart, ...navProps }),
     step === STEP.EXISTING_BABY && React.createElement(ExistingBabyLookupScreen, { user, onBack: () => setStep(STEP.MENU), onFound: (d) => { merge({ ...d, screeningId: '', _prefilled: true }); setStep(STEP.BABY); }, ...navProps }),
-    step === STEP.BABY && React.createElement(BabyRegistrationScreen, { user, initialData: record, onBack: () => setStep(record._fromAppointment ? STEP.APPOINTMENTS : (record._prefilled ? STEP.EXISTING_BABY : STEP.MENU)), onNext: d => { merge(d); setStep(STEP.TEST_SELECT); }, onClear: clearBabyData, ...navProps, prefilled: !!record._prefilled }),
+    step === STEP.BABY && React.createElement(BabyRegistrationScreen, { user, initialData: record, onBack: () => setStep(record._fromAppointment ? STEP.APPOINTMENTS : (record._prefilled ? STEP.EXISTING_BABY : STEP.MENU)), onNext: d => { merge(d); setStep(record.appointmentModality === 'AABR' ? STEP.AABR : record.appointmentModality === 'OAE' ? STEP.OAE_TYPE : STEP.TEST_SELECT); }, onClear: clearBabyData, ...navProps, prefilled: !!record._prefilled }),
     step === STEP.TEST_SELECT && React.createElement(TestSelectionScreen, { user, onBack: () => setStep(STEP.BABY), onSelectAABR: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.AABR); }, onSelectOAE: () => { merge({ testStartTime: new Date().toISOString() }); setStep(STEP.OAE_TYPE); }, ...navProps }),
     step === STEP.AABR && React.createElement(AABREntryScreen, { user, initialData: record, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.REC); }, ...navProps }),
     step === STEP.OAE_TYPE && React.createElement(OAETypeScreen, { user, onBack: () => setStep(STEP.TEST_SELECT), onNext: d => { merge(d); setStep(STEP.OAE_PROTOCOL); }, ...navProps }),
