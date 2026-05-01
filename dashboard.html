@@ -2081,7 +2081,10 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
   const [apptTo,setApptTo] = useState(() => { const d = todayDateOnly(); d.setDate(d.getDate()+30); d.setHours(23,59,59,999); return d; });
   const filtered = useMemo(()=>filterAppointmentsByScope(appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo),[appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo]);
   const s = useMemo(()=>calcAppointmentStats(filtered),[filtered]);
-  const activeRows = filtered.slice().sort((a,b)=>(a.appointmentDate+a.appointmentTime).localeCompare(b.appointmentDate+b.appointmentTime));
+  const activeRows = filtered.slice().sort((a,b) => {
+    const cmp = (a.appointmentDate+a.appointmentTime).localeCompare(b.appointmentDate+b.appointmentTime);
+    return apptScope === 'past' ? -cmp : cmp;
+  });
   const appointmentStartDate = (appt) => {
     const [y,m,d] = (appt.appointmentDate || '').split('-').map(Number);
     const [h,min] = (appt.appointmentTime || '').split(':').map(Number);
