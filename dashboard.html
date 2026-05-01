@@ -2073,7 +2073,18 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
   const filtered = useMemo(()=>filterAppointmentsByScope(appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo),[appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo]);
   const s = useMemo(()=>calcAppointmentStats(filtered),[filtered]);
   const activeRows = filtered.slice().sort((a,b)=>(a.appointmentDate+a.appointmentTime).localeCompare(b.appointmentDate+b.appointmentTime));
+  const appointmentStartDate = (appt) => {
+    const [y,m,d] = (appt.appointmentDate || '').split('-').map(Number);
+    const [h,min] = (appt.appointmentTime || '').split(':').map(Number);
+    return new Date(y || 2000, (m || 1) - 1, d || 1, h || 0, min || 0);
+  };
+  const canReassignAppointment = (appt) =>
+    ['booked','rescheduled','screening_started'].includes(appt.status) && appointmentStartDate(appt) > new Date();
   const openReassign = async (appt) => {
+    if (!canReassignAppointment(appt)) {
+      setMsg('Only future active appointments can be reassigned.');
+      return;
+    }
     setMsg(''); setReassigning(appt); setTargetHCW('');
     try { const res = await fetch(`${scriptUrl}?action=getHCWListForHospital&hospitalName=${encodeURIComponent(appt.hospitalName)}`); const json = await res.json(); setHcwOptions(json.status==='success'?(json.data||[]):[]); }
     catch(e) { setHcwOptions([]); setMsg('Unable to load HCW list.'); }
@@ -2119,7 +2130,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
       activeRows.length===0 && h(Card,{style:{textAlign:'center',color:C.slate400,fontSize:13}},'No appointments in the selected filter.'),
       activeRows.map(a=>h(Card,{key:a.appointmentId,style:{marginBottom:10}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'flex-start'}},
         h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},`${a.appointmentDate} · ${a.appointmentTime}`),h('div',{style:{fontSize:12,color:C.slate600,marginTop:3}},`${a.hospitalName} · ${a.babyName||'Walk-in slot'}`),h('div',{style:{fontSize:11,color:C.slate400,marginTop:3}},`HCW: ${a.hcwUsername} · ${a.status}`)),
-        h('button',{onClick:()=>openReassign(a),disabled:a.status==='cancelled',style:{background:C.primary,color:'#fff',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:a.status==='cancelled'?'default':'pointer',opacity:a.status==='cancelled'?0.5:1,fontFamily:'inherit'}},'Reassign')
+        h('button',{onClick:()=>openReassign(a),disabled:!canReassignAppointment(a),title:canReassignAppointment(a)?'Reassign future appointment':'Only future active appointments can be reassigned',style:{background:C.primary,color:'#fff',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,fontWeight:700,cursor:canReassignAppointment(a)?'pointer':'default',opacity:canReassignAppointment(a)?1:0.5,fontFamily:'inherit'}},'Reassign')
       ))),
       reassigning && h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.42)',zIndex:800,display:'flex',alignItems:'flex-end',justifyContent:'center'},onClick:e=>{if(e.target===e.currentTarget)setReassigning(null);}},
         h('div',{style:{background:C.white,borderRadius:'18px 18px 0 0',padding:18,width:'100%',maxWidth:520,boxShadow:'0 -4px 28px rgba(0,0,0,0.18)'}},
