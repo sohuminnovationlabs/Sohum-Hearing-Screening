@@ -437,7 +437,7 @@ const SelectDateScreen = ({ session, onNext, onBack }) => {
             ),
             isToday && React.createElement('div', { className: `w-1.5 h-1.5 rounded-full mx-auto mt-1 ${isSelected ? 'bg-white' : 'bg-primary'}` })
           );
-        })
+        )
       )
     ),
     React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
@@ -472,7 +472,7 @@ const SelectModalityScreen = ({ selectedDate, onNext, onBack }) => {
           React.createElement('p', { className: `text-sm mt-1 ${selected === option.value ? 'text-white/70' : 'text-slate-500'}` },
             'Slot duration is read from the scheduler Config sheet.'
           )
-        })
+        )
       )
     ),
     React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
