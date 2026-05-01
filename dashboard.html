@@ -1318,7 +1318,8 @@ const ImpedanceChart = ({workerImpMap}) => {
 
 // ── AUDIOLOGIST PERFORMANCE ───────────────────────────────────────────────────
 const AudiologyPerformance = ({allRows, audNameMap={}}) => {
-  const reviewRows = (window._reviewsData || []).slice(1); // skip header
+  const allowedScreenIds = new Set(allRows.map(r => r.screenId).filter(Boolean));
+  const reviewRows = (window._reviewsData || []).slice(1).filter(r => allowedScreenIds.has(r[1])); // skip header, keep scoped cases
 
   // Build per-audiologist stats from reviews tab
   const audStats = {};
@@ -1400,7 +1401,7 @@ const AudiologyPerformance = ({allRows, audNameMap={}}) => {
     : [];
   // Build a lookup from screeningId -> main row for enriched detail
   const mainLookup = {};
-  (OFFLINE_DATA.main.slice(1)).forEach(r=>{ if(r[7]) mainLookup[r[7]]=r; });
+  allRows.forEach(r=>{ if(r.screenId) mainLookup[r.screenId]=r; });
 
   const [open, setOpen] = useState(true);
   return h(Card,{style:{marginBottom:12}},
@@ -1468,9 +1469,9 @@ const AudiologyPerformance = ({allRows, audNameMap={}}) => {
         : selCases.map((r,i) => {
             const screenId = r[1];
             const main = mainLookup[screenId];
-            const babyName  = main?main[10]:'—';
-            const hospital  = main?main[4]:'—';
-            const hcwName   = main?main[1]:'—';
+            const babyName  = main?main.babyName:'—';
+            const hospital  = main?main.hospital:'—';
+            const hcwName   = main?main.opName:'—';
             const verdict   = r[3]||'';
             // Parse L/R verdict e.g. "L:PASS / R:REFER" or plain "PASS"
             const lrMatch = verdict.match(/L:\s*(\w*)\s*\/\s*R:\s*(\w*)/i);
@@ -2073,7 +2074,7 @@ const AppointmentMetricsCard = ({appointments,onOpen}) => {
   );
 };
 
-const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onBack,onChanged}) => {
+const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onBack,onChanged,user,hcwAssignments=[]}) => {
   const [reassigning,setReassigning] = useState(null);
   const [rescheduling,setRescheduling] = useState(null);
   const [hcwOptions,setHcwOptions] = useState([]);
@@ -2089,6 +2090,18 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
   const filtered = useMemo(()=>filterAppointmentsByScope(appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo),[appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo]);
   const s = useMemo(()=>calcAppointmentStats(filtered),[filtered]);
   const adminRows = useMemo(() => appointments.filter(a => (!filterHosp || a.hospitalName === filterHosp) && (!filterHCW || a.hcwUsername === filterHCW)), [appointments,filterHosp,filterHCW]);
+  const supervisorHcwOptions = useMemo(() => {
+    if (user?.role !== 'supervisor') return [];
+    const allowed = new Set((user.assignedHCWs || []).map(h => h.toLowerCase()));
+    const fromAssignments = hcwAssignments
+      .filter(hcw => allowed.has((hcw.username || '').toLowerCase()))
+      .map(hcw => ({ username: hcw.username, workerName: hcw.workerName || hcw.username, hospitals: hcw.hospitals || [] }));
+    const known = new Set(fromAssignments.map(h => (h.username || '').toLowerCase()));
+    (user.assignedHCWs || []).forEach(username => {
+      if (!known.has(username.toLowerCase())) fromAssignments.push({ username, workerName: username, hospitals: [] });
+    });
+    return fromAssignments;
+  }, [user, hcwAssignments]);
   const appointmentStartDate = (appt) => {
     const [y,m,d] = (appt.appointmentDate || '').split('-').map(Number);
     const [h,min] = (appt.appointmentTime || '').split(':').map(Number);
@@ -2109,8 +2122,24 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
       return;
     }
     setMsg(''); setReassigning(appt); setTargetHCW('');
-    try { const res = await fetch(`${scriptUrl}?action=getHCWListForHospital&hospitalName=${encodeURIComponent(appt.hospitalName)}`); const json = await res.json(); setHcwOptions(json.status==='success'?(json.data||[]):[]); }
-    catch(e) { setHcwOptions([]); setMsg('Unable to load HCW list.'); }
+    try {
+      const res = await fetch(`${scriptUrl}?action=getHCWListForHospital&hospitalName=${encodeURIComponent(appt.hospitalName)}`);
+      const json = await res.json();
+      let options = json.status==='success'?(json.data||[]):[];
+      if (user?.role === 'supervisor') {
+        const allowed = new Set((user.assignedHCWs || []).map(h => h.toLowerCase()));
+        options = options.filter(hcw => allowed.has((hcw.username || '').toLowerCase()));
+        if (options.length === 0) {
+          options = supervisorHcwOptions.filter(hcw => !hcw.hospitals.length || hcw.hospitals.some(h => h.toLowerCase() === (appt.hospitalName || '').toLowerCase()));
+        }
+        if (options.length === 0) options = supervisorHcwOptions;
+      }
+      setHcwOptions(options);
+    }
+    catch(e) {
+      setHcwOptions(user?.role === 'supervisor' ? supervisorHcwOptions : []);
+      setMsg(user?.role === 'supervisor' ? '' : 'Unable to load HCW list.');
+    }
   };
   const openReschedule = (appt) => {
     if (!canRescheduleAppointment(appt)) {
@@ -3002,6 +3031,8 @@ screen==='appointments' ? h(AppointmentAdminScreen,{
   appointments: allAppointments,
   filterHosp,filterHCW,
   scriptUrl:SCRIPT_URL,
+  user,
+  hcwAssignments,
   onBack:()=>setScreen('overview'),
   onChanged:refreshDashboardData
 }) :
