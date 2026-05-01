@@ -470,7 +470,8 @@ const buildWorkerEfficiency = (rows, baselineRows=rows) => {
       actualValues: [],
       redo: 0,
       attemptTokens: 0,
-      rowsWithRedo: 0
+      rowsWithRedo: 0,
+      buckets: new Set()
     };
     const g = groups[key];
     g.total++;
@@ -483,6 +484,7 @@ const buildWorkerEfficiency = (rows, baselineRows=rows) => {
     g.valid++;
     g.durations.push(x.duration);
     g.bossValues.push(x.duration / Math.max(x.attempts, 1));
+    g.buckets.add(x.attempts);
     if (Number.isFinite(expected)) {
       g.expectedValues.push(expected);
       g.actualValues.push(x.duration);
@@ -499,6 +501,7 @@ const buildWorkerEfficiency = (rows, baselineRows=rows) => {
     const timeDelta = expectedTotal - actualTotal;
     const row = {
       ...g,
+      buckets: [...g.buckets].sort((a,b)=>a-b),
       median,
       avg,
       throughput: median ? 60 / median : null,
@@ -516,7 +519,7 @@ const buildWorkerEfficiency = (rows, baselineRows=rows) => {
   Object.values(groups).forEach(g => {
     if (!combinedMap[g.opId]) combinedMap[g.opId] = {
       opId: g.opId, name: g.name, modality: 'Combined', total: 0, valid: 0, durations: [],
-      bossValues: [], expectedValues: [], actualValues: [], redo: 0, attemptTokens: 0, rowsWithRedo: 0
+      bossValues: [], expectedValues: [], actualValues: [], redo: 0, attemptTokens: 0, rowsWithRedo: 0, buckets: new Set()
     };
     const c = combinedMap[g.opId];
     c.total += g.total;
@@ -528,6 +531,7 @@ const buildWorkerEfficiency = (rows, baselineRows=rows) => {
     c.redo += g.redo;
     c.attemptTokens += g.attemptTokens;
     c.rowsWithRedo += g.rowsWithRedo;
+    g.buckets.forEach(b => c.buckets.add(b));
   });
   byModality.Combined = Object.values(combinedMap).map(g => {
     const median = statMedian(g.durations);
@@ -535,6 +539,7 @@ const buildWorkerEfficiency = (rows, baselineRows=rows) => {
     const actualTotal = g.actualValues.reduce((sum,v)=>sum+v,0);
     return {
       ...g,
+      buckets: [...g.buckets].sort((a,b)=>a-b),
       median,
       avg: statMean(g.durations),
       throughput: median ? 60 / median : null,
@@ -2136,20 +2141,20 @@ const WorkerEfficiencyCard = ({rows,baselineRows}) => {
   const totalRedo = validRows.reduce((sum,r)=>sum+r.redo,0);
   const totalAttemptTokens = validRows.reduce((sum,r)=>sum+r.attemptTokens,0);
   const median = statMedian(allDurations);
+  const mean = statMean(allDurations);
   const bossValues = validRows.flatMap(r => r.bossValues);
   const adjusted = actualTotal > 0 ? expectedTotal / actualTotal * 100 : null;
   const timeDelta = expectedTotal - actualTotal;
-  const coverage = totalRows > 0 ? totalValid / totalRows * 100 : null;
   const redoRate = totalAttemptTokens > 0 ? totalRedo / totalAttemptTokens * 100 : null;
   const throughput = median ? 60 / median : null;
   const boss = statMean(bossValues);
   const deltaText = Number.isFinite(timeDelta)
-    ? `${Math.abs(timeDelta).toFixed(Math.abs(timeDelta) < 10 ? 1 : 0)} min ${timeDelta >= 0 ? 'saved' : 'slower'}`
+    ? `${timeDelta >= 0 ? '+' : '-'}${Math.abs(timeDelta).toFixed(Math.abs(timeDelta) < 10 ? 1 : 0)} min`
     : 'N/A';
   const effColor = v => !Number.isFinite(v) ? C.slate400 : v >= 110 ? C.greenD : v >= 90 ? C.primary : v >= 75 ? C.orange : C.red;
   const deltaColor = v => !Number.isFinite(v) ? C.slate400 : v >= 0 ? C.greenD : C.red;
   const tile = (label,value,sub,col,bg) => h('div',{style:{background:bg||C.slate100,borderRadius:10,padding:'10px 10px'}},
-    h('div',{style:{fontSize:20,fontWeight:800,color:col||C.slate800,lineHeight:1.1}},value),
+    h('div',{style:{fontSize:18,fontWeight:800,color:col||C.slate800,lineHeight:1.1}},value),
     h('div',{style:{fontSize:10,fontWeight:700,color:C.slate700,marginTop:3}},label),
     h('div',{style:{fontSize:9,color:C.slate500,marginTop:2}},sub)
   );
@@ -2173,41 +2178,65 @@ const WorkerEfficiencyCard = ({rows,baselineRows}) => {
           style:{padding:'5px 10px',borderRadius:99,fontSize:11,fontWeight:800,fontFamily:'inherit',cursor:'pointer',
             border:`1px solid ${mode===m?C.primary:C.slate200}`,background:mode===m?C.primary:C.white,color:mode===m?'#fff':C.slate600}},m))
       ),
-      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8,marginBottom:12}},
-        tile('Adjusted Efficiency',fmtPct(adjusted),'peer attempt-bucket baseline',effColor(adjusted),C.accentL),
-        tile('Time Saved/Lost',deltaText,'expected vs actual total',deltaColor(timeDelta),timeDelta>=0?C.greenL:C.redL),
-        tile('Median Time',fmtMinutes(median),`${totalValid} valid cases`,C.slate800,C.slate100),
-        tile('Cases/Hour',Number.isFinite(throughput)?throughput.toFixed(1):'N/A','from median time',C.primary,C.accentL),
-        tile('Boss Metric',fmtMinutes(boss),'time per logged attempt',C.orange,C.orangeL),
-        tile(mode==='OAE'?'Timing Coverage':'Redo Burden',mode==='OAE'?fmtPct(coverage):(Number.isFinite(redoRate)?fmtPct(redoRate):'N/A'),mode==='OAE'?`${totalValid} of ${totalRows} timed`:'REDO tokens / attempts',mode==='OAE'?C.primary:C.red,mode==='OAE'?C.accentL:C.redL)
-      ),
       workerRows.length === 0 ? h('div',{style:{textAlign:'center',fontSize:12,color:C.slate400,padding:'18px 0'}},'No worker efficiency data in this filter.') :
-      h('div',{style:{overflowX:'auto'}},
-        h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:760}},
-          h('thead',{},
-            h('tr',{style:{borderBottom:`1px solid ${C.slate200}`}},
-              ['HCW','Cases','Median','Cases/Hr','Saved/Lost','Adjusted','Boss Metric','Redo','Coverage'].map(label =>
-                h('th',{key:label,style:{textAlign:label==='HCW'?'left':'right',padding:'7px 6px',color:C.slate500,fontWeight:800}},label)
+      h(Fragment,null,
+        h('div',{style:{marginBottom:10}},
+          h(SectionLabel,{style:{marginBottom:2}},'Simple Speed Comparison'),
+          h('div',{style:{fontSize:10,color:C.slate400,marginBottom:6}},'Cases shows valid timed screenings in this filter. Use this section for quick speed comparison.'),
+          h('div',{style:{overflowX:'auto'}},
+            h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:660}},
+              h('thead',{},
+                h('tr',{style:{borderBottom:`1px solid ${C.slate200}`}},
+                  ['HCW','Cases','Median Screening Time','Mean Screening Time','Cases / Hour'].map(label =>
+                    h('th',{key:label,style:{textAlign:label==='HCW'?'left':'right',padding:'7px 6px',color:C.slate500,fontWeight:800}},label)
+                  )
+                )
+              ),
+              h('tbody',{},
+                sortedRows.slice(0,12).map(r => h('tr',{key:`simple-${r.opId}-${r.modality}`,style:{borderBottom:`1px solid ${C.slate100}`}},
+                  h('td',{style:{padding:'8px 6px',fontWeight:700,color:C.slate800,whiteSpace:'nowrap'}},r.name),
+                  h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},r.valid),
+                  h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate700,fontWeight:700}},fmtMinutes(r.median)),
+                  h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},fmtMinutes(r.avg)),
+                  h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},Number.isFinite(r.throughput)?r.throughput.toFixed(1):'N/A')
+                ))
               )
             )
-          ),
-          h('tbody',{},
-            sortedRows.slice(0,12).map(r => h('tr',{key:`${r.opId}-${r.modality}`,style:{borderBottom:`1px solid ${C.slate100}`}},
-              h('td',{style:{padding:'8px 6px',fontWeight:700,color:C.slate800,whiteSpace:'nowrap'}},r.name),
-              h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},`${r.valid}/${r.total}`),
-              h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate700,fontWeight:700}},fmtMinutes(r.median)),
-              h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},Number.isFinite(r.throughput)?r.throughput.toFixed(1):'N/A'),
-              h('td',{style:{padding:'8px 6px',textAlign:'right',color:deltaColor(r.timeDelta),fontWeight:800}},
-                Number.isFinite(r.timeDelta)?`${Math.abs(r.timeDelta).toFixed(Math.abs(r.timeDelta)<10?1:0)} ${r.timeDelta>=0?'saved':'slower'}`:'N/A'),
-              h('td',{style:{padding:'8px 6px',textAlign:'right',color:effColor(r.efficiency),fontWeight:800}},fmtPct(r.efficiency)),
-              h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},fmtMinutes(r.boss)),
-              h('td',{style:{padding:'8px 6px',textAlign:'right',color:Number.isFinite(r.redoRate)&&r.redoRate>20?C.red:C.slate600}},Number.isFinite(r.redoRate)?fmtPct(r.redoRate):'N/A'),
-              h('td',{style:{padding:'8px 6px',textAlign:'right',color:Number.isFinite(r.coverage)&&r.coverage<70?C.orange:C.slate600}},fmtPct(r.coverage))
-            ))
+        ),
+        h('div',{style:{marginTop:14,marginBottom:10}},
+          h(SectionLabel,{style:{marginBottom:2}},'Context Metrics'),
+          h('div',{style:{fontSize:10,color:C.slate400,marginBottom:8}},'These explain whether speed is fair or inflated by repeat attempts.'),
+          h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}},
+            tile('Attempt-Adjusted Efficiency',fmtPct(adjusted),'Formula: expected time for the same modality and attempt count / actual time. A 2-attempt AABR is compared with other 2-attempt AABRs, not with 1-attempt cases. Above 100% means faster than expected.',effColor(adjusted),C.accentL),
+            tile('Expected - Actual Time',deltaText,'Formula: expected total time - actual total time. Expected time uses the median time for the same modality and attempt count. Positive means time saved; negative means slower than expected.',deltaColor(timeDelta),timeDelta>=0?C.greenL:C.redL),
+            tile('Time Per Attempt',fmtMinutes(boss),'Formula: screening duration / logged attempt count. Multiple REDO attempts may bring down this value, so read it in context with Redo Burden.',C.orange,C.orangeL),
+            tile('Redo Burden',Number.isFinite(redoRate)?fmtPct(redoRate):'N/A',mode==='OAE'?'OAE repeat attempts are not reliably logged yet.':'Formula: REDO tokens / total AABR attempt tokens. Higher means more repeated AABR attempts.',C.red,C.redL)
           )
         ),
-        h('div',{style:{fontSize:9,color:C.slate400,marginTop:8}},
-          'Boss Metric divides duration by logged attempts. Adjusted Efficiency and Saved/Lost compare each case to peer baselines for the same modality and attempt bucket.'
+        h('div',{style:{marginTop:12}},
+          h(SectionLabel,{style:{marginBottom:2}},'Context Metric Comparison by HCW'),
+          h('div',{style:{fontSize:10,color:C.slate400,marginBottom:6}},'Compare the same context metrics worker by worker.'),
+          h('div',{style:{overflowX:'auto'}},
+            h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:760}},
+              h('thead',{},
+                h('tr',{style:{borderBottom:`1px solid ${C.slate200}`}},
+                  ['HCW','Attempt-Adjusted Efficiency','Expected - Actual Time','Time Per Attempt','Redo Burden'].map(label =>
+                    h('th',{key:label,style:{textAlign:label==='HCW'?'left':'right',padding:'7px 6px',color:C.slate500,fontWeight:800}},label)
+                  )
+                )
+              ),
+              h('tbody',{},
+                sortedRows.slice(0,12).map(r => h('tr',{key:`context-${r.opId}-${r.modality}`,style:{borderBottom:`1px solid ${C.slate100}`}},
+                  h('td',{style:{padding:'8px 6px',fontWeight:700,color:C.slate800,whiteSpace:'nowrap'}},r.name),
+                  h('td',{style:{padding:'8px 6px',textAlign:'right',color:effColor(r.efficiency),fontWeight:800}},fmtPct(r.efficiency)),
+                  h('td',{style:{padding:'8px 6px',textAlign:'right',color:deltaColor(r.timeDelta),fontWeight:800}},
+                    Number.isFinite(r.timeDelta)?`${r.timeDelta>=0?'+':'-'}${Math.abs(r.timeDelta).toFixed(Math.abs(r.timeDelta)<10?1:0)} min`:'N/A'),
+                  h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},fmtMinutes(r.boss)),
+                  h('td',{style:{padding:'8px 6px',textAlign:'right',color:Number.isFinite(r.redoRate)&&r.redoRate>20?C.red:C.slate600}},Number.isFinite(r.redoRate)?fmtPct(r.redoRate):'N/A')
+                ))
+              )
+            )
+          )
         )
       )
     )
@@ -2666,10 +2695,15 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
   const s = useMemo(() => calcStats(rows), [rows]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showViewMenu,    setShowViewMenu]    = useState(false);
-  const ALL_CARD_KEYS   = ['trend','heatmap','donut','refer','redo','hcwEfficiency','deviceQuality','oaeSignal','impedance','audFunnel','audPerf','gestAge','riskFactors'];
+  const ALL_CARD_KEYS   = ['trend','heatmap','donut','refer','hcwEfficiency','appointments','deviceQuality','oaeSignal','impedance','audFunnel','audPerf','gestAge','riskFactors'];
   const ADMIN_ONLY_KEYS = new Set(['deviceQuality']);
-  const CARD_KEYS = user.role==='admin' ? ALL_CARD_KEYS : ALL_CARD_KEYS.filter(k=>!ADMIN_ONLY_KEYS.has(k));
-  const CARD_LABELS  = {trend:'Screenings Over Time',heatmap:'Screening Heatmap',donut:'Test Type Distribution',refer:'Refer Rate',redo:'REDO Rate',hcwEfficiency:'HCW Worker Efficiency',deviceQuality:'Device & Screening Quality (Admin)',oaeSignal:'OAE Signal Quality',impedance:'Impedance Overview',audFunnel:'Audiologist Review Stack',audPerf:'Audiologist Performance',gestAge:'Gestational Age Profile',riskFactors:'Risk Factor Distribution'};
+  const APPOINTMENT_KEYS = new Set(['appointments']);
+  const CARD_KEYS = ALL_CARD_KEYS.filter(k => {
+    if (ADMIN_ONLY_KEYS.has(k) && user.role !== 'admin') return false;
+    if (APPOINTMENT_KEYS.has(k) && user.role !== 'admin' && user.role !== 'supervisor') return false;
+    return true;
+  });
+  const CARD_LABELS  = {trend:'Screenings Over Time',heatmap:'Screening Heatmap',donut:'Test Type Distribution',refer:'Refer Rate',hcwEfficiency:'HCW Worker Efficiency',appointments:'Appointment Scheduling',deviceQuality:'Device & Screening Quality (Admin)',oaeSignal:'OAE Signal Quality',impedance:'Impedance Overview',audFunnel:'Audiologist Review Stack',audPerf:'Audiologist Performance',gestAge:'Gestational Age Profile',riskFactors:'Risk Factor Distribution'};
   const [vis, setVis] = useState(() => Object.fromEntries(CARD_KEYS.map(k=>[k,true])));
   const toggleVis = k => setVis(v=>({...v,[k]:!v[k]}));
 
@@ -2691,7 +2725,7 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
             fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',height:34}},
             '👁 View'),
 
-          showViewMenu && h('div',{className:'dm-view-menu',style:{position:'fixed',top:120,right:20,background:'#fff',borderRadius:12,
+          showViewMenu && h('div',{className:'dm-view-menu',style:{position:'absolute',top:40,left:0,background:'#fff',borderRadius:12,
             boxShadow:'0 8px 32px rgba(0,0,0,0.18)',padding:'8px 0',zIndex:500,minWidth:240,maxHeight:'calc(100vh - 140px)',overflowY:'auto',border:`1px solid ${C.slate200}`}},
             CARD_KEYS.map(k => h('div',{key:k,onClick:e=>{e.stopPropagation();toggleVis(k);},
               style:{display:'flex',alignItems:'center',gap:10,padding:'8px 14px',cursor:'pointer',fontSize:13,color:C.slate700},
@@ -2740,14 +2774,13 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
         // Right column
         h('div',{},
           vis.donut         && h(DonutChart,{aabr:s.aabr,oae:s.oae,total:s.total}),
-          vis.redo          && h(RedoRateChart,{workerRedoMap:s.workerRedoMap}),
           vis.impedance     && h(ImpedanceChart,{workerImpMap:s.workerImpMap}),
           vis.gestAge       && h(GestationalAgeCard,{s}),
           vis.riskFactors   && h(RiskFactorCard,{s})
         )
       ),
       // Full-width cards
-      (user.role === 'admin' || user.role === 'supervisor') && h(AppointmentMetricsCard,{appointments:allAppointments,onOpen:onAppointments}),
+      vis.appointments && (user.role === 'admin' || user.role === 'supervisor') && h(AppointmentMetricsCard,{appointments:allAppointments,onOpen:onAppointments}),
       vis.hcwEfficiency && h(WorkerEfficiencyCard,{rows,baselineRows:allRows}),
       vis.deviceQuality && h(AdvancedRedoCard,{s,isAdmin:user.role==='admin'}),
       vis.oaeSignal && h(OAESignalQualityCard,{rows}),
