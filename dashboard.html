@@ -391,6 +391,165 @@ const countAttempts = (row) => {
   return { total, redo };
 };
 
+const statMedian = vals => {
+  const arr = vals.filter(v => Number.isFinite(v)).slice().sort((a,b)=>a-b);
+  if (!arr.length) return null;
+  const mid = Math.floor(arr.length / 2);
+  return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+};
+const statMean = vals => {
+  const arr = vals.filter(v => Number.isFinite(v));
+  return arr.length ? arr.reduce((sum,v)=>sum+v,0) / arr.length : null;
+};
+const fmtMinutes = v => Number.isFinite(v) ? `${v.toFixed(v < 10 ? 1 : 0)} min` : 'N/A';
+const fmtPct = v => Number.isFinite(v) ? `${Math.round(v)}%` : 'N/A';
+
+const parseLoggedTime = value => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+};
+
+const workerEfficiencyAttemptStats = row => {
+  if (row.testType === 'OAE') return { attempts: 1, burden: 1, redo: 0, hasRedo: false };
+  let maxAttempts = 0, burden = 0, redo = 0;
+  for (let i = 22; i <= 29; i++) {
+    const tokens = expandAttempts(row.raw[i]).filter(x => x === 'PASS' || x === 'REFER' || x === 'REDO');
+    if (tokens.length) {
+      maxAttempts = Math.max(maxAttempts, tokens.length);
+      burden += tokens.length;
+      redo += tokens.filter(x => x === 'REDO').length;
+    }
+  }
+  return { attempts: Math.max(maxAttempts, 1), burden: Math.max(burden, 1), redo, hasRedo: redo > 0 };
+};
+
+const buildWorkerEfficiency = (rows, baselineRows=rows) => {
+  const toItems = sourceRows => sourceRows.map(row => {
+    const modality = row.testType === 'OAE' ? 'OAE' : row.testType === 'AABR' ? 'AABR' : null;
+    const start = parseLoggedTime(row.raw[47]);
+    const end = parseLoggedTime(row.raw[48]);
+    const duration = start && end ? (end - start) / 60000 : null;
+    const attempts = workerEfficiencyAttemptStats(row);
+    const validDuration = Number.isFinite(duration) && duration > 0 && duration <= 120;
+    return { row, modality, duration, validDuration, ...attempts };
+  }).filter(x => x.modality && x.row.opId);
+
+  const baselineItems = toItems(baselineRows).filter(x => x.validDuration);
+  const bucketDurations = {};
+  const modalityDurations = {};
+  baselineItems.forEach(x => {
+    const bucket = `${x.modality}|${x.attempts}`;
+    if (!bucketDurations[bucket]) bucketDurations[bucket] = [];
+    if (!modalityDurations[x.modality]) modalityDurations[x.modality] = [];
+    bucketDurations[bucket].push(x.duration);
+    modalityDurations[x.modality].push(x.duration);
+  });
+  const bucketMedian = {};
+  Object.keys(bucketDurations).forEach(k => { bucketMedian[k] = statMedian(bucketDurations[k]); });
+  const modalityMedian = {};
+  Object.keys(modalityDurations).forEach(k => { modalityMedian[k] = statMedian(modalityDurations[k]); });
+
+  const displayItems = toItems(rows);
+  const groups = {};
+  displayItems.forEach(x => {
+    const key = `${x.row.opId}|${x.modality}`;
+    if (!groups[key]) groups[key] = {
+      opId: x.row.opId,
+      name: x.row.opName || x.row.opId,
+      modality: x.modality,
+      total: 0,
+      valid: 0,
+      durations: [],
+      bossValues: [],
+      expectedValues: [],
+      actualValues: [],
+      redo: 0,
+      attemptTokens: 0,
+      rowsWithRedo: 0
+    };
+    const g = groups[key];
+    g.total++;
+    g.redo += x.redo;
+    g.attemptTokens += x.modality === 'AABR' ? x.burden : 0;
+    if (x.hasRedo) g.rowsWithRedo++;
+    if (!x.validDuration) return;
+    const bucket = `${x.modality}|${x.attempts}`;
+    const expected = bucketMedian[bucket] ?? modalityMedian[x.modality];
+    g.valid++;
+    g.durations.push(x.duration);
+    g.bossValues.push(x.duration / Math.max(x.attempts, 1));
+    if (Number.isFinite(expected)) {
+      g.expectedValues.push(expected);
+      g.actualValues.push(x.duration);
+    }
+  });
+
+  const byModality = { AABR: [], OAE: [], Combined: [] };
+  Object.values(groups).forEach(g => {
+    const median = statMedian(g.durations);
+    const avg = statMean(g.durations);
+    const expectedTotal = g.expectedValues.reduce((sum,v)=>sum+v,0);
+    const actualTotal = g.actualValues.reduce((sum,v)=>sum+v,0);
+    const efficiency = actualTotal > 0 ? expectedTotal / actualTotal * 100 : null;
+    const timeDelta = expectedTotal - actualTotal;
+    const row = {
+      ...g,
+      median,
+      avg,
+      throughput: median ? 60 / median : null,
+      boss: statMean(g.bossValues),
+      efficiency,
+      timeDelta,
+      redoRate: g.attemptTokens > 0 ? g.redo / g.attemptTokens * 100 : null,
+      redoRowsRate: g.total > 0 ? g.rowsWithRedo / g.total * 100 : null,
+      coverage: g.total > 0 ? g.valid / g.total * 100 : null
+    };
+    byModality[g.modality].push(row);
+  });
+
+  const combinedMap = {};
+  Object.values(groups).forEach(g => {
+    if (!combinedMap[g.opId]) combinedMap[g.opId] = {
+      opId: g.opId, name: g.name, modality: 'Combined', total: 0, valid: 0, durations: [],
+      bossValues: [], expectedValues: [], actualValues: [], redo: 0, attemptTokens: 0, rowsWithRedo: 0
+    };
+    const c = combinedMap[g.opId];
+    c.total += g.total;
+    c.valid += g.valid;
+    c.durations.push(...g.durations);
+    c.bossValues.push(...g.bossValues);
+    c.expectedValues.push(...g.expectedValues);
+    c.actualValues.push(...g.actualValues);
+    c.redo += g.redo;
+    c.attemptTokens += g.attemptTokens;
+    c.rowsWithRedo += g.rowsWithRedo;
+  });
+  byModality.Combined = Object.values(combinedMap).map(g => {
+    const median = statMedian(g.durations);
+    const expectedTotal = g.expectedValues.reduce((sum,v)=>sum+v,0);
+    const actualTotal = g.actualValues.reduce((sum,v)=>sum+v,0);
+    return {
+      ...g,
+      median,
+      avg: statMean(g.durations),
+      throughput: median ? 60 / median : null,
+      boss: statMean(g.bossValues),
+      efficiency: actualTotal > 0 ? expectedTotal / actualTotal * 100 : null,
+      timeDelta: expectedTotal - actualTotal,
+      redoRate: g.attemptTokens > 0 ? g.redo / g.attemptTokens * 100 : null,
+      redoRowsRate: g.total > 0 ? g.rowsWithRedo / g.total * 100 : null,
+      coverage: g.total > 0 ? g.valid / g.total * 100 : null
+    };
+  });
+  Object.keys(byModality).forEach(k => byModality[k].sort((a,b) => (b.efficiency||0) - (a.efficiency||0)));
+  return byModality;
+};
+
 const earToBilateral = (row) => {
   const lSlots = [row[22], row[23], row[24], row[25]];
   const rSlots = [row[26], row[27], row[28], row[29]];
@@ -1961,6 +2120,100 @@ const OAESignalQualityCard = ({rows}) => {
 
 
 // ── OVERVIEW SCREEN ───────────────────────────────────────────────────────────
+const WorkerEfficiencyCard = ({rows,baselineRows}) => {
+  const [open, setOpen] = useState(true);
+  const [mode, setMode] = useState('AABR');
+  const data = useMemo(() => buildWorkerEfficiency(rows, baselineRows), [rows, baselineRows]);
+  const workerRows = data[mode] || [];
+  const validRows = workerRows.filter(r => r.valid > 0);
+  if (!rows.some(r => r.testType === 'AABR' || r.testType === 'OAE')) return null;
+
+  const allDurations = validRows.flatMap(r => r.durations);
+  const expectedTotal = validRows.reduce((sum,r)=>sum + r.expectedValues.reduce((a,b)=>a+b,0),0);
+  const actualTotal = validRows.reduce((sum,r)=>sum + r.actualValues.reduce((a,b)=>a+b,0),0);
+  const totalValid = validRows.reduce((sum,r)=>sum+r.valid,0);
+  const totalRows = workerRows.reduce((sum,r)=>sum+r.total,0);
+  const totalRedo = validRows.reduce((sum,r)=>sum+r.redo,0);
+  const totalAttemptTokens = validRows.reduce((sum,r)=>sum+r.attemptTokens,0);
+  const median = statMedian(allDurations);
+  const bossValues = validRows.flatMap(r => r.bossValues);
+  const adjusted = actualTotal > 0 ? expectedTotal / actualTotal * 100 : null;
+  const timeDelta = expectedTotal - actualTotal;
+  const coverage = totalRows > 0 ? totalValid / totalRows * 100 : null;
+  const redoRate = totalAttemptTokens > 0 ? totalRedo / totalAttemptTokens * 100 : null;
+  const throughput = median ? 60 / median : null;
+  const boss = statMean(bossValues);
+  const deltaText = Number.isFinite(timeDelta)
+    ? `${Math.abs(timeDelta).toFixed(Math.abs(timeDelta) < 10 ? 1 : 0)} min ${timeDelta >= 0 ? 'saved' : 'slower'}`
+    : 'N/A';
+  const effColor = v => !Number.isFinite(v) ? C.slate400 : v >= 110 ? C.greenD : v >= 90 ? C.primary : v >= 75 ? C.orange : C.red;
+  const deltaColor = v => !Number.isFinite(v) ? C.slate400 : v >= 0 ? C.greenD : C.red;
+  const tile = (label,value,sub,col,bg) => h('div',{style:{background:bg||C.slate100,borderRadius:10,padding:'10px 10px'}},
+    h('div',{style:{fontSize:20,fontWeight:800,color:col||C.slate800,lineHeight:1.1}},value),
+    h('div',{style:{fontSize:10,fontWeight:700,color:C.slate700,marginTop:3}},label),
+    h('div',{style:{fontSize:9,color:C.slate500,marginTop:2}},sub)
+  );
+  const sortedRows = workerRows.slice().sort((a,b) => {
+    const av = Number.isFinite(a.timeDelta) ? a.timeDelta : -Infinity;
+    const bv = Number.isFinite(b.timeDelta) ? b.timeDelta : -Infinity;
+    return bv - av;
+  });
+
+  return h(Card,{style:{marginBottom:12}},
+    h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:open?12:0,gap:10}},
+      h('div',{},
+        h(SectionLabel,{style:{marginBottom:0}},'HCW Worker Efficiency'),
+        h('div',{style:{fontSize:9,color:C.slate400,marginTop:1}},'Complexity-adjusted timing from logged start and submit timestamps')
+      ),
+      h('button',{onClick:()=>setOpen(o=>!o),style:{background:'none',border:'none',cursor:'pointer',color:C.slate400,fontSize:18,padding:'0 4px',fontFamily:'inherit'}},open?'-':'+')
+    ),
+    open && h('div',{},
+      h('div',{style:{display:'flex',gap:5,flexWrap:'wrap',marginBottom:10}},
+        ['AABR','OAE','Combined'].map(m => h('button',{key:m,className:'pill-btn',onClick:()=>setMode(m),
+          style:{padding:'5px 10px',borderRadius:99,fontSize:11,fontWeight:800,fontFamily:'inherit',cursor:'pointer',
+            border:`1px solid ${mode===m?C.primary:C.slate200}`,background:mode===m?C.primary:C.white,color:mode===m?'#fff':C.slate600}},m))
+      ),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8,marginBottom:12}},
+        tile('Adjusted Efficiency',fmtPct(adjusted),'peer attempt-bucket baseline',effColor(adjusted),C.accentL),
+        tile('Time Saved/Lost',deltaText,'expected vs actual total',deltaColor(timeDelta),timeDelta>=0?C.greenL:C.redL),
+        tile('Median Time',fmtMinutes(median),`${totalValid} valid cases`,C.slate800,C.slate100),
+        tile('Cases/Hour',Number.isFinite(throughput)?throughput.toFixed(1):'N/A','from median time',C.primary,C.accentL),
+        tile('Boss Metric',fmtMinutes(boss),'time per logged attempt',C.orange,C.orangeL),
+        tile(mode==='OAE'?'Timing Coverage':'Redo Burden',mode==='OAE'?fmtPct(coverage):(Number.isFinite(redoRate)?fmtPct(redoRate):'N/A'),mode==='OAE'?`${totalValid} of ${totalRows} timed`:'REDO tokens / attempts',mode==='OAE'?C.primary:C.red,mode==='OAE'?C.accentL:C.redL)
+      ),
+      workerRows.length === 0 ? h('div',{style:{textAlign:'center',fontSize:12,color:C.slate400,padding:'18px 0'}},'No worker efficiency data in this filter.') :
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:760}},
+          h('thead',{},
+            h('tr',{style:{borderBottom:`1px solid ${C.slate200}`}},
+              ['HCW','Cases','Median','Cases/Hr','Saved/Lost','Adjusted','Boss Metric','Redo','Coverage'].map(label =>
+                h('th',{key:label,style:{textAlign:label==='HCW'?'left':'right',padding:'7px 6px',color:C.slate500,fontWeight:800}},label)
+              )
+            )
+          ),
+          h('tbody',{},
+            sortedRows.slice(0,12).map(r => h('tr',{key:`${r.opId}-${r.modality}`,style:{borderBottom:`1px solid ${C.slate100}`}},
+              h('td',{style:{padding:'8px 6px',fontWeight:700,color:C.slate800,whiteSpace:'nowrap'}},r.name),
+              h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},`${r.valid}/${r.total}`),
+              h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate700,fontWeight:700}},fmtMinutes(r.median)),
+              h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},Number.isFinite(r.throughput)?r.throughput.toFixed(1):'N/A'),
+              h('td',{style:{padding:'8px 6px',textAlign:'right',color:deltaColor(r.timeDelta),fontWeight:800}},
+                Number.isFinite(r.timeDelta)?`${Math.abs(r.timeDelta).toFixed(Math.abs(r.timeDelta)<10?1:0)} ${r.timeDelta>=0?'saved':'slower'}`:'N/A'),
+              h('td',{style:{padding:'8px 6px',textAlign:'right',color:effColor(r.efficiency),fontWeight:800}},fmtPct(r.efficiency)),
+              h('td',{style:{padding:'8px 6px',textAlign:'right',color:C.slate600}},fmtMinutes(r.boss)),
+              h('td',{style:{padding:'8px 6px',textAlign:'right',color:Number.isFinite(r.redoRate)&&r.redoRate>20?C.red:C.slate600}},Number.isFinite(r.redoRate)?fmtPct(r.redoRate):'N/A'),
+              h('td',{style:{padding:'8px 6px',textAlign:'right',color:Number.isFinite(r.coverage)&&r.coverage<70?C.orange:C.slate600}},fmtPct(r.coverage))
+            ))
+          )
+        ),
+        h('div',{style:{fontSize:9,color:C.slate400,marginTop:8}},
+          'Boss Metric divides duration by logged attempts. Adjusted Efficiency and Saved/Lost compare each case to peer baselines for the same modality and attempt bucket.'
+        )
+      )
+    )
+  );
+};
+
 const parseAppointments = (rawData) => {
   if (!rawData || rawData.length <= 1) return [];
   return rawData.slice(1).filter(r => r[0]).map(r => ({
@@ -2413,10 +2666,10 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
   const s = useMemo(() => calcStats(rows), [rows]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showViewMenu,    setShowViewMenu]    = useState(false);
-  const ALL_CARD_KEYS   = ['trend','heatmap','donut','refer','redo','deviceQuality','oaeSignal','impedance','audFunnel','audPerf','gestAge','riskFactors'];
+  const ALL_CARD_KEYS   = ['trend','heatmap','donut','refer','redo','hcwEfficiency','deviceQuality','oaeSignal','impedance','audFunnel','audPerf','gestAge','riskFactors'];
   const ADMIN_ONLY_KEYS = new Set(['deviceQuality']);
   const CARD_KEYS = user.role==='admin' ? ALL_CARD_KEYS : ALL_CARD_KEYS.filter(k=>!ADMIN_ONLY_KEYS.has(k));
-  const CARD_LABELS  = {trend:'Screenings Over Time',heatmap:'Screening Heatmap',donut:'Test Type Distribution',refer:'Refer Rate',redo:'REDO Rate',deviceQuality:'Device & Screening Quality (Admin)',oaeSignal:'OAE Signal Quality',impedance:'Impedance Overview',audFunnel:'Audiologist Review Stack',audPerf:'Audiologist Performance',gestAge:'Gestational Age Profile',riskFactors:'Risk Factor Distribution'};
+  const CARD_LABELS  = {trend:'Screenings Over Time',heatmap:'Screening Heatmap',donut:'Test Type Distribution',refer:'Refer Rate',redo:'REDO Rate',hcwEfficiency:'HCW Worker Efficiency',deviceQuality:'Device & Screening Quality (Admin)',oaeSignal:'OAE Signal Quality',impedance:'Impedance Overview',audFunnel:'Audiologist Review Stack',audPerf:'Audiologist Performance',gestAge:'Gestational Age Profile',riskFactors:'Risk Factor Distribution'};
   const [vis, setVis] = useState(() => Object.fromEntries(CARD_KEYS.map(k=>[k,true])));
   const toggleVis = k => setVis(v=>({...v,[k]:!v[k]}));
 
@@ -2495,6 +2748,7 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
       ),
       // Full-width cards
       (user.role === 'admin' || user.role === 'supervisor') && h(AppointmentMetricsCard,{appointments:allAppointments,onOpen:onAppointments}),
+      vis.hcwEfficiency && h(WorkerEfficiencyCard,{rows,baselineRows:allRows}),
       vis.deviceQuality && h(AdvancedRedoCard,{s,isAdmin:user.role==='admin'}),
       vis.oaeSignal && h(OAESignalQualityCard,{rows}),
 
