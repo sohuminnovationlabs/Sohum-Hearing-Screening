@@ -397,7 +397,7 @@ const earToBilateral = (row) => {
   return earTested(lSlots) && earTested(rSlots);
 };
 
-const parseRows = (rawData, ngoFilter) => {
+const parseRows = (rawData, ngoFilter, supervisorMap={}) => {
   const rows = rawData.slice(1); // skip header
   return rows.filter(r => r[2] && r[2] !== 'Operator ID' && (!ngoFilter || r[3] === ngoFilter))
     .map(r => ({
@@ -405,6 +405,7 @@ const parseRows = (rawData, ngoFilter) => {
       ts:        new Date(r[0]),
       opName:    r[1]||'',
       opId:      r[2]||'',
+      supervisor: supervisorMap[(r[2]||'').toString().trim().toLowerCase()] || '',
       ngo:       r[3]||'',
       screenId:  r[7]||'',
       hospital:  r[4]||'',
@@ -576,7 +577,7 @@ const screeningEfficiency = totalConclusive>0 ? (totalAttempts/totalConclusive).
   const referRate = totalTested > 0 ? Math.round((totalRefer / totalTested) * 100) : 0;
 
   // Entity maps for drill-down
-  const hospMap = {}, ngoMap = {}, deviceMap = {}, workerMap = {};
+  const hospMap = {}, ngoMap = {}, deviceMap = {}, workerMap = {}, supervisorMap = {};
   rows.forEach(r => {
     const add = (map, key, displayName) => {
       if (!map[key]) map[key] = { displayName: displayName||key, rows: [] };
@@ -586,6 +587,7 @@ const screeningEfficiency = totalConclusive>0 ? (totalAttempts/totalConclusive).
     if (r.ngo) add(ngoMap, r.ngo);
     if (r.device) add(deviceMap, r.device);
     if (r.opId) add(workerMap, r.opId, r.opName||r.opId);
+    if (r.supervisor) add(supervisorMap, r.supervisor);
   });
 
   // Screenings over time (by week)
@@ -637,7 +639,7 @@ const screeningEfficiency = totalConclusive>0 ? (totalAttempts/totalConclusive).
     preterm, term, rfCounts,
     flaggedTotal: flaggedRows.length, revPending, revCompleted, revPhotoReq, revPhotoRec, revUrgent,
     audQueueMap,
-    hospMap, ngoMap, deviceMap, workerMap,
+    hospMap, ngoMap, deviceMap, workerMap, supervisorMap,
     weeklyData, dailyData,
     uniqueHospitals: Object.keys(hospMap).length,
     uniqueWorkers:   Object.keys(workerMap).length,
@@ -2180,7 +2182,7 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
   }[status || ''] || {label:(status || 'Unknown').toString().replace(/_/g,' '), bg:C.slate100, color:C.slate500});
   const StatusPill = ({status}) => {
     const meta = statusMeta(status);
-    return h('span',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',borderRadius:999,padding:'4px 9px',background:meta.bg,color:meta.color,fontSize:10,fontWeight:800,whiteSpace:'nowrap',textTransform:'none'}},meta.label);
+    return h('span',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',borderRadius:999,padding:'4px 9px',background:meta.bg,color:meta.color,fontSize:10,fontWeight:800,whiteSpace:'normal',textTransform:'none',maxWidth:118,textAlign:'center',lineHeight:1.15}},meta.label);
   };
   const QueueRows = () => h(Fragment,null,
     h(SectionLabel,{style:{paddingLeft:2}},'Appointment Queue'),
@@ -2209,10 +2211,10 @@ const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onB
         h('div',{style:{fontSize:13,fontWeight:800,color:C.slate800}},stackBy === 'status' ? statusMeta(key).label : key),
         h('div',{style:{fontSize:18,fontWeight:800,color:C.primary}},rows.length)
       ),
-      rows.map(a => h('div',{key:a.appointmentId,style:{display:'grid',gridTemplateColumns:'92px 1fr 82px',gap:8,alignItems:'center',padding:'8px 0',borderTop:`1px solid ${C.slate100}`}},
+      rows.map(a => h('div',{key:a.appointmentId,style:{display:'grid',gridTemplateColumns:'92px minmax(0,1fr) minmax(112px,max-content)',gap:8,alignItems:'center',padding:'8px 0',borderTop:`1px solid ${C.slate100}`}},
         h('div',{style:{fontSize:12,fontWeight:800,color:C.slate700}},`${a.appointmentDate.slice(5)} ${a.appointmentTime}`),
         h('div',{style:{minWidth:0}},h('div',{style:{fontSize:12,color:C.slate700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},a.babyName||'Walk-in slot'),h('div',{style:{fontSize:10,color:C.slate400,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},`${a.hospitalName} - ${a.hcwUsername}`)),
-        h('div',{style:{textAlign:'right'}},h(StatusPill,{status:a.status}))
+        h('div',{style:{textAlign:'right',minWidth:0,overflow:'hidden'}},h(StatusPill,{status:a.status}))
       ))
     ))
   );
@@ -2329,7 +2331,7 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
     showViewMenu && h('div',{style:{position:'fixed',inset:0,zIndex:199},onClick:()=>setShowViewMenu(false)}),
     showExportModal && h(ExportModal,{allRows,userNgo:user.role==='admin'?null:user.ngo,isAdmin:user.role==='admin',onClose:()=>setShowExportModal(false)}),
     h(AppHeader,{title:'Dashboard',subtitle:`Welcome, ${user.name}`,
-      topLabel: user.role==='admin' ? 'Sohum Innovation Labs' : user.ngo,
+      topLabel: user.role==='admin' ? 'Sohum Innovation Labs' : user.role==='supervisor' ? 'Sohum Supervisor' : user.ngo,
       onLogout,userName:user.name},
       h('div',{style:{display:'flex',gap:8,marginTop:12,alignSelf:'flex-start',position:'relative',alignItems:'center',flexWrap:'wrap'}},
         h('button',{onClick:()=>setShowExportModal(true),style:{background:'rgba(255,255,255,0.15)',
@@ -2399,7 +2401,7 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
         )
       ),
       // Full-width cards
-      user.role === 'admin' && h(AppointmentMetricsCard,{appointments:allAppointments,onOpen:onAppointments}),
+      (user.role === 'admin' || user.role === 'supervisor') && h(AppointmentMetricsCard,{appointments:allAppointments,onOpen:onAppointments}),
       vis.deviceQuality && h(AdvancedRedoCard,{s,isAdmin:user.role==='admin'}),
       vis.oaeSignal && h(OAESignalQualityCard,{rows}),
 
@@ -2409,6 +2411,7 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
       h(SectionLabel,{style:{paddingLeft:2}},'Drill Down'),
       [
         user.role==='admin' && {icon:'🤝',label:'By NGO / CSR Partner',   sub:`${s.uniqueNGOs} partners`,   type:'ngo'},
+        user.role==='admin' && {icon:'🧭',label:'By Supervisor', sub:`${Object.keys(s.supervisorMap||{}).length} supervisors`, type:'supervisor'},
         {icon:'🏥',label:'By Hospital',             sub:`${s.uniqueHospitals} locations`,type:'hospital'},
         {icon:'📱',label:'By Device',               sub:`${s.uniqueDevices} devices`,    type:'device'},
         {icon:'👤',label:'By Healthcare Worker',    sub:`${s.uniqueWorkers} operators`,  type:'worker'},
@@ -2436,7 +2439,7 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
           h('svg',{xmlns:'http://www.w3.org/2000/svg',width:16,height:16,viewBox:'0 0 24 24',fill:'none',stroke:C.slate300,strokeWidth:2},h('path',{d:'m9 18 6-6-6-6'}))
         )
       ),
-      user.role === 'admin' && h(Card,{style:{marginBottom:10},onClick:onAppointments},
+      (user.role === 'admin' || user.role === 'supervisor') && h(Card,{style:{marginBottom:10},onClick:onAppointments},
         h('div',{style:{display:'flex',alignItems:'center',gap:12}},
           h('div',{style:{width:42,height:42,borderRadius:12,background:C.tealL,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}},'Cal'),
           h('div',{style:{flex:1}},
@@ -2452,9 +2455,9 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
 
 // ── DRILL LIST SCREEN ─────────────────────────────────────────────────────────
 const DrillListScreen = ({user,type,rows,onSelect,onBack}) => {
-  const labels = {hospital:'Hospital',device:'Device',ngo:'NGO / CSR Partner',worker:'Healthcare Worker'};
+  const labels = {hospital:'Hospital',device:'Device',ngo:'NGO / CSR Partner',worker:'Healthcare Worker',supervisor:'Supervisor'};
   const s = useMemo(() => calcStats(rows), [rows]);
-  const map = type==='hospital'?s.hospMap:type==='device'?s.deviceMap:type==='ngo'?s.ngoMap:s.workerMap;
+  const map = type==='hospital'?s.hospMap:type==='device'?s.deviceMap:type==='ngo'?s.ngoMap:type==='supervisor'?s.supervisorMap:s.workerMap;
   const sorted = Object.entries(map).sort((a,b) => b[1].rows.length - a[1].rows.length);
 
   return h('div',{className:'fade-in',style:{minHeight:'100vh',paddingBottom:60}},
@@ -2491,7 +2494,7 @@ const DrillListScreen = ({user,type,rows,onSelect,onBack}) => {
 // ── ENTITY DETAIL SCREEN ──────────────────────────────────────────────────────
 const EntityDetailScreen = ({type,entityKey,rows,onBack}) => {
   const s = useMemo(() => calcStats(rows), [rows]);
-  const titles = {hospital:'Hospital',device:'Device',ngo:'NGO / CSR Partner',worker:'Healthcare Worker'};
+  const titles = {hospital:'Hospital',device:'Device',ngo:'NGO / CSR Partner',worker:'Healthcare Worker',supervisor:'Supervisor'};
   const name = type==='worker' ? (rows[0]?.opName||entityKey) : entityKey;
 
   const aoutcomes = [
@@ -2857,10 +2860,9 @@ const App = () => {
       if (!res.ok) return { ok:false, message:`Login request failed (${res.status}).` };
       const json = await res.json();
       if (json.status === 'success' && json.role) {
-        // Map notes field: 'Full Access' → admin, anything else → scoped NGO name
-        const role = json.role === 'admin' ? 'admin' : 'ngo';
-        const ngo  = role === 'ngo' ? json.ngo || null : null;
-        const u = { username, name: json.name, role, ngo };
+        const role = json.role === 'admin' ? 'admin' : json.role === 'supervisor' ? 'supervisor' : 'ngo';
+        const ngo  = role === 'ngo' || role === 'supervisor' ? json.ngo || null : null;
+        const u = { username, name: json.name, role, ngo, assignedHCWs: json.assignedHCWs || [] };
         setUser(u);
         setScreen('overview');
         return { ok:true, user:u };
@@ -2884,7 +2886,7 @@ const App = () => {
     ]).then(([dataJson, audJson]) => {
       if (dataJson.status === 'success') {
         window._reviewsData = dataJson.reviews;
-        setRawData({ main: dataJson.main, reviews: dataJson.reviews, appointments: dataJson.appointments || [[]] });
+        setRawData({ main: dataJson.main, reviews: dataJson.reviews, appointments: dataJson.appointments || [[]], hcwAssignments: dataJson.hcwAssignments || [] });
       } else {
         setLoadError(dataJson.message || 'Failed to load data');
       }
@@ -2902,9 +2904,25 @@ const App = () => {
 
   const rawMain = rawData?.main || [];
   const rawAppointments = rawData?.appointments || [[]];
+  const hcwAssignments = rawData?.hcwAssignments || [];
+  const hcwSupervisorMap = useMemo(() => {
+    const map = {};
+    hcwAssignments.forEach(h => { if (h.username && h.supervisor) map[h.username.toString().trim().toLowerCase()] = h.supervisor; });
+    return map;
+  }, [hcwAssignments]);
 
-  const allRows = useMemo(() => parseRows(rawMain, user?.ngo || null), [rawData, user]);
-  const allAppointments = useMemo(() => parseAppointments(rawAppointments), [rawData]);
+  const allRows = useMemo(() => {
+    const parsed = parseRows(rawMain, user?.ngo || null, hcwSupervisorMap);
+    if (user?.role !== 'supervisor') return parsed;
+    const allowed = new Set((user.assignedHCWs || []).map(h => h.toLowerCase()));
+    return parsed.filter(r => allowed.has((r.opId || '').toLowerCase()));
+  }, [rawData, user, hcwSupervisorMap]);
+  const allAppointments = useMemo(() => {
+    const parsed = parseAppointments(rawAppointments);
+    if (user?.role !== 'supervisor') return parsed;
+    const allowed = new Set((user.assignedHCWs || []).map(h => h.toLowerCase()));
+    return parsed.filter(a => allowed.has((a.hcwUsername || '').toLowerCase()));
+  }, [rawData, user]);
 
   const rows = useMemo(() => {
     let filtered = allRows.filter(r => r.ts >= dateFrom && r.ts <= dateTo);
@@ -2923,7 +2941,7 @@ const App = () => {
   const refreshDashboardData = () => fetch(`${SCRIPT_URL}?action=getDashboardData`).then(r=>r.json()).then(d=>{
     if (d.status === 'success') {
       window._reviewsData = d.reviews;
-      setRawData({ main:d.main, reviews:d.reviews, appointments:d.appointments || [[]] });
+      setRawData({ main:d.main, reviews:d.reviews, appointments:d.appointments || [[]], hcwAssignments: d.hcwAssignments || [] });
     }
   });
 
