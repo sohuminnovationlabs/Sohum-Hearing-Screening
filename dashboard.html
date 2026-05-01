@@ -1996,6 +1996,23 @@ const filterAppointments = (appointments,dateFrom,dateTo,filterHosp,filterHCW) =
     return d >= dateFrom && d <= dateTo && (!filterHosp || a.hospitalName === filterHosp) && (!filterHCW || a.hcwUsername === filterHCW);
   });
 
+const todayDateOnly = () => {
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  return d;
+};
+
+const filterAppointmentsByScope = (appointments,scope,filterHosp,filterHCW,customFrom,customTo) =>
+  appointments.filter(a => {
+    const d = apptDateObj(a.appointmentDate);
+    const today = todayDateOnly();
+    let inScope = true;
+    if (scope === 'upcoming') inScope = d >= today;
+    else if (scope === 'past') inScope = d < today || ['completed','no_show','no_show_unresolved'].includes(a.status);
+    else if (scope === 'custom') inScope = d >= customFrom && d <= customTo;
+    return inScope && (!filterHosp || a.hospitalName === filterHosp) && (!filterHCW || a.hcwUsername === filterHCW);
+  });
+
 const calcAppointmentStats = (appointments) => {
   const byHospital = {}, byHCW = {}, byStatus = {};
   appointments.forEach(a => {
@@ -2013,10 +2030,11 @@ const calcAppointmentStats = (appointments) => {
 };
 
 const AppointmentMetricsCard = ({appointments,onOpen}) => {
-  const s = calcAppointmentStats(appointments);
+  const scoped = filterAppointmentsByScope(appointments,'upcoming','','');
+  const s = calcAppointmentStats(scoped);
   return h(Card,{style:{marginBottom:12},onClick:onOpen},
     h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginBottom:12}},
-      h('div',{},h(SectionLabel,{style:{marginBottom:2}},'Appointment Scheduling'),h('div',{style:{fontSize:11,color:C.slate400}},'Bookings in the current dashboard filter')),
+      h('div',{},h(SectionLabel,{style:{marginBottom:2}},'Appointment Scheduling'),h('div',{style:{fontSize:11,color:C.slate400}},'Upcoming bookings, independent of screening date filter')),
       h('div',{style:{width:38,height:38,borderRadius:10,background:C.primary,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800}},s.total)
     ),
     h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}},
@@ -2027,12 +2045,15 @@ const AppointmentMetricsCard = ({appointments,onOpen}) => {
   );
 };
 
-const AppointmentAdminScreen = ({appointments,dateFrom,dateTo,filterHosp,filterHCW,scriptUrl,onBack,onChanged}) => {
+const AppointmentAdminScreen = ({appointments,filterHosp,filterHCW,scriptUrl,onBack,onChanged}) => {
   const [reassigning,setReassigning] = useState(null);
   const [hcwOptions,setHcwOptions] = useState([]);
   const [targetHCW,setTargetHCW] = useState('');
   const [msg,setMsg] = useState('');
-  const filtered = useMemo(()=>filterAppointments(appointments,dateFrom,dateTo,filterHosp,filterHCW),[appointments,dateFrom,dateTo,filterHosp,filterHCW]);
+  const [apptScope,setApptScope] = useState('upcoming');
+  const [apptFrom,setApptFrom] = useState(todayDateOnly());
+  const [apptTo,setApptTo] = useState(() => { const d = todayDateOnly(); d.setDate(d.getDate()+30); d.setHours(23,59,59,999); return d; });
+  const filtered = useMemo(()=>filterAppointmentsByScope(appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo),[appointments,apptScope,filterHosp,filterHCW,apptFrom,apptTo]);
   const s = useMemo(()=>calcAppointmentStats(filtered),[filtered]);
   const activeRows = filtered.slice().sort((a,b)=>(a.appointmentDate+a.appointmentTime).localeCompare(b.appointmentDate+b.appointmentTime));
   const openReassign = async (appt) => {
@@ -2063,6 +2084,18 @@ const AppointmentAdminScreen = ({appointments,dateFrom,dateTo,filterHosp,filterH
     h('div',{style:{padding:'14px 14px 0'}},
       h(BackBtn,{onClick:onBack}),
       msg && h('div',{style:{fontSize:12,color:msg.includes('failed')||msg.includes('error')||msg.includes('Unable')?C.red:C.green,marginBottom:10}},msg),
+      h(Card,{style:{marginBottom:12,padding:12}},
+        h('div',{style:{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}},
+          [['upcoming','Upcoming'],['past','Past / Closed'],['all','All'],['custom','Custom']].map(([key,label]) =>
+            h('button',{key,onClick:()=>setApptScope(key),style:{padding:'6px 10px',border:'none',borderRadius:99,cursor:'pointer',fontSize:11,fontWeight:700,fontFamily:'inherit',background:apptScope===key?C.primary:C.slate100,color:apptScope===key?'#fff':C.slate600}},label)
+          )
+        ),
+        apptScope==='custom' && h('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+          h('input',{type:'date',value:toInputDate(apptFrom),onChange:e=>{ const d=new Date(e.target.value); d.setHours(0,0,0,0); setApptFrom(d); },style:{flex:1,background:C.slate100,border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,color:C.slate800,fontFamily:'inherit'}}),
+          h('span',{style:{fontSize:12,color:C.slate400}},'to'),
+          h('input',{type:'date',value:toInputDate(apptTo),onChange:e=>{ const d=new Date(e.target.value); d.setHours(23,59,59,999); setApptTo(d); },style:{flex:1,background:C.slate100,border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,color:C.slate800,fontFamily:'inherit'}})
+        )
+      ),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:12}},h(KpiCard,{value:s.total,label:'Bookings'}),h(KpiCard,{value:s.active,label:'Active',color:C.green}),h(KpiCard,{value:s.cancelled,label:'Cancelled',color:C.slate500}),h(KpiCard,{value:s.noShow,label:'No-show',color:C.red})),
       h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'start'}},groupCard('By Hospital',s.byHospital),groupCard('By HCW',s.byHCW)),
       h(SectionLabel,{style:{paddingLeft:2}},'Appointment Queue'),
@@ -2088,7 +2121,7 @@ const AppointmentAdminScreen = ({appointments,dateFrom,dateTo,filterHosp,filterH
 const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
   dateFrom,dateTo,setDateFrom,setDateTo,activePreset,setActivePreset,
   filterNGO,setFilterNGO,filterHosp,setFilterHosp,filterHCW,setFilterHCW,filterDevice,setFilterDevice,
-  audNameMap={},appointments=[],onAppointments}) => {
+  audNameMap={},appointments=[],allAppointments=[],onAppointments}) => {
 
   const s = useMemo(() => calcStats(rows), [rows]);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -2174,7 +2207,7 @@ const OverviewScreen = ({user,rows,allRows,onDrill,onLogout,onAudQueue,
         )
       ),
       // Full-width cards
-      user.role === 'admin' && h(AppointmentMetricsCard,{appointments,onOpen:onAppointments}),
+      user.role === 'admin' && h(AppointmentMetricsCard,{appointments:allAppointments,onOpen:onAppointments}),
       vis.deviceQuality && h(AdvancedRedoCard,{s,isAdmin:user.role==='admin'}),
       vis.oaeSignal && h(OAESignalQualityCard,{rows}),
 
@@ -2731,7 +2764,7 @@ const App = () => {
     h(Watermark),
     screen==='login'    ? h(LoginScreen,{onLogin:handleLogin}) :
     screen==='overview' ? h(OverviewScreen,{user,rows,allRows,...sharedDateProps,...sharedFilterProps,
-      audNameMap,appointments,
+      audNameMap,appointments,allAppointments,
       onLogout:()=>{setUser(null);setScreen('login');},
       onDrill:type=>{ if(type==='audiologist'){setScreen('audperf');}else{setDrillType(type);setScreen('drill');} },
       onAudQueue:()=>setScreen('audqueue'),
@@ -2756,7 +2789,7 @@ screen==='audqueue' ? h(AudQueueScreen,{
 }) :
 screen==='appointments' ? h(AppointmentAdminScreen,{
   appointments: allAppointments,
-  dateFrom,dateTo,filterHosp,filterHCW,
+  filterHosp,filterHCW,
   scriptUrl:SCRIPT_URL,
   onBack:()=>setScreen('overview'),
   onChanged:refreshDashboardData
