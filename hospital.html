@@ -70,12 +70,12 @@ const MODALITY_OPTIONS = [
   { value: 'OAE', label: 'OAE' },
 ];
 const modalityLabel = (value) => (MODALITY_OPTIONS.find(m => m.value === value) || {}).label || value || '';
-const slotCacheKey = (hospitalName, hospitalUsername, date, modality = '') => `${hospitalName}__${hospitalUsername || ''}__${date}__${modality}`;
+const slotCacheKey = (hospitalName, date, modality = '') => `${hospitalName}__${date}__${modality}`;
 
-const getSlotsCached = async (hospitalName, hospitalUsername, date, modality) => {
-  const key = slotCacheKey(hospitalName, hospitalUsername, date, modality);
+const getSlotsCached = async (hospitalName, date, modality) => {
+  const key = slotCacheKey(hospitalName, date, modality);
   if (slotCache.has(key)) return slotCache.get(key);
-  const promise = apiGet({ action: 'getAvailableSlots', hospitalName, hospitalUsername, date, modality });
+  const promise = apiGet({ action: 'getAvailableSlots', hospitalName, date, modality });
   slotCache.set(key, promise);
   try {
     const data = await promise;
@@ -546,7 +546,7 @@ const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) =
     const load = async () => {
       setLoading(true); setError('');
       try {
-        const data = await getSlotsCached(session.hospitalName, session.hospitalUsername, selectedDate, modality);
+        const data = await getSlotsCached(session.hospitalName, selectedDate, modality);
         if (data.status === 'success') {
           setSlots(data.slots || []);
           setBookingPolicy(data.bookingPolicy || null);
@@ -568,7 +568,7 @@ const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) =
   });
   const available = visibleSlots.filter(s => s.availableNow);
   const selectedSlot = visibleSlots.find(s => s.time === selected);
-  const requiresBulkHelp = bookingPolicy && bookingPolicy.requiresBulk;
+  const requiresBlockHelp = bookingPolicy && bookingPolicy.requiresMinimumBlock;
 
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, {
@@ -583,12 +583,12 @@ const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) =
         React.createElement('p', { className: 'font-medium' }, error)
       ) :
       React.createElement('div', { className: 'fade-in' },
-        requiresBulkHelp && showPolicyHelp && React.createElement('div', { className: 'bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4' },
+        requiresBlockHelp && showPolicyHelp && React.createElement('div', { className: 'bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4' },
           React.createElement('div', { className: 'flex items-start justify-between gap-3' },
             React.createElement('div', {},
               React.createElement('p', { className: 'text-sm font-semibold text-blue-900' }, 'Minimum booking block'),
               React.createElement('p', { className: 'text-xs text-blue-700 leading-relaxed mt-1' },
-                `To keep healthcare worker travel and setup time efficient, this hospital books a minimum ${bookingPolicy.minimumBookingMinutes}-minute block unless the new slot continues an existing booking window.`
+                `This hospital is configured to reserve at least ${bookingPolicy.minimumBookingMinutes} minutes for the first booking of the day. After that, additional slots can be booked one at a time.`
               )
             ),
             React.createElement('button', { type: 'button', onClick: () => setShowPolicyHelp(false), className: 'text-xs font-semibold text-blue-700 flex-shrink-0' }, 'Hide')
@@ -624,7 +624,7 @@ const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) =
               React.createElement('p', { className: `text-xs mt-0.5 ${!s.availableNow ? 'text-slate-400' : selected === s.time ? 'text-white/70' : 'text-slate-400'}` },
                 s.availableNow ? formatTime12(s.time).split(' ')[1] : s.expired ? 'Passed' : 'Booked'
               ),
-              s.availableNow && s.requiresBulk && React.createElement('p', { className: `text-[10px] mt-1 ${selected === s.time ? 'text-white/80' : 'text-blue-500'}` },
+              s.availableNow && s.requiresMinimumBlock && React.createElement('p', { className: `text-[10px] mt-1 ${selected === s.time ? 'text-white/80' : 'text-blue-500'}` },
                 `${s.bookingDuration} min block`
               )
             )
@@ -763,8 +763,8 @@ const ConfirmScreen = ({ session, selectedDate, selectedTime, selectedSlot, moda
       ),
       React.createElement('div', { className: 'bg-blue-50 border border-blue-100 rounded-xl p-4' },
         React.createElement('p', { className: 'text-xs text-blue-700 leading-relaxed' },
-          selectedSlot && selectedSlot.requiresBulk
-            ? 'This booking reserves a longer block because your hospital is configured for minimum block bookings. Email confirmation and the calendar invite are prepared just after the booking is saved.'
+          selectedSlot && selectedSlot.requiresMinimumBlock
+            ? 'This booking reserves the configured minimum block. Email confirmation and the calendar invite are prepared just after the booking is saved.'
             : 'The slot is reserved immediately. Email confirmation and the calendar invite are prepared just after the booking is saved.'
         )
       )
@@ -971,7 +971,7 @@ const App = () => {
         fast: true
       });
       if (data.status === 'success') {
-        slotCache.delete(slotCacheKey(session.hospitalName, session.hospitalUsername, booking.date, booking.modality));
+        slotCache.delete(slotCacheKey(session.hospitalName, booking.date, booking.modality));
         setBookingResult({ appointmentId: data.appointmentId, assignedHCWName: data.assignedHCWName });
         setScreen('success');
         apiPost({ action: 'finalizeAppointment', appointmentId: data.appointmentId })
@@ -1040,7 +1040,6 @@ const App = () => {
     screen === 'babyDetails' && React.createElement(BabyDetailsScreen, {
       selectedDate: booking.date,
       selectedTime: booking.time,
-      selectedSlot: booking.selectedSlot,
       modality: booking.modality,
       onBack: () => setScreen('selectTime'),
       onNext: (babyDetails) => {
