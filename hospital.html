@@ -9,7 +9,7 @@
     tailwind.config = {
       theme: {
         extend: {
-          colors: { primary: '#202B5D', secondary: '#F3F4F6' },
+          colors: { primary: '#1E40AF', navy: '#0F172A', secondary: '#F8FAFC' },
           fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
         }
       }
@@ -17,11 +17,17 @@
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    body { margin: 0; background: #eef2f7; display: flex; justify-content: center; min-height: 100vh; font-family: 'Inter', system-ui, sans-serif; color: #111827; }
-    #root { width: 100%; max-width: 520px; background: linear-gradient(180deg,#ffffff 0%,#f8fafc 100%); min-height: 100vh; box-shadow: 0 24px 60px rgba(32,43,93,0.14); position: relative; overflow-x: hidden; }
+    body { margin: 0; background: #F8FAFC; min-height: 100vh; font-family: 'Inter', system-ui, sans-serif; color: #1E293B; }
+    #root { width: 100%; min-height: 100vh; background: #F8FAFC; position: relative; overflow-x: hidden; }
     ::-webkit-scrollbar { width: 0px; background: transparent; }
     .slot-btn { transition: all 0.15s ease; }
     .slot-btn:active { transform: scale(0.97); }
+    .clinical-fixed-bottom { left: 0; }
+    @media (min-width: 1024px) {
+      .clinical-shell-main { padding-left: 256px; }
+      .clinical-fixed-bottom { left: 256px; }
+      .clinical-screen { max-width: 1180px; margin: 0 auto; }
+    }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     .fade-in { animation: fadeIn 0.25s ease forwards; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -64,12 +70,12 @@ const MODALITY_OPTIONS = [
   { value: 'OAE', label: 'OAE' },
 ];
 const modalityLabel = (value) => (MODALITY_OPTIONS.find(m => m.value === value) || {}).label || value || '';
-const slotCacheKey = (hospitalName, date, modality = '') => `${hospitalName}__${date}__${modality}`;
+const slotCacheKey = (hospitalName, hospitalUsername, date, modality = '') => `${hospitalName}__${hospitalUsername || ''}__${date}__${modality}`;
 
-const getSlotsCached = async (hospitalName, date, modality) => {
-  const key = slotCacheKey(hospitalName, date, modality);
+const getSlotsCached = async (hospitalName, hospitalUsername, date, modality) => {
+  const key = slotCacheKey(hospitalName, hospitalUsername, date, modality);
   if (slotCache.has(key)) return slotCache.get(key);
-  const promise = apiGet({ action: 'getAvailableSlots', hospitalName, date, modality });
+  const promise = apiGet({ action: 'getAvailableSlots', hospitalName, hospitalUsername, date, modality });
   slotCache.set(key, promise);
   try {
     const data = await promise;
@@ -148,17 +154,17 @@ const statusLabel = (s) => {
 const Card = ({ children, className = '', onClick }) =>
   React.createElement('div', {
     onClick,
-    className: `bg-white rounded-lg shadow-[0_8px_24px_rgba(15,23,42,0.06)] border border-slate-100 p-5 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99]' : ''} ${className}`
+    className: `bg-white rounded-[2rem] shadow-[0_24px_60px_rgba(32,43,93,0.08)] border border-slate-200 p-6 ${onClick ? 'cursor-pointer hover:shadow-[0_24px_60px_rgba(32,43,93,0.12)] transition-shadow active:scale-[0.99]' : ''} ${className}`
   }, children);
 
 const Button = ({ children, onClick, variant = 'primary', disabled = false, loading = false, size = 'normal' }) =>
   React.createElement('button', {
     onClick, disabled: disabled || loading,
-    className: `w-full font-medium transition-all flex items-center justify-center gap-2
-      ${size === 'sm' ? 'py-2.5 px-4 text-sm rounded-lg' : 'py-3.5 px-6 rounded-lg'}
-      ${variant === 'primary' ? 'bg-primary text-white hover:bg-primary/90 disabled:bg-gray-300' : ''}
-      ${variant === 'secondary' ? 'bg-secondary text-gray-700 hover:bg-gray-300' : ''}
-      ${variant === 'danger' ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' : ''}
+    className: `w-full font-semibold transition-all flex items-center justify-center gap-2
+      ${size === 'sm' ? 'py-2.5 px-4 text-sm rounded-xl' : 'py-3.5 px-6 rounded-xl'}
+      ${variant === 'primary' ? 'bg-navy text-white hover:bg-slate-800 disabled:bg-slate-300' : ''}
+      ${variant === 'secondary' ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : ''}
+      ${variant === 'danger' ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200' : ''}
       ${disabled || loading ? 'cursor-not-allowed' : 'active:scale-95'}`
   },
     loading && React.createElement('svg', { className: 'spinner w-4 h-4', viewBox: '0 0 24 24', fill: 'none' },
@@ -169,22 +175,22 @@ const Button = ({ children, onClick, variant = 'primary', disabled = false, load
 
 const Input = ({ label, error, required, ...props }) =>
   React.createElement('div', { className: 'space-y-1.5' },
-    label && React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1 block' },
+    label && React.createElement('label', { className: 'text-[10px] font-black uppercase tracking-[0.1em] text-slate-500 ml-1 block' },
       label, required && React.createElement('span', { className: 'text-red-500' }, ' *')
     ),
     React.createElement('input', {
       ...props,
-      className: `w-full bg-slate-100 border border-transparent rounded-lg px-4 py-3.5 text-gray-800 placeholder:text-gray-400
-        focus:outline-none focus:ring-2 focus:ring-primary/20 ${props.className || ''}`
+      className: `w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3.5 text-slate-800 placeholder:text-slate-400
+        focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/25 ${props.className || ''}`
     }),
     error && React.createElement('span', { className: 'text-xs text-red-500 ml-1' }, error)
   );
 
 const Header = ({ title, subtitle, onBack, rightAction }) =>
-  React.createElement('div', { className: 'bg-primary text-white pt-6 pb-7 px-6 rounded-b-[1.75rem] shadow-[0_18px_32px_rgba(32,43,93,0.22)] relative' },
+  React.createElement('div', { className: 'clinical-screen bg-white border-b border-slate-200 px-6 lg:px-8 py-6 relative' },
     onBack && React.createElement('button', {
       onClick: onBack,
-      className: 'absolute left-5 top-5 w-10 h-10 rounded-lg bg-white/10 hover:bg-white/15 transition-colors flex items-center justify-center',
+      className: 'absolute left-5 top-5 w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition-colors flex items-center justify-center',
       title: 'Back',
       'aria-label': 'Back'
     },
@@ -193,15 +199,15 @@ const Header = ({ title, subtitle, onBack, rightAction }) =>
       )
     ),
     rightAction,
-    React.createElement('div', { className: `flex items-center gap-3 ${onBack ? 'pt-14' : 'pt-7'}` },
-      React.createElement('div', { className: 'w-11 h-11 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0' },
-        React.createElement('svg', { className: 'w-5 h-5 text-white', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+    React.createElement('div', { className: `flex items-center gap-4 ${onBack ? 'pt-12 lg:pt-0 lg:pl-14' : ''}` },
+      React.createElement('div', { className: 'w-12 h-12 rounded-xl bg-blue-50 text-blue-800 flex items-center justify-center flex-shrink-0' },
+        React.createElement('svg', { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' })
          )
       ),
       React.createElement('div', {},
-        React.createElement('h1', { className: 'text-2xl font-bold leading-tight tracking-normal' }, title),
-        subtitle && React.createElement('p', { className: 'text-white/75 text-sm mt-1' }, subtitle)
+        React.createElement('h1', { className: 'text-[30px] font-bold leading-tight tracking-tight text-slate-800' }, title),
+        subtitle && React.createElement('p', { className: 'text-slate-500 text-sm font-medium mt-1' }, subtitle)
       )
     )
   );
@@ -225,6 +231,49 @@ const Spinner = () =>
   );
 
 // ─── SCREEN: Login ────────────────────────────────────────────────
+const Sidebar = ({ session, screen, onHome, onBookNew, onViewAppointments, onLogout }) => {
+  const navItems = [
+    ['home', 'Overview', onHome],
+    ['book', 'New Booking', onBookNew],
+    ['appointments', 'Appointments', onViewAppointments],
+  ];
+  const activeKey = screen === 'appointments' ? 'appointments' : ['selectDate','selectModality','selectTime','babyDetails','confirmBooking','success'].includes(screen) ? 'book' : 'home';
+  return React.createElement('aside', { className: 'hidden lg:flex fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-30 flex-col' },
+    React.createElement('div', { className: 'px-6 py-6 border-b border-slate-200' },
+      React.createElement('div', { className: 'w-11 h-11 rounded-xl bg-navy text-white flex items-center justify-center mb-4' },
+        React.createElement('svg', { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2.5, d: 'M9 12h6m-3-3v6m9-3a9 9 0 11-18 0 9 9 0 0118 0z' })
+        )
+      ),
+      React.createElement('p', { className: 'text-[10px] font-black uppercase tracking-[0.1em] text-slate-500' }, 'Sohum'),
+      React.createElement('h2', { className: 'text-lg font-bold text-slate-900 mt-1 leading-snug' }, 'Hospital Portal')
+    ),
+    React.createElement('nav', { className: 'flex-1 px-4 py-5 space-y-1' },
+      navItems.map(([key, label, handler]) =>
+        React.createElement('button', {
+          key,
+          onClick: handler,
+          className: `w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-colors ${activeKey === key ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`
+        },
+          React.createElement('span', { className: `w-2 h-2 rounded-full ${activeKey === key ? 'bg-blue-700' : 'bg-slate-300'}` }),
+          label
+        )
+      )
+    ),
+    React.createElement('div', { className: 'p-5 border-t border-slate-200' },
+      React.createElement('p', { className: 'text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 mb-1' }, 'Signed in'),
+      React.createElement('p', { className: 'text-sm font-bold text-slate-800 leading-snug mb-4' }, session.hospitalName),
+      React.createElement(Button, { variant: 'secondary', size: 'sm', onClick: onLogout }, 'Log Out')
+    )
+  );
+};
+
+const AppShell = ({ session, screen, onHome, onBookNew, onViewAppointments, onLogout, children }) =>
+  React.createElement('div', { className: 'min-h-screen bg-slate-50' },
+    React.createElement(Sidebar, { session, screen, onHome, onBookNew, onViewAppointments, onLogout }),
+    React.createElement('main', { className: 'clinical-shell-main min-h-screen' }, children)
+  );
+
 const LoginScreen = ({ onLogin }) => {
   const [form, setForm] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -263,7 +312,7 @@ const LoginScreen = ({ onLogin }) => {
         'Book neonatal hearing screening appointments for your patients. Sign in with your hospital credentials to get started.'
       )
     ),
-    React.createElement('div', { className: 'flex-1 px-6 py-8' },
+    React.createElement('div', { className: 'flex-1 px-6 py-8 max-w-[480px] mx-auto w-full' },
       React.createElement(Card, {},
         React.createElement('h2', { className: 'text-lg font-semibold text-gray-800 mb-5' }, 'Sign In'),
         React.createElement('div', { className: 'space-y-4' },
@@ -319,7 +368,7 @@ const HomeScreen = ({ session, onBookNew, onViewAppointments, onLogout }) => {
   const todayAppts = upcoming.filter(a => a.appointmentDate === todayStr);
 
   return React.createElement('div', { className: 'min-h-screen pb-8' },
-    React.createElement('div', { className: 'bg-primary text-white pt-12 pb-6 px-6 rounded-b-[2rem] shadow-md relative' },
+    React.createElement('div', { className: 'clinical-screen bg-navy lg:bg-transparent text-white lg:text-slate-800 pt-12 lg:pt-8 pb-6 px-6 lg:px-8 rounded-b-[2rem] lg:rounded-none shadow-md lg:shadow-none relative' },
       React.createElement('button', {
         onClick: onLogout,
         className: 'absolute right-6 top-14 text-white/70 hover:text-white transition-colors',
@@ -344,11 +393,11 @@ const HomeScreen = ({ session, onBookNew, onViewAppointments, onLogout }) => {
         React.createElement('p', { className: 'text-white/70 text-xs' }, 'appointment' + (todayAppts.length !== 1 ? 's' : '') + ' scheduled')
       )
     ),
-    React.createElement('div', { className: 'px-6 pt-6 space-y-4' },
+    React.createElement('div', { className: 'clinical-screen px-6 lg:px-8 pt-6 space-y-4' },
       React.createElement('div', { className: 'grid grid-cols-2 gap-3' },
         React.createElement('button', {
           onClick: onBookNew,
-          className: 'bg-primary text-white rounded-2xl p-5 text-left active:scale-[0.98] transition-all shadow-sm hover:bg-primary/90'
+          className: 'bg-navy text-white rounded-[2rem] p-5 text-left active:scale-[0.98] transition-all shadow-[0_24px_60px_rgba(32,43,93,0.14)] hover:bg-slate-800'
         },
           React.createElement('div', { className: 'w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center mb-3' },
             React.createElement('svg', { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
@@ -360,7 +409,7 @@ const HomeScreen = ({ session, onBookNew, onViewAppointments, onLogout }) => {
         ),
         React.createElement('button', {
           onClick: onViewAppointments,
-          className: 'bg-secondary text-gray-800 rounded-2xl p-5 text-left active:scale-[0.98] transition-all shadow-sm hover:bg-gray-200 border border-gray-100'
+          className: 'bg-white text-slate-800 rounded-[2rem] p-5 text-left active:scale-[0.98] transition-all shadow-[0_24px_60px_rgba(32,43,93,0.08)] hover:bg-slate-50 border border-slate-200'
         },
           React.createElement('div', { className: 'w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center mb-3' },
             React.createElement('svg', { className: 'w-5 h-5 text-primary', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
@@ -415,9 +464,9 @@ const SelectDateScreen = ({ session, onNext, onBack }) => {
 
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, { title: 'Select Date', subtitle: `Booking for ${session.hospitalName}`, onBack }),
-    React.createElement('div', { className: 'px-6 pt-6' },
-      React.createElement('p', { className: 'text-sm text-gray-500 mb-4' }, 'Appointments available Monday to Saturday. Select a date to view available time slots.'),
-      React.createElement('div', { className: 'grid grid-cols-4 gap-2' },
+    React.createElement('div', { className: 'clinical-screen px-6 lg:px-8 pt-6' },
+      React.createElement('p', { className: 'text-sm text-slate-500 font-medium mb-4' }, 'Appointments available Monday to Saturday. Select a date to view available time slots.'),
+      React.createElement('div', { className: 'grid grid-cols-4 md:grid-cols-7 gap-2' },
         dates.map(dateStr => {
           const d = new Date(dateStr + 'T00:00:00');
           const isToday = dateStr === dates[0];
@@ -425,8 +474,8 @@ const SelectDateScreen = ({ session, onNext, onBack }) => {
           return React.createElement('button', {
             key: dateStr,
             onClick: () => selectDate(dateStr),
-            className: `slot-btn rounded-2xl py-3 px-2 text-center transition-all
-              ${isSelected ? 'bg-primary text-white shadow-md' : 'bg-secondary text-gray-700 hover:bg-gray-200 border border-gray-100'}`
+            className: `slot-btn rounded-xl py-3 px-2 text-center transition-all
+              ${isSelected ? 'bg-primary text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}`
           },
             React.createElement('p', { className: `text-xs font-medium mb-1 ${isSelected ? 'text-white/70' : 'text-gray-400'}` },
               dayAbbr[d.getDay()]
@@ -440,7 +489,7 @@ const SelectDateScreen = ({ session, onNext, onBack }) => {
         })
       )
     ),
-    React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+    React.createElement('div', { className: 'clinical-fixed-bottom fixed bottom-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg' },
       React.createElement('div', { className: 'max-w-[480px] mx-auto' },
         React.createElement(Button, { onClick: () => onNext(selected), disabled: !selected },
           selected ? `Continue — ${formatDate(selected)}` : 'Select a Date'
@@ -460,12 +509,12 @@ const SelectModalityScreen = ({ selectedDate, onNext, onBack }) => {
       subtitle: formatDate(selectedDate),
       onBack
     }),
-    React.createElement('div', { className: 'px-6 pt-6 space-y-3' },
+    React.createElement('div', { className: 'clinical-screen px-6 lg:px-8 pt-6 space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0' },
       MODALITY_OPTIONS.map(option =>
         React.createElement('button', {
           key: option.value,
           onClick: () => setSelected(option.value),
-          className: `w-full rounded-2xl border p-5 text-left transition-all slot-btn
+          className: `w-full rounded-[2rem] border p-6 text-left transition-all slot-btn
             ${selected === option.value ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-slate-700 border-slate-200 shadow-sm'}`
         },
           React.createElement('p', { className: 'text-lg font-bold' }, option.label),
@@ -475,7 +524,7 @@ const SelectModalityScreen = ({ selectedDate, onNext, onBack }) => {
         )
       )
     ),
-    React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+    React.createElement('div', { className: 'clinical-fixed-bottom fixed bottom-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg' },
       React.createElement('div', { className: 'max-w-[480px] mx-auto' },
         React.createElement(Button, { onClick: () => onNext(selected), disabled: !selected },
           selected ? `Continue - ${modalityLabel(selected)}` : 'Select a Modality'
@@ -487,6 +536,8 @@ const SelectModalityScreen = ({ selectedDate, onNext, onBack }) => {
 
 const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) => {
   const [slots, setSlots] = useState([]);
+  const [bookingPolicy, setBookingPolicy] = useState(null);
+  const [showPolicyHelp, setShowPolicyHelp] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState('');
@@ -495,9 +546,10 @@ const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) =
     const load = async () => {
       setLoading(true); setError('');
       try {
-        const data = await getSlotsCached(session.hospitalName, selectedDate, modality);
+        const data = await getSlotsCached(session.hospitalName, session.hospitalUsername, selectedDate, modality);
         if (data.status === 'success') {
           setSlots(data.slots || []);
+          setBookingPolicy(data.bookingPolicy || null);
           if ((data.slots || []).length === 0) setError(data.message || 'No slots available on this date.');
         } else {
           setError(data.message || 'Unable to load slots.');
@@ -515,6 +567,8 @@ const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) =
     return { ...s, expired, availableNow: s.available && !expired };
   });
   const available = visibleSlots.filter(s => s.availableNow);
+  const selectedSlot = visibleSlots.find(s => s.time === selected);
+  const requiresBulkHelp = bookingPolicy && bookingPolicy.requiresBulk;
 
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, {
@@ -522,13 +576,24 @@ const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) =
       subtitle: `${getDayName(selectedDate)}, ${formatDate(selectedDate)} - ${modalityLabel(modality)}`,
       onBack
     }),
-    React.createElement('div', { className: 'px-6 pt-6' },
+    React.createElement('div', { className: 'clinical-screen px-6 lg:px-8 pt-6' },
       loading ? React.createElement(Spinner) :
       error ? React.createElement('div', { className: 'bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-800 text-center' },
         React.createElement('p', { className: 'text-2xl mb-2' }, '📅'),
         React.createElement('p', { className: 'font-medium' }, error)
       ) :
       React.createElement('div', { className: 'fade-in' },
+        requiresBulkHelp && showPolicyHelp && React.createElement('div', { className: 'bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4' },
+          React.createElement('div', { className: 'flex items-start justify-between gap-3' },
+            React.createElement('div', {},
+              React.createElement('p', { className: 'text-sm font-semibold text-blue-900' }, 'Minimum booking block'),
+              React.createElement('p', { className: 'text-xs text-blue-700 leading-relaxed mt-1' },
+                `To keep healthcare worker travel and setup time efficient, this hospital books a minimum ${bookingPolicy.minimumBookingMinutes}-minute block unless the new slot continues an existing booking window.`
+              )
+            ),
+            React.createElement('button', { type: 'button', onClick: () => setShowPolicyHelp(false), className: 'text-xs font-semibold text-blue-700 flex-shrink-0' }, 'Hide')
+          )
+        ),
         React.createElement('div', { className: 'flex items-end justify-between gap-3 mb-4' },
           React.createElement('div', {},
             React.createElement('p', { className: 'text-sm font-semibold text-slate-800' },
@@ -541,7 +606,7 @@ const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) =
             'Booked'
           )
         ),
-        React.createElement('div', { className: 'grid grid-cols-3 gap-2.5 mb-6' },
+        React.createElement('div', { className: 'grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 mb-6' },
           visibleSlots.map(s =>
             React.createElement('button', {
               key: s.time,
@@ -558,15 +623,18 @@ const SelectTimeScreen = ({ session, selectedDate, modality, onNext, onBack }) =
               React.createElement('p', { className: 'font-bold' }, formatTime12(s.time).split(' ')[0]),
               React.createElement('p', { className: `text-xs mt-0.5 ${!s.availableNow ? 'text-slate-400' : selected === s.time ? 'text-white/70' : 'text-slate-400'}` },
                 s.availableNow ? formatTime12(s.time).split(' ')[1] : s.expired ? 'Passed' : 'Booked'
+              ),
+              s.availableNow && s.requiresBulk && React.createElement('p', { className: `text-[10px] mt-1 ${selected === s.time ? 'text-white/80' : 'text-blue-500'}` },
+                `${s.bookingDuration} min block`
               )
             )
           )
         )
       )
     ),
-    !loading && !error && React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+    !loading && !error && React.createElement('div', { className: 'clinical-fixed-bottom fixed bottom-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg' },
       React.createElement('div', { className: 'max-w-[480px] mx-auto' },
-        React.createElement(Button, { onClick: () => onNext(selected), disabled: !selected },
+        React.createElement(Button, { onClick: () => onNext(selectedSlot || { time: selected }), disabled: !selected },
           selected ? `Continue — ${formatTime12(selected)}` : 'Select a Time Slot'
         )
       )
@@ -591,7 +659,7 @@ const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime, modalit
       subtitle: `${formatDate(selectedDate)} at ${formatTime12(selectedTime)} - ${modalityLabel(modality)}`,
       onBack
     }),
-    React.createElement('div', { className: 'px-6 pt-6 space-y-5' },
+    React.createElement('div', { className: 'clinical-screen px-6 lg:px-8 pt-6 space-y-5 max-w-3xl' },
       React.createElement(Card, {},
         React.createElement('div', { className: 'flex items-start gap-3 mb-1' },
           React.createElement('button', {
@@ -636,7 +704,7 @@ const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime, modalit
         )
       )
     ),
-    React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+    React.createElement('div', { className: 'clinical-fixed-bottom fixed bottom-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg' },
       React.createElement('div', { className: 'max-w-[480px] mx-auto' },
         React.createElement(Button, {
           onClick: () => onNext({ babyName: isWalkin ? '' : babyName.trim(), babyDob: isWalkin ? '' : babyDob, parentPhone: isWalkin ? '' : parentPhone, isWalkin }),
@@ -648,7 +716,7 @@ const BabyDetailsScreen = ({ onNext, onBack, selectedDate, selectedTime, modalit
 };
 
 // ─── SCREEN: Book Appointment — Step 4: Confirm ───────────────────
-const ConfirmScreen = ({ session, selectedDate, selectedTime, modality, babyDetails, onConfirm, onBack }) => {
+const ConfirmScreen = ({ session, selectedDate, selectedTime, selectedSlot, modality, babyDetails, onConfirm, onBack }) => {
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState('');
 
@@ -662,6 +730,7 @@ const ConfirmScreen = ({ session, selectedDate, selectedTime, modality, babyDeta
     ['Hospital', session.hospitalName],
     ['Date', `${getDayName(selectedDate)}, ${formatDate(selectedDate)}`],
     ['Time', formatTime12(selectedTime)],
+    selectedSlot && selectedSlot.bookingDuration ? ['Booking Window', `${formatTime12(selectedTime)} - ${formatTime12(selectedSlot.blockEndTime)} (${selectedSlot.bookingDuration} minutes)`] : null,
     ['Modality', modalityLabel(modality)],
     ['Patient', babyDetails.isWalkin ? 'Walk-in Slot' : babyDetails.babyName],
     babyDetails.babyDob ? ['Date of Birth', formatDate(babyDetails.babyDob)] : null,
@@ -670,7 +739,7 @@ const ConfirmScreen = ({ session, selectedDate, selectedTime, modality, babyDeta
 
   return React.createElement('div', { className: 'min-h-screen pb-28' },
     React.createElement(Header, { title: 'Confirm Booking', subtitle: 'Review details before submitting', onBack }),
-    React.createElement('div', { className: 'px-6 pt-6 space-y-4' },
+    React.createElement('div', { className: 'clinical-screen px-6 lg:px-8 pt-6 space-y-4 max-w-3xl' },
       React.createElement(Card, {},
         React.createElement('h3', { className: 'text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4' }, 'Appointment Summary'),
         React.createElement('div', { className: 'space-y-3' },
@@ -683,22 +752,24 @@ const ConfirmScreen = ({ session, selectedDate, selectedTime, modality, babyDeta
         )
       ),
       React.createElement('div', { className: 'space-y-1.5' },
-        React.createElement('label', { className: 'text-sm font-medium text-gray-700 ml-1 block' }, 'Additional Notes'),
+        React.createElement('label', { className: 'text-[10px] font-black uppercase tracking-[0.1em] text-slate-500 ml-1 block' }, 'Additional Notes'),
         React.createElement('textarea', {
           value: notes,
           onChange: e => setNotes(e.target.value),
           placeholder: 'Any special requirements or notes for the healthcare worker (optional)…',
           rows: 3,
-          className: 'w-full bg-slate-100 border border-transparent rounded-lg px-4 py-3.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none text-sm'
+          className: 'w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3.5 text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/25 resize-none text-sm'
         })
       ),
-      React.createElement('div', { className: 'bg-blue-50 border border-blue-100 rounded-lg p-4' },
+      React.createElement('div', { className: 'bg-blue-50 border border-blue-100 rounded-xl p-4' },
         React.createElement('p', { className: 'text-xs text-blue-700 leading-relaxed' },
-          'The slot is reserved immediately. Email confirmation and the calendar invite are prepared just after the booking is saved.'
+          selectedSlot && selectedSlot.requiresBulk
+            ? 'This booking reserves a longer block because your hospital is configured for minimum block bookings. Email confirmation and the calendar invite are prepared just after the booking is saved.'
+            : 'The slot is reserved immediately. Email confirmation and the calendar invite are prepared just after the booking is saved.'
         )
       )
     ),
-    React.createElement('div', { className: 'fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg' },
+    React.createElement('div', { className: 'clinical-fixed-bottom fixed bottom-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg' },
       React.createElement('div', { className: 'max-w-[480px] mx-auto' },
         React.createElement(Button, { onClick: handleConfirm, loading }, 'Confirm Appointment')
       )
@@ -799,13 +870,13 @@ const AppointmentsScreen = ({ session, onBack }) => {
   return React.createElement('div', { className: 'min-h-screen pb-8' },
     toast && React.createElement(Toast, { ...toast, onDismiss: () => setToast(null) }),
     React.createElement(Header, { title: 'My Appointments', subtitle: session.hospitalName, onBack }),
-    React.createElement('div', { className: 'px-6 pt-5' },
-      React.createElement('div', { className: 'flex gap-2 mb-5 bg-secondary rounded-xl p-1' },
+    React.createElement('div', { className: 'clinical-screen px-6 lg:px-8 pt-5' },
+      React.createElement('div', { className: 'flex gap-2 mb-5 bg-white border border-slate-200 rounded-xl p-1' },
         [['upcoming','Upcoming'],['past','Past'],['cancelled','Cancelled']].map(([val, label]) =>
           React.createElement('button', {
             key: val, onClick: () => setFilter(val),
             className: `flex-1 py-2 text-sm font-medium rounded-lg transition-all
-              ${filter === val ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
+              ${filter === val ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`
           }, label)
         )
       ),
@@ -863,7 +934,7 @@ const AppointmentsScreen = ({ session, onBack }) => {
 const App = () => {
   const [screen, setScreen] = useState('login');
   const [session, setSession] = useState(null);
-  const [booking, setBooking] = useState({ date: '', modality: '', time: '', babyDetails: null });
+  const [booking, setBooking] = useState({ date: '', modality: '', time: '', selectedSlot: null, babyDetails: null });
   const [bookingResult, setBookingResult] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -879,7 +950,7 @@ const App = () => {
 
   const handleLogout = () => {
     setSession(null);
-    setBooking({ date: '', modality: '', time: '', babyDetails: null });
+    setBooking({ date: '', modality: '', time: '', selectedSlot: null, babyDetails: null });
     setBookingResult(null);
     setScreen('login');
   };
@@ -900,7 +971,7 @@ const App = () => {
         fast: true
       });
       if (data.status === 'success') {
-        slotCache.delete(slotCacheKey(session.hospitalName, booking.date, booking.modality));
+        slotCache.delete(slotCacheKey(session.hospitalName, session.hospitalUsername, booking.date, booking.modality));
         setBookingResult({ appointmentId: data.appointmentId, assignedHCWName: data.assignedHCWName });
         setScreen('success');
         apiPost({ action: 'finalizeAppointment', appointmentId: data.appointmentId })
@@ -914,9 +985,22 @@ const App = () => {
     }
   };
 
-  return React.createElement('div', {},
+  if (!session) {
+    return React.createElement('div', {},
+      toast && React.createElement(Toast, { ...toast, onDismiss: () => setToast(null) }),
+      React.createElement(LoginScreen, { onLogin: handleLogin })
+    );
+  }
+
+  return React.createElement(AppShell, {
+    session,
+    screen,
+    onHome: () => setScreen('home'),
+    onBookNew: () => setScreen('selectDate'),
+    onViewAppointments: () => setScreen('appointments'),
+    onLogout: handleLogout
+  },
     toast && React.createElement(Toast, { ...toast, onDismiss: () => setToast(null) }),
-    screen === 'login' && React.createElement(LoginScreen, { onLogin: handleLogin }),
     screen === 'home' && React.createElement(HomeScreen, {
       session,
       onBookNew: () => setScreen('selectDate'),
@@ -931,7 +1015,7 @@ const App = () => {
       session,
       onBack: () => setScreen('home'),
       onNext: (date) => {
-        setBooking(p => ({ ...p, date }));
+        setBooking(p => ({ ...p, date, modality: '', time: '', selectedSlot: null, babyDetails: null }));
         setScreen('selectModality');
       }
     }),
@@ -939,7 +1023,7 @@ const App = () => {
       selectedDate: booking.date,
       onBack: () => setScreen('selectDate'),
       onNext: (modality) => {
-        setBooking(p => ({ ...p, modality }));
+        setBooking(p => ({ ...p, modality, time: '', selectedSlot: null, babyDetails: null }));
         setScreen('selectTime');
       }
     }),
@@ -948,14 +1032,15 @@ const App = () => {
       selectedDate: booking.date,
       modality: booking.modality,
       onBack: () => setScreen('selectModality'),
-      onNext: (time) => {
-        setBooking(p => ({ ...p, time }));
+      onNext: (slot) => {
+        setBooking(p => ({ ...p, time: slot.time, selectedSlot: slot }));
         setScreen('babyDetails');
       }
     }),
     screen === 'babyDetails' && React.createElement(BabyDetailsScreen, {
       selectedDate: booking.date,
       selectedTime: booking.time,
+      selectedSlot: booking.selectedSlot,
       modality: booking.modality,
       onBack: () => setScreen('selectTime'),
       onNext: (babyDetails) => {
@@ -967,6 +1052,7 @@ const App = () => {
       session,
       selectedDate: booking.date,
       selectedTime: booking.time,
+      selectedSlot: booking.selectedSlot,
       modality: booking.modality,
       babyDetails: booking.babyDetails,
       onBack: () => setScreen('babyDetails'),
@@ -979,7 +1065,7 @@ const App = () => {
       modality: booking.modality,
       babyDetails: booking.babyDetails,
       onDone: () => {
-        setBooking({ date: '', modality: '', time: '', babyDetails: null });
+        setBooking({ date: '', modality: '', time: '', selectedSlot: null, babyDetails: null });
         setBookingResult(null);
         setScreen('home');
       }
